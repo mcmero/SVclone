@@ -55,12 +55,22 @@ def is_supporting_split_read(r,pos):
     to the other side - should it, or is that implicit?
     """
     #TODO: check that split read has valid insert size
-    if r['align_start'] == 0:
+    if r['align_start'] < (tr/2): #a "soft" threshold if it is soft-clipped at the other end
         return r['ref_end'] > (pos - tr) and r['ref_end'] < (pos + tr) and \
             (r['len'] - r['align_end'] >= sc_len)
     else:
         return r['ref_start'] > (pos - tr) and r['ref_start'] < (pos + tr) and \
             (r['align_start'] >= sc_len)
+
+def get_sc_bases(r,pos):
+    """
+    Return the number of soft-clipped bases
+    """
+    if r['align_start'] < (tr/2):
+        return r['len'] - r['align_end']
+    else:
+        return r['align_start']
+    
 
 def get_bp_dist(x,bp_pos):
     if x['is_reverse']: 
@@ -184,7 +194,9 @@ def get_loc_counts(loc_reads,pos,rc,reproc,split,bp_num=1):
         elif is_supporting_split_read(x,pos):
             split = np.append(split,x)            
             split_supp = 'bp%d_split'%bp_num
+            split_cnt = 'bp%d_sc_bases'%bp_num
             rc[split_supp] = rc[split_supp]+1 
+            rc[split_cnt] = rc[split_cnt]+get_sc_bases(x,pos)
         elif r2!=None and r1['query_name']==r2['query_name'] and is_normal_spanning(r1,r2,pos):
             span_norm = 'bp%d_span_norm'%bp_num
             rc[span_norm] = rc[span_norm]+1 
@@ -270,8 +282,8 @@ def run(svin,bam,out):
     bp_dtype = [('chrom','S20'),('start', int), ('end', int), ('dir', 'S2')]
     svs = pd.read_csv(svin,delimiter='\t')
 
-    columns = ['sv','bp1_split_norm','bp1_span_norm','bp1_win_norm','bp1_split', \
-               'bp2_split_norm','bp2_span_norm','bp2_win_norm','bp2_split','spanning']
+    columns = ['sv','bp1_split_norm','bp1_span_norm','bp1_win_norm','bp1_split', 'bp1_sc_bases', \
+               'bp2_split_norm','bp2_span_norm','bp2_win_norm','bp2_split','bp2_sc_bases','spanning']
     rinfo = pd.DataFrame(columns=columns,index=range(len(svs.index)))
     
     for idx,row in svs.iterrows():        
