@@ -13,6 +13,7 @@ import ipdb
 import pysam
 import pandas as pd
 import bamtools
+import sys
 from subprocess import call
 from itertools import permutations
 from numpy import loadtxt
@@ -78,7 +79,7 @@ def get_bp_dist(x,bp_pos):
     else: 
         return (bp_pos - x['ref_start'])
 
-def is_supporting_spanning_pair(r,m,bp1,bp2,sv_type,inserts):
+def is_supporting_spanning_pair(r,m,bp1,bp2,inserts):
     pos1 = (bp1['start'] + bp1['end']) / 2
     pos2 = (bp2['start'] + bp2['end']) / 2
     dir1 = bp1['dir']
@@ -100,11 +101,6 @@ def is_supporting_spanning_pair(r,m,bp1,bp2,sv_type,inserts):
 #        elif dir1 == dir2:
 #            return False #not a duplicaton?
     
-    #if (r['is_reverse'] and not m['is_reverse']):
-    #    if r['ref_start']-m['ref_end'] < max_ins: return False
-    #elif (not r['is_reverse'] and m['is_reverse']):
-    #    if m['ref_start']-r['ref_end'] < max_ins: return False
-
     max_ins = 2*inserts[1]+inserts[0]
     #ensure this isn't just a regular old spanning pair    
     if r['chrom']==m['chrom']:
@@ -115,9 +111,6 @@ def is_supporting_spanning_pair(r,m,bp1,bp2,sv_type,inserts):
 
     ins_dist1 = get_bp_dist(r,pos1)
     ins_dist2 = get_bp_dist(m,pos2)
-
-    #if r['query_name']=='SimSeq_1f5dfd':
-    #    ipdb.set_trace()
 
     if ins_dist1<0 or ins_dist2<0:
         return False
@@ -153,7 +146,6 @@ def reads_to_sam(reads,bam,bp1,bp2,name):
     sam_name = '%s_%s-%s' % (name,loc1,loc2)
     bam_out = pysam.AlignmentFile('%s.sam'%sam_name, "w", header=bamf.header)
     
-    #ipdb.set_trace()
     for x in iter_loc1:
         [bam_out.write(x) for r in reads if r['query_name']==x.query_name]
     for x in iter_loc2:
@@ -162,10 +154,6 @@ def reads_to_sam(reads,bam,bp1,bp2,name):
     bamf.close()
     bam_out.close()
     
-    #subprocess.call(['samtools','view','-hbS','%s.sam'%sam_name],stdout=open('%s.bam'%sam_name,'w'))
-    #subprocess.call(['samtools','sort','%s.bam'%sam_name,'%s_sort'%sam_name])
-    #subprocess.call(['samtools','index','%s_sort.bam'%sam_name])
-
 def windowed_norm_read_count(loc_reads,inserts):
     max_ins = 3*inserts[1]+inserts[0]
     cnorm = 0
@@ -204,7 +192,7 @@ def get_loc_counts(loc_reads,pos,rc,reproc,split,bp_num=1):
             reproc = np.append(reproc,x) #may be spanning support or anomalous
     return rc, reproc, split
 
-def get_sv_read_counts(bp1,bp2,bam,columns,sv_type,inserts):
+def get_sv_read_counts(bp1,bp2,bam,columns,inserts):
     bamf = pysam.AlignmentFile(bam, "rb")
     pos1 = (bp1['start'] + bp1['end']) / 2
     pos2 = (bp2['start'] + bp2['end']) / 2
@@ -221,31 +209,6 @@ def get_sv_read_counts(bp1,bp2,bam,columns,sv_type,inserts):
     rc, reproc, split = get_loc_counts(loc2_reads,pos2,rc,reproc,split,2)
     rc['bp1_win_norm'] = windowed_norm_read_count(loc1_reads,inserts)
     rc['bp2_win_norm'] = windowed_norm_read_count(loc2_reads,inserts)
-#    for idx,x in enumerate(loc1_reads):
-#        r1 = loc1_reads[idx]
-#        r2 = loc1_reads[idx+1] if (idx+2)<=len(loc1_reads) else None
-#        if is_normal_across_break(x,pos1):
-#            rc['bp1_split_norm'] = rc['bp1_split_norm']+1 
-#        elif is_supporting_split_read(x,pos1):
-#            split = np.append(split,x)
-#            rc['bp1_split'] = rc['bp1_split']+1 
-#        elif r2!=None and r1['query_name']==r2['query_name'] and is_normal_spanning_break(r1,r2,pos1):
-#                rc['bp1_span_norm'] = rc['bp1_span_norm']+1 
-#        else:
-#            reproc = np.append(reproc,x) #may be spanning support or anomalous
-#    
-#    for idx,x in enumerate(loc2_reads):
-#        r1 = loc2_reads[idx]
-#        r2 = loc2_reads[idx+1] if (idx+2)<=len(loc2_reads) else None
-#        if is_normal_across_break(x,pos2):
-#            rc['bp2_split_norm'] = rc['bp2_split_norm']+1 
-#        elif is_supporting_split_read(x,pos2):
-#            split = np.append(split,x)
-#            rc['bp2_split'] = rc['bp2_split']+1 
-#        elif r2!=None and r1['query_name']==r2['query_name'] and is_normal_spanning_break(r1,r2,pos2):
-#                rc['bp2_span_norm'] = rc['bp2_span_norm']+1 
-#        else:
-#            reproc = np.append(reproc,x) #may be spanning support or anomalous
      
     reproc = np.sort(reproc,axis=0,order=['query_name','ref_start'])
     span = np.empty([0,len(read_dtype)],dtype=read_dtype)
@@ -264,18 +227,29 @@ def get_sv_read_counts(bp1,bp2,bam,columns,sv_type,inserts):
             (pos1 > pos2 and bp1['chrom']==bp2['chrom']):
             r1 = mate
             r2 = np.array(x,copy=True)
-        if is_supporting_spanning_pair(r1,r2,bp1,bp2,sv_type,inserts):
+        if is_supporting_spanning_pair(r1,r2,bp1,bp2,inserts):
             span = np.append(span,r1)            
             rc['spanning'] = rc['spanning']+1 
         #else:
         #    rc['bp1_anomalous'] = rc['bp1_anomalous']+1
     reads_to_sam(span,bam,bp1,bp2,'span')
     reads_to_sam(split,bam,bp1,bp2,'split')
-    #if pos1==24912998:
-    #    ipdb.set_trace()
     return rc
 
-def run(svin,bam,out):    
+def proc_header(header,columns):
+    hd = pd.read_csv(header,delimiter='=',header=None)
+    hdt = pd.DataFrame(hd[1].values,index=hd[0].values).transpose()
+    keyfields = ['bp1_chr','bp1_pos','bp1_dir','bp2_chr','bp2_pos','bp2_dir','classification']
+    if not np.all(np.sort(map(str,columns))==np.sort(hd[1].values)):
+        print('Headers in cfg and input file do not match! Exiting')
+        sys.exit()
+    try:
+        return hdt[keyfields].values[0]
+    except KeyError: 
+        print('Key fields incorrect. Set key fields as bp1_chr, bp1_pos, bp1_dir, bp2_chr,bp2_pos, bp2_dir and classification')
+        sys.exit()
+
+def run(svin,bam,out,header):    
     inserts = bamtools.estimateInsertSizeDistribution(bam)
     #rlen = bamtools.estimateTagSize(bam)
     
@@ -285,15 +259,15 @@ def run(svin,bam,out):
     columns = ['sv','bp1_split_norm','bp1_span_norm','bp1_win_norm','bp1_split', 'bp1_sc_bases', \
                'bp2_split_norm','bp2_span_norm','bp2_win_norm','bp2_split','bp2_sc_bases','spanning']
     rinfo = pd.DataFrame(columns=columns,index=range(len(svs.index)))
-    
-    for idx,row in svs.iterrows():        
-        bp1 = np.array((row.bp1_chr,row.bp1_pos-window,row.bp1_pos+window,row.bp1_dir),dtype=bp_dtype)
-        bp2 = np.array((row.bp2_chr,row.bp2_pos-window,row.bp2_pos+window,row.bp2_dir),dtype=bp_dtype)                     
+   
+    bp1_chr,bp1_pos,bp1_dir,bp2_chr,bp2_pos,bp2_dir,classification = proc_header(header,svs.columns)
+
+    for idx,row in svs.iterrows():
+        bp1 = np.array((row[bp1_chr],row[bp1_pos]-window,row[bp1_pos]+window,row[bp1_dir]),dtype=bp_dtype)
+        bp2 = np.array((row[bp2_chr],row[bp2_pos]-window,row[bp2_pos]+window,row[bp2_dir]),dtype=bp_dtype)                     
         
-        sv_rc  = get_sv_read_counts(bp1,bp2,bam,columns,row.classification,inserts)
+        sv_rc  = get_sv_read_counts(bp1,bp2,bam,columns,inserts)
         rinfo.loc[idx] = sv_rc
-        #print rinfo
-        #break   
 
     #subprocess.call(['samtools','view','-H',bam],stdout=open('head.sam','w'))
     #subprocess.call(['cat','head.sam','span_*.sam'],stdout=open('spanning_all.sam','w'),shell=True)
