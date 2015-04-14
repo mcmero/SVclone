@@ -12,8 +12,10 @@ import itertools
 import ipdb
 import pysam
 import pandas as pd
+import pandasql
 import bamtools
 import sys
+import sqlite3
 from subprocess import call
 from itertools import permutations
 from numpy import loadtxt
@@ -200,8 +202,8 @@ def get_sv_read_counts(bp1,bp2,bam,columns,inserts):
     loc2_reads = get_loc_reads(bp2,bamf)
     bamf.close() 
     
-    rc = pd.Series(np.zeros(len(columns)),index=columns)
-    rc['sv']='%s:%d-%s:%d'%(bp1['chrom'],pos1,bp2['chrom'],pos2)
+    rc = pd.Series(np.zeros(len(columns)),index=columns,dtype='int')
+    #rc['sv']='%s:%d-%s:%d'%(bp1['chrom'],pos1,bp2['chrom'],pos2)
     reproc = np.empty([0,len(read_dtype)],dtype=read_dtype)
     
     split = np.empty([0,len(read_dtype)],dtype=read_dtype)
@@ -232,8 +234,8 @@ def get_sv_read_counts(bp1,bp2,bam,columns,inserts):
             rc['spanning'] = rc['spanning']+1 
         #else:
         #    rc['bp1_anomalous'] = rc['bp1_anomalous']+1
-    reads_to_sam(span,bam,bp1,bp2,'span')
-    reads_to_sam(split,bam,bp1,bp2,'split')
+    #reads_to_sam(span,bam,bp1,bp2,'span')
+    #reads_to_sam(split,bam,bp1,bp2,'split')
     return rc
 
 def proc_header(header,columns):
@@ -249,45 +251,57 @@ def proc_header(header,columns):
         print('Key fields incorrect. Set key fields as bp1_chr, bp1_pos, bp1_dir, bp2_chr,bp2_pos, bp2_dir and classification')
         sys.exit()
 
-def run(svin,bam,out,header):    
+def run(svin,bam,out,header,db_out):    
     inserts = bamtools.estimateInsertSizeDistribution(bam)
+    con = sqlite3.connect(db_out)
     #rlen = bamtools.estimateTagSize(bam)
     
     bp_dtype = [('chrom','S20'),('start', int), ('end', int), ('dir', 'S2')]
-    svs = pd.read_csv(svin,delimiter='\t')
+    sv_dtype = [('bp1_chr','S20'),('bp1_pos',int),('bp1_dir','S5'),('bp2_chr','S20'), \
+                ('bp2_pos',int),('bp2_dir','S5'),('classification','S100')]               
+    #TODO: make this flexible
+    svs = pd.read_csv(svin,delimiter='\t',dtype=sv_dtype)
 
-    columns = ['sv','bp1_split_norm','bp1_span_norm','bp1_win_norm','bp1_split', 'bp1_sc_bases', \
+    columns = ['bp1_split_norm','bp1_span_norm','bp1_win_norm','bp1_split','bp1_sc_bases', \
                'bp2_split_norm','bp2_span_norm','bp2_win_norm','bp2_split','bp2_sc_bases','spanning']
-    rinfo = pd.DataFrame(columns=columns,index=range(len(svs.index)))
+    #rinfo = pd.DataFrame(columns=columns,index=range(len(svs.index)),dtype='float')
    
     bp1_chr,bp1_pos,bp1_dir,bp2_chr,bp2_pos,bp2_dir,classification = proc_header(header,svs.columns)
 
     for idx,row in svs.iterrows():
         bp1 = np.array((row[bp1_chr],row[bp1_pos]-window,row[bp1_pos]+window,row[bp1_dir]),dtype=bp_dtype)
-        bp2 = np.array((row[bp2_chr],row[bp2_pos]-window,row[bp2_pos]+window,row[bp2_dir]),dtype=bp_dtype)                     
-        
+        bp2 = np.array((row[bp2_chr],row[bp2_pos]-window,row[bp2_pos]+window,row[bp2_dir]),dtype=bp_dtype)
         sv_rc  = get_sv_read_counts(bp1,bp2,bam,columns,inserts)
-        rinfo.loc[idx] = sv_rc
+        newrow = pd.DataFrame(row.append(sv_rc)).transpose()
+        newrow['norm1']=sv_rc['bp1_split_norm']+sv_rc['bp1_span_norm']
+        newrow['norm2']=sv_rc['bp2_split_norm']+sv_rc['bp2_span_norm']
+        newrow['support']=sv_rc['bp1_split']+sv_rc['bp2_split']+sv_rc['spanning']
+        newrow['vaf1']=newrow['support']/(newrow['support']+newrow['norm1'])
+        newrow['vaf2']=newrow['support']/(newrow['support']+newrow['norm2'])
+        #rinfo.loc[idx] = sv_rc
+        newrow.to_sql('sv_info',con,if_exists='append',index=False)
 
+    pd.read_sql('select * from sv_info',con).to_csv(out,sep="\t",index=False)
+    con.close()
     #subprocess.call(['samtools','view','-H',bam],stdout=open('head.sam','w'))
     #subprocess.call(['cat','head.sam','span_*.sam'],stdout=open('spanning_all.sam','w'),shell=True)
     #subprocess.call(['samtools','view','-hbS','spanning_all.sam'],stdout=open('spanning_all.bam','w'))
     #subprocess.call(['samtools','sort','spanning_all.bam','spanning_all_sort'])
     #subprocess.call(['samtools','index','spanning_all_sort.bam'])
 
-    rinfo = svs.join(rinfo)
-    #calculate VAFs
-    vafs = pd.DataFrame(columns=['bp1_norm','bp2_norm','support','vaf1','vaf2'],index=range(len(svs.index)))
-    for idx,ri in rinfo.iterrows():
-        support = (float(ri['bp1_split'])+float(ri['bp2_split'])+float(ri['spanning']))
-        norm1 = float(ri['bp1_split_norm'])+float(ri['bp1_span_norm'])
-        norm2 = float(ri['bp2_split_norm'])+float(ri['bp2_span_norm'])
-        vafs['bp1_norm'][idx] = norm1
-        vafs['bp2_norm'][idx] = norm2
-        vafs['support'][idx] = support
-        vafs['vaf1'][idx] = support / (support + norm1)
-        vafs['vaf2'][idx] = support / (support + norm2)
-    rinfo = rinfo.join(vafs)
-    print rinfo
-    rinfo.to_csv(out,sep="\t",index=False)    
+#    rinfo = svs.join(rinfo)
+#    #calculate VAFs
+#    vafs = pd.DataFrame(columns=['bp1_norm','bp2_norm','support','vaf1','vaf2'],index=range(len(svs.index)))
+#    for idx,ri in rinfo.iterrows():
+#        support = (float(ri['bp1_split'])+float(ri['bp2_split'])+float(ri['spanning']))
+#        norm1 = float(ri['bp1_split_norm'])+float(ri['bp1_span_norm'])
+#        norm2 = float(ri['bp2_split_norm'])+float(ri['bp2_span_norm'])
+#        vafs['bp1_norm'][idx] = norm1
+#        vafs['bp2_norm'][idx] = norm2
+#        vafs['support'][idx] = support
+#        vafs['vaf1'][idx] = support / (support + norm1)
+#        vafs['vaf2'][idx] = support / (support + norm2)
+#    rinfo = rinfo.join(vafs)
+#    print rinfo
+#    rinfo.to_csv(out,sep="\t",index=False)    
 
