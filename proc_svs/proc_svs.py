@@ -3,11 +3,8 @@ Get SV output, run post processing
 '''
 
 import os
-import csv
 import string
 import numpy as np
-import subprocess
-import argparse
 import itertools
 import ipdb
 import pysam
@@ -16,10 +13,7 @@ import pandasql
 import bamtools
 import sys
 import sqlite3
-from subprocess import call
-from itertools import permutations
-from numpy import loadtxt
-from scipy import stats
+import subprocess
 
 tr = 10 #threshold by how much read has to overlap breakpoint
 sc_len = 25 #soft-clip threshold by which we call split reads
@@ -198,8 +192,10 @@ def get_sv_read_counts(bp1,bp2,bam,columns,inserts):
     bamf = pysam.AlignmentFile(bam, "rb")
     pos1 = (bp1['start'] + bp1['end']) / 2
     pos2 = (bp2['start'] + bp2['end']) / 2
-    loc1_reads = get_loc_reads(bp1,bamf)
-    loc2_reads = get_loc_reads(bp2,bamf)
+    loc1_reads = get_loc_reads(bp1,bamf)    
+    print('%d reads extracted'%len(loc1_reads))
+    loc2_reads = get_loc_reads(bp2,bamf)    
+    print('%d reads extracted'%len(loc2_reads))
     bamf.close() 
     
     rc = pd.Series(np.zeros(len(columns)),index=columns,dtype='int')
@@ -253,7 +249,6 @@ def proc_header(header,columns):
 
 def run(svin,bam,out,header,db_out):    
     inserts = bamtools.estimateInsertSizeDistribution(bam)
-    con = sqlite3.connect(db_out)
     #rlen = bamtools.estimateTagSize(bam)
     
     bp_dtype = [('chrom','S20'),('start', int), ('end', int), ('dir', 'S2')]
@@ -279,10 +274,14 @@ def run(svin,bam,out,header,db_out):
         newrow['vaf1']=newrow['support']/(newrow['support']+newrow['norm1'])
         newrow['vaf2']=newrow['support']/(newrow['support']+newrow['norm2'])
         #rinfo.loc[idx] = sv_rc
+        con = sqlite3.connect(db_out)
         newrow.to_sql('sv_info',con,if_exists='append',index=False)
-
+        con.close()
+        print('processed %s:%d|%s:%d'%(row[bp1_chr],row[bp1_pos],row[bp2_chr],row[bp2_pos]))
+    con = sqlite3.connect(db_out)
     pd.read_sql('select * from sv_info',con).to_csv(out,sep="\t",index=False)
     con.close()
+    #con.close()
     #subprocess.call(['samtools','view','-H',bam],stdout=open('head.sam','w'))
     #subprocess.call(['cat','head.sam','span_*.sam'],stdout=open('spanning_all.sam','w'),shell=True)
     #subprocess.call(['samtools','view','-hbS','spanning_all.sam'],stdout=open('spanning_all.bam','w'))

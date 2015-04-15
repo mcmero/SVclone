@@ -15,7 +15,7 @@ def isPaired(bamfile, alignments=1000):
     True if any of the alignments are paired.
     '''
 
-    samfile = pysam.Samfile(bamfile)
+    samfile = pysam.AlignmentFile(bamfile)
     n = 0
     for read in samfile:
         if read.is_paired:
@@ -40,7 +40,7 @@ def estimateInsertSizeDistribution(bamfile,
         'can only estimate insert size from' \
         'paired bam files'
 
-    samfile = pysam.Samfile(bamfile)
+    samfile = pysam.AlignmentFile(bamfile)
     # only get positive to avoid double counting
     inserts = numpy.array(
         [read.tlen for read in samfile.head(alignments)
@@ -52,7 +52,7 @@ def estimateTagSize(bamfile,
                     alignments=10,
                     multiple="error"):
     '''estimate tag size from first alignments in file.'''
-    samfile = pysam.Samfile(bamfile)
+    samfile = pysam.AlignmentFile(bamfile)
     sizes = [read.rlen for read in samfile.head(alignments)]
     mi, ma = min(sizes), max(sizes)
 
@@ -74,7 +74,7 @@ def estimateTagSize(bamfile,
 def getNumberOfAlignments(bamfile):
     '''return number of alignments in bamfile.
     '''
-    samfile = pysam.Samfile(bamfile)
+    samfile = pysam.AlignmentFile(bamfile)
     return samfile.mapped
 
 
