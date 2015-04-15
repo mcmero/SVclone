@@ -15,6 +15,7 @@ parser.add_argument("bam")
 parser.add_argument("out")
 parser.add_argument("header")
 parser.add_argument("db_out")
+parser.add_argument("mean_depth")
 args = parser.parse_args()
 
 svin = args.svin
@@ -22,6 +23,7 @@ bam = args.bam
 out = args.out
 hd_cfg = args.header
 db_out = args.db_out
+mean_dp = int(args.mean_depth)
 
 if __name__ == '__main__':
-    proc_svs.run(svin,bam,out,hd_cfg,db_out)
+    proc_svs.run(svin,bam,out,hd_cfg,db_out,mean_dp)

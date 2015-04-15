@@ -18,6 +18,7 @@ import subprocess
 tr = 10 #threshold by how much read has to overlap breakpoint
 sc_len = 25 #soft-clip threshold by which we call split reads
 window = 500
+max_cn=15
 
 read_dtype = [('query_name', 'S25'), ('chrom', 'S10'), ('ref_start', int), ('ref_end', int), \
               ('align_start', int), ('align_end', int), ('len', int), ('is_reverse', np.bool)]
@@ -188,14 +189,17 @@ def get_loc_counts(loc_reads,pos,rc,reproc,split,bp_num=1):
             reproc = np.append(reproc,x) #may be spanning support or anomalous
     return rc, reproc, split
 
-def get_sv_read_counts(bp1,bp2,bam,columns,inserts):
+def get_sv_read_counts(bp1,bp2,bam,columns,inserts,max_dp):
     bamf = pysam.AlignmentFile(bam, "rb")
     pos1 = (bp1['start'] + bp1['end']) / 2
     pos2 = (bp2['start'] + bp2['end']) / 2
     loc1_reads = get_loc_reads(bp1,bamf)    
-    print('%d reads extracted'%len(loc1_reads))
     loc2_reads = get_loc_reads(bp2,bamf)    
+    
+    print('%d reads extracted'%len(loc1_reads))
     print('%d reads extracted'%len(loc2_reads))
+    if len(loc1_reads)>max_dp or len(loc2_reads)>max_dp:
+        return pd.Series
     bamf.close() 
     
     rc = pd.Series(np.zeros(len(columns)),index=columns,dtype='int')
@@ -247,10 +251,11 @@ def proc_header(header,columns):
         print('Key fields incorrect. Set key fields as bp1_chr, bp1_pos, bp1_dir, bp2_chr,bp2_pos, bp2_dir and classification')
         sys.exit()
 
-def run(svin,bam,out,header,db_out):    
+def run(svin,bam,out,header,db_out,mean_dp): 
     inserts = bamtools.estimateInsertSizeDistribution(bam)
-    #rlen = bamtools.estimateTagSize(bam)
-    
+    rlen = bamtools.estimateTagSize(bam)
+    max_dp = ((mean_dp*(window*2))/rlen)*max_cn
+
     bp_dtype = [('chrom','S20'),('start', int), ('end', int), ('dir', 'S2')]
     sv_dtype = [('bp1_chr','S20'),('bp1_pos',int),('bp1_dir','S5'),('bp2_chr','S20'), \
                 ('bp2_pos',int),('bp2_dir','S5'),('classification','S100')]               
@@ -264,9 +269,13 @@ def run(svin,bam,out,header,db_out):
     bp1_chr,bp1_pos,bp1_dir,bp2_chr,bp2_pos,bp2_dir,classification = proc_header(header,svs.columns)
 
     for idx,row in svs.iterrows():
+        sv_str = '%s:%d|%s:%d'%(row[bp1_chr],row[bp1_pos],row[bp2_chr],row[bp2_pos])
         bp1 = np.array((row[bp1_chr],row[bp1_pos]-window,row[bp1_pos]+window,row[bp1_dir]),dtype=bp_dtype)
         bp2 = np.array((row[bp2_chr],row[bp2_pos]-window,row[bp2_pos]+window,row[bp2_dir]),dtype=bp_dtype)
-        sv_rc  = get_sv_read_counts(bp1,bp2,bam,columns,inserts)
+        sv_rc  = get_sv_read_counts(bp1,bp2,bam,columns,inserts,max_dp)
+        if bool(sv_rc.empty):
+            print('Skipping %s, read depth too high!'%sv_str)
+            continue
         newrow = pd.DataFrame(row.append(sv_rc)).transpose()
         newrow['norm1']=sv_rc['bp1_split_norm']+sv_rc['bp1_span_norm']
         newrow['norm2']=sv_rc['bp2_split_norm']+sv_rc['bp2_span_norm']
@@ -277,7 +286,7 @@ def run(svin,bam,out,header,db_out):
         con = sqlite3.connect(db_out)
         newrow.to_sql('sv_info',con,if_exists='append',index=False)
         con.close()
-        print('processed %s:%d|%s:%d'%(row[bp1_chr],row[bp1_pos],row[bp2_chr],row[bp2_pos]))
+        print('processed %s'%sv_str)
     con = sqlite3.connect(db_out)
     pd.read_sql('select * from sv_info',con).to_csv(out,sep="\t",index=False)
     con.close()

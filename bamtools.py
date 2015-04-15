@@ -72,7 +72,8 @@ def estimateTagSize(bamfile,
 
 
 def getNumberOfAlignments(bamfile):
-    '''return number of alignments in bamfile.
+    '''
+    return number of alignments in bamfile.
     '''
     samfile = pysam.AlignmentFile(bamfile)
     return samfile.mapped
