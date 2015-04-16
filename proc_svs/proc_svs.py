@@ -119,7 +119,7 @@ def get_loc_reads(bp,bamf):
     
     loc_reads = np.empty([0,len(read_dtype)],dtype=read_dtype)    
     try:
-        iter_loc = bamf.fetch(region=loc)
+        iter_loc = bamf.fetch(region=loc,until_eof=True)
         for x in iter_loc:
             read = read_to_array(x,bamf) 
             loc_reads = np.append(loc_reads,read)
@@ -139,8 +139,8 @@ def reads_to_sam(reads,bam,bp1,bp2,name):
     bamf = pysam.AlignmentFile(bam, "rb")
     loc1 = '%s:%d:%d' % (bp1['chrom'], bp1['start'], bp1['end'])
     loc2 = '%s:%d:%d' % (bp2['chrom'], bp2['start'], bp2['end'])
-    iter_loc1 = bamf.fetch(region=loc1)
-    iter_loc2 = bamf.fetch(region=loc2)
+    iter_loc1 = bamf.fetch(region=loc1,until_eof=True)
+    iter_loc2 = bamf.fetch(region=loc2,until_eof=True)
     
     loc1 = '%s-%d' % (bp1['chrom'], (bp1['start']+bp1['end'])/2)
     loc2 = '%s-%d' % (bp2['chrom'], (bp1['start']+bp1['end'])/2)
