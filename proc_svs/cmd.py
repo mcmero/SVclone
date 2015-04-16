@@ -23,7 +23,7 @@ bam = args.bam
 out = args.out
 hd_cfg = args.header
 db_out = args.db_out
-mean_dp = int(args.mean_depth)
+mean_dp = float(args.mean_depth)
 
 if __name__ == '__main__':
     proc_svs.run(svin,bam,out,hd_cfg,db_out,mean_dp)

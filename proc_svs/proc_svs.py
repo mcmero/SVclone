@@ -18,7 +18,7 @@ import subprocess
 tr = 10 #threshold by how much read has to overlap breakpoint
 sc_len = 25 #soft-clip threshold by which we call split reads
 window = 500
-max_cn=15
+max_cn=10
 
 read_dtype = [('query_name', 'S25'), ('chrom', 'S10'), ('ref_start', int), ('ref_end', int), \
               ('align_start', int), ('align_end', int), ('len', int), ('is_reverse', np.bool)]
@@ -50,7 +50,7 @@ def is_supporting_split_read(r,pos):
     """
     return whether read is a supporting split read
     doesn't yet check whether the soft-clip aligns
-    to the other side - should it, or is that implicit?
+    to the other side
     """
     #TODO: check that split read has valid insert size
     if r['align_start'] < (tr/2): #a "soft" threshold if it is soft-clipped at the other end
@@ -118,13 +118,17 @@ def get_loc_reads(bp,bamf):
     loc = '%s:%d:%d' % (bp['chrom'], bp['start'], bp['end'])
     
     loc_reads = np.empty([0,len(read_dtype)],dtype=read_dtype)    
-    iter_loc = bamf.fetch(region=loc)
-    for x in iter_loc:
-        read = read_to_array(x,bamf) 
-        loc_reads = np.append(loc_reads,read)
-    
-    loc_reads = np.sort(loc_reads,axis=0,order=['query_name','ref_start'])
-    return loc_reads
+    try:
+        iter_loc = bamf.fetch(region=loc)
+        for x in iter_loc:
+            read = read_to_array(x,bamf) 
+            loc_reads = np.append(loc_reads,read)
+        
+        loc_reads = np.sort(loc_reads,axis=0,order=['query_name','ref_start'])
+        return loc_reads
+    except ValueError:
+        print('Fetching reads failed for loc: %s' % loc)
+        return np.empty(0)
 
 def reads_to_sam(reads,bam,bp1,bp2,name):
     """
@@ -195,12 +199,22 @@ def get_sv_read_counts(bp1,bp2,bam,columns,inserts,max_dp):
     pos2 = (bp2['start'] + bp2['end']) / 2
     loc1_reads = get_loc_reads(bp1,bamf)    
     loc2_reads = get_loc_reads(bp2,bamf)    
+    bamf.close() 
     
+    if len(loc1_reads)==0 or len(loc2_reads)==0:
+        return pd.Series
+
     print('%d reads extracted'%len(loc1_reads))
     print('%d reads extracted'%len(loc2_reads))
-    if len(loc1_reads)>max_dp or len(loc2_reads)>max_dp:
+    hi_dep = False
+    if len(loc1_reads)>max_dp:
+        print('Read depth too high at %s:%d' % (bp1['chrom'],pos1))
+        hi_dep = True
+    elif len(loc2_reads)>max_dp:
+        print('Read depth too high at %s:%d' % (bp2['chrom'],pos2))
+        hi_dep = True
+    if hi_dep:
         return pd.Series
-    bamf.close() 
     
     rc = pd.Series(np.zeros(len(columns)),index=columns,dtype='int')
     #rc['sv']='%s:%d-%s:%d'%(bp1['chrom'],pos1,bp2['chrom'],pos2)
@@ -274,7 +288,7 @@ def run(svin,bam,out,header,db_out,mean_dp):
         bp2 = np.array((row[bp2_chr],row[bp2_pos]-window,row[bp2_pos]+window,row[bp2_dir]),dtype=bp_dtype)
         sv_rc  = get_sv_read_counts(bp1,bp2,bam,columns,inserts,max_dp)
         if bool(sv_rc.empty):
-            print('Skipping %s, read depth too high!'%sv_str)
+            print('Skipping location %s'%sv_str)
             continue
         newrow = pd.DataFrame(row.append(sv_rc)).transpose()
         newrow['norm1']=sv_rc['bp1_split_norm']+sv_rc['bp1_span_norm']
