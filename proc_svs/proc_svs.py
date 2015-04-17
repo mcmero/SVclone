@@ -114,8 +114,8 @@ def is_supporting_spanning_pair(r,m,bp1,bp2,inserts):
     else:
         return (ins_dist1+ins_dist2) < max_ins
 
-def get_loc_reads(bp,bamf):
-    loc = '%s:%d:%d' % (bp['chrom'], bp['start'], bp['end'])
+def get_loc_reads(bp,bamf,max_dp):
+    loc = '%s:%d:%d' % (bp['chrom'], max(0,bp['start']), bp['end'])
     
     loc_reads = np.empty([0,len(read_dtype)],dtype=read_dtype)    
     try:
@@ -123,7 +123,11 @@ def get_loc_reads(bp,bamf):
         for x in iter_loc:
             read = read_to_array(x,bamf) 
             loc_reads = np.append(loc_reads,read)
-        
+
+            if len(loc_reads)>max_dp:
+                print('Read depth too high at %s' % loc)
+                return np.empty(0)
+
         loc_reads = np.sort(loc_reads,axis=0,order=['query_name','ref_start'])
         return loc_reads
     except ValueError:
@@ -197,23 +201,11 @@ def get_sv_read_counts(bp1,bp2,bam,columns,inserts,max_dp):
     bamf = pysam.AlignmentFile(bam, "rb")
     pos1 = (bp1['start'] + bp1['end']) / 2
     pos2 = (bp2['start'] + bp2['end']) / 2
-    loc1_reads = get_loc_reads(bp1,bamf)    
-    loc2_reads = get_loc_reads(bp2,bamf)    
+    loc1_reads = get_loc_reads(bp1,bamf,max_dp)    
+    loc2_reads = get_loc_reads(bp2,bamf,max_dp)    
     bamf.close() 
     
     if len(loc1_reads)==0 or len(loc2_reads)==0:
-        return pd.Series
-
-    print('%d reads extracted'%len(loc1_reads))
-    print('%d reads extracted'%len(loc2_reads))
-    hi_dep = False
-    if len(loc1_reads)>max_dp:
-        print('Read depth too high at %s:%d' % (bp1['chrom'],pos1))
-        hi_dep = True
-    elif len(loc2_reads)>max_dp:
-        print('Read depth too high at %s:%d' % (bp2['chrom'],pos2))
-        hi_dep = True
-    if hi_dep:
         return pd.Series
     
     rc = pd.Series(np.zeros(len(columns)),index=columns,dtype='int')
@@ -250,6 +242,7 @@ def get_sv_read_counts(bp1,bp2,bam,columns,inserts,max_dp):
         #    rc['bp1_anomalous'] = rc['bp1_anomalous']+1
     #reads_to_sam(span,bam,bp1,bp2,'span')
     #reads_to_sam(split,bam,bp1,bp2,'split')
+    print('processed %d reads at loc1; %d reads at loc2' % (len(loc1_reads),len(loc2_reads)))
     return rc
 
 def proc_header(header,columns):
@@ -284,6 +277,7 @@ def run(svin,bam,out,header,db_out,mean_dp):
 
     for idx,row in svs.iterrows():
         sv_str = '%s:%d|%s:%d'%(row[bp1_chr],row[bp1_pos],row[bp2_chr],row[bp2_pos])
+        print('processing %s'%sv_str)
         bp1 = np.array((row[bp1_chr],row[bp1_pos]-window,row[bp1_pos]+window,row[bp1_dir]),dtype=bp_dtype)
         bp2 = np.array((row[bp2_chr],row[bp2_pos]-window,row[bp2_pos]+window,row[bp2_dir]),dtype=bp_dtype)
         sv_rc  = get_sv_read_counts(bp1,bp2,bam,columns,inserts,max_dp)
@@ -300,7 +294,6 @@ def run(svin,bam,out,header,db_out,mean_dp):
         con = sqlite3.connect(db_out)
         newrow.to_sql('sv_info',con,if_exists='append',index=False)
         con.close()
-        print('processed %s'%sv_str)
     con = sqlite3.connect(db_out)
     pd.read_sql('select * from sv_info',con).to_csv(out,sep="\t",index=False)
     con.close()
