@@ -18,19 +18,19 @@ If you want to run unit tests:
 
 Install like so:
 
-python setup.py install
+    python setup.py install
 
 Run like so:
 
-python -m proc_svs.cmd <svs.txt> <indexed bamfile> <out file> <header.cfg> <out database> <average coverage>
+    python -m proc_svs.cmd <svs.txt> <indexed bamfile> <out file> <header.cfg> <out database> <average coverage>
 
 The structural variation input file must be in the following tab-separated format:
 
-bp1_chr	bp1_pos	bp1_dir	bp2_chr	bp2_pos	bp2_dir	classification
-22	18240676	-	22	18232335	-	INV
-22	19940482	-	22	19937820	-	INV
-22	21383572	+	22	21382745	+	INV
-22	21383573	-	22	21382746	-	INV 
+>bp1_chr	bp1_pos	bp1_dir	bp2_chr	bp2_pos	bp2_dir	classification
+>22	18240676	-	22	18232335	-	INV
+>22	19940482	-	22	19937820	-	INV
+>22	21383572	+	22	21382745	+	INV
+>22	21383573	-	22	21382746	-	INV 
 
 The column names can be different, but must be specified in the header.cfg file, which looks like:
 
