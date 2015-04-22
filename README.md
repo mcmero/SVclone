@@ -2,12 +2,6 @@
 
 The script obtains all information necessary from a bam file and a list of structural variations in order to accurately count variant allele frequencies (VAF) and detect subclones from SV data. 
 
-### What is this repository for? ###
-
-* Quick summary
-* Version
-* [Learn Markdown](https://bitbucket.org/tutorials/markdowndemo)
-
 ### How do I get set up? ###
 
 Ensure you have the following dependencies installed:
