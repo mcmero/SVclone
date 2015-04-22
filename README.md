@@ -13,6 +13,7 @@ Ensure you have the following dependencies installed:
 * [ipdb](https://pypi.python.org/pypi/ipdb)
 
 If you want to run unit tests:
+
 * [nose](https://nose.readthedocs.org/en/latest/)
 
 Install like so:
