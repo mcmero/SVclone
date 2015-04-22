@@ -18,9 +18,9 @@ import subprocess
 tr = 10 #threshold by how much read has to overlap breakpoint
 sc_len = 25 #soft-clip threshold by which we call split reads
 window = 500
-max_cn=10
+max_cn=15
 
-read_dtype = [('query_name', 'S25'), ('chrom', 'S10'), ('ref_start', int), ('ref_end', int), \
+read_dtype = [('query_name', 'S150'), ('chrom', 'S50'), ('ref_start', int), ('ref_end', int), \
               ('align_start', int), ('align_end', int), ('len', int), ('is_reverse', np.bool)]
 
 def read_to_array(x,bamf):
@@ -81,7 +81,7 @@ def is_supporting_spanning_pair(r,m,bp1,bp2,inserts):
     pos2 = (bp2['start'] + bp2['end']) / 2
     dir1 = bp1['dir']
     dir2 = bp2['dir']
-
+    
     if is_soft_clipped(r) or is_soft_clipped(m):
         return False
 
