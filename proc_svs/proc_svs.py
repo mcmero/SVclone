@@ -15,7 +15,7 @@ import sys
 import sqlite3
 import subprocess
 
-tr = 10 #threshold by how much read has to overlap breakpoint
+tr = 5 #threshold by how much read has to overlap breakpoint
 sc_len = 25 #soft-clip threshold by which we call split reads
 window = 500
 max_cn=15
@@ -37,14 +37,20 @@ def is_soft_clipped(r):
     return r['align_start'] != 0 or (r['len'] + r['ref_start'] != r['ref_end'])
 
 def is_normal_across_break(r,pos,max_ins):
-   return r['ref_start'] < (pos - tr) and r['ref_end'] > (pos + tr) and r['align_start'] < (tr*2) and \
-          (r['align_end'] + r['ref_start'] - r['ref_end'] < (tr*2)) and abs(r['ins_len'])<max_ins
+   return (not is_soft_clipped(r)) and \
+          (abs(r['ins_len'])<max_ins) and \
+          (r['ref_start'] < (pos - tr)) and \
+          (r['ref_end'] > (pos + tr)) and \
+          (r['align_start'] < (tr*2)) and \
+          ((r['align_end'] + r['ref_start'] - r['ref_end']) < (tr*2))
 
 
 def is_normal_spanning(r,m,pos,max_ins):
     if not (is_soft_clipped(r) or is_soft_clipped(m)):
         if (not r['is_reverse'] and m['is_reverse']) or (r['is_reverse'] and not m['is_reverse']):
-            return abs(r['ins_len'])<max_ins and r['ref_end'] < (pos + tr) and m['ref_start'] > (pos - tr)
+            return (abs(r['ins_len']) < max_ins) and \
+                   (r['ref_end'] < (pos + tr)) and \
+                   (m['ref_start'] > (pos - tr))
     return False
 
 def is_supporting_split_read(r,pos,max_ins):
@@ -255,7 +261,9 @@ def proc_header(header,columns):
         print('Key fields incorrect. Set key fields as bp1_chr, bp1_pos, bp1_dir, bp2_chr,bp2_pos, bp2_dir and classification')
         sys.exit()
 
-def run(svin,bam,out,header,db_out,mean_dp): 
+def run(svin,bam,out,header,mean_dp): 
+    db_out = '%s.db'%out
+    out = '%s.txt'%out
     inserts = bamtools.estimateInsertSizeDistribution(bam)
     rlen = bamtools.estimateTagSize(bam)
     max_dp = ((mean_dp*(window*2))/rlen)*max_cn

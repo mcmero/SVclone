@@ -22,7 +22,7 @@ Install like so:
 
 Run like so:
 
-    python -m proc_svs.cmd <svs.txt> <indexed bamfile> <out file> <header.cfg> <out database> <average coverage>
+    python -m proc_svs.cmd <svs.txt> <indexed bamfile> <header.cfg> <output name> <average coverage>
 
 The structural variation input file must be in the following tab-separated format:
 
