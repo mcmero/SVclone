@@ -21,13 +21,13 @@ window = 500
 max_cn=15
 
 read_dtype = [('query_name', 'S150'), ('chrom', 'S50'), ('ref_start', int), ('ref_end', int), \
-              ('align_start', int), ('align_end', int), ('len', int), ('is_reverse', np.bool)]
+              ('align_start', int), ('align_end', int), ('len', int), ('ins_len', int), ('is_reverse', np.bool)]
 
 def read_to_array(x,bamf):
     chrom = bamf.getrname(x.reference_id)
     try:
         read = np.array((x.query_name,chrom,x.reference_start,x.reference_end,x.query_alignment_start,
-                         x.query_alignment_end,x.query_length,np.bool(x.is_reverse)),dtype=read_dtype)
+                         x.query_alignment_end,x.query_length,x.tlen,np.bool(x.is_reverse)),dtype=read_dtype)
         return read
     except TypeError:
         print 'Warning: record %s contains invalid attributes' % x.query_name
@@ -36,29 +36,29 @@ def read_to_array(x,bamf):
 def is_soft_clipped(r):
     return r['align_start'] != 0 or (r['len'] + r['ref_start'] != r['ref_end'])
 
-def is_normal_across_break(r,pos):
-   return r['ref_start'] < (pos - tr) and r['ref_end'] > (pos + tr) and \
-       r['align_start'] < (tr*2) and (r['align_end'] + r['ref_start'] - r['ref_end'] < (tr*2))
+def is_normal_across_break(r,pos,max_ins):
+   return r['ref_start'] < (pos - tr) and r['ref_end'] > (pos + tr) and r['align_start'] < (tr*2) and \
+          (r['align_end'] + r['ref_start'] - r['ref_end'] < (tr*2)) and abs(r['ins_len'])<max_ins
 
-def is_normal_spanning(r,m,pos):
+
+def is_normal_spanning(r,m,pos,max_ins):
     if not (is_soft_clipped(r) or is_soft_clipped(m)):
         if (not r['is_reverse'] and m['is_reverse']) or (r['is_reverse'] and not m['is_reverse']):
-            return r['ref_end'] < (pos + tr) and m['ref_start'] > (pos - tr)
+            return abs(r['ins_len'])<max_ins and r['ref_end'] < (pos + tr) and m['ref_start'] > (pos - tr)
     return False
 
-def is_supporting_split_read(r,pos):
+def is_supporting_split_read(r,pos,max_ins):
     """
     return whether read is a supporting split read
     doesn't yet check whether the soft-clip aligns
     to the other side
     """
-    #TODO: check that split read has valid insert size
-    if r['align_start'] < (tr/2): #a "soft" threshold if it is soft-clipped at the other end
+    if r['align_start'] < (tr/2): #a "soft" threshold if it is soft-clipped at the other end        
         return r['ref_end'] > (pos - tr) and r['ref_end'] < (pos + tr) and \
-            (r['len'] - r['align_end'] >= sc_len)
+            (r['len'] - r['align_end'] >= sc_len) and abs(r['ins_len']) < max_ins
     else:
         return r['ref_start'] > (pos - tr) and r['ref_start'] < (pos + tr) and \
-            (r['align_start'] >= sc_len)
+            (r['align_start'] >= sc_len) and abs(r['ins_len']) < max_ins
 
 def get_sc_bases(r,pos):
     """
@@ -76,7 +76,7 @@ def get_bp_dist(x,bp_pos):
     else: 
         return (bp_pos - x['ref_start'])
 
-def is_supporting_spanning_pair(r,m,bp1,bp2,inserts):
+def is_supporting_spanning_pair(r,m,bp1,bp2,inserts,max_ins):
     pos1 = (bp1['start'] + bp1['end']) / 2
     pos2 = (bp2['start'] + bp2['end']) / 2
     dir1 = bp1['dir']
@@ -98,7 +98,6 @@ def is_supporting_spanning_pair(r,m,bp1,bp2,inserts):
 #        elif dir1 == dir2:
 #            return False #not a duplicaton?
     
-    max_ins = 2*inserts[1]+inserts[0]
     #ensure this isn't just a regular old spanning pair    
     if r['chrom']==m['chrom']:
         if r['ref_start']<m['ref_start']:
@@ -116,7 +115,6 @@ def is_supporting_spanning_pair(r,m,bp1,bp2,inserts):
 
 def get_loc_reads(bp,bamf,max_dp):
     loc = '%s:%d:%d' % (bp['chrom'], max(0,bp['start']), bp['end'])
-    
     loc_reads = np.empty([0,len(read_dtype)],dtype=read_dtype)    
     try:
         iter_loc = bamf.fetch(region=loc,until_eof=True)
@@ -159,8 +157,7 @@ def reads_to_sam(reads,bam,bp1,bp2,name):
     bamf.close()
     bam_out.close()
     
-def windowed_norm_read_count(loc_reads,inserts):
-    max_ins = 3*inserts[1]+inserts[0]
+def windowed_norm_read_count(loc_reads,inserts,max_ins):
     cnorm = 0
     for idx,r in enumerate(loc_reads):
         if idx+1 >= len(loc_reads):
@@ -175,29 +172,29 @@ def windowed_norm_read_count(loc_reads,inserts):
             cnorm = cnorm + 2
     return cnorm
 
-def get_loc_counts(loc_reads,pos,rc,reproc,split,bp_num=1):
+def get_loc_counts(loc_reads,pos,rc,reproc,split,max_ins,bp_num=1):
     for idx,x in enumerate(loc_reads):
         if idx+1 >= len(loc_reads):            
             break        
         r1 = loc_reads[idx]
         r2 = loc_reads[idx+1] if (idx+2)<=len(loc_reads) else None
-        if is_normal_across_break(x,pos):
+        if is_normal_across_break(x,pos,max_ins):
             split_norm = 'bp%d_split_norm'%bp_num
             rc[split_norm] = rc[split_norm]+1 
-        elif is_supporting_split_read(x,pos):
+        elif is_supporting_split_read(x,pos,max_ins):
             split = np.append(split,x)            
             split_supp = 'bp%d_split'%bp_num
             split_cnt = 'bp%d_sc_bases'%bp_num
             rc[split_supp] = rc[split_supp]+1 
             rc[split_cnt] = rc[split_cnt]+get_sc_bases(x,pos)
-        elif r2!=None and r1['query_name']==r2['query_name'] and is_normal_spanning(r1,r2,pos):
+        elif r2!=None and r1['query_name']==r2['query_name'] and is_normal_spanning(r1,r2,pos,max_ins):
             span_norm = 'bp%d_span_norm'%bp_num
             rc[span_norm] = rc[span_norm]+1 
         else:
             reproc = np.append(reproc,x) #may be spanning support or anomalous
     return rc, reproc, split
 
-def get_sv_read_counts(bp1,bp2,bam,columns,inserts,max_dp):
+def get_sv_read_counts(bp1,bp2,bam,columns,inserts,max_dp,max_ins):
     bamf = pysam.AlignmentFile(bam, "rb")
     pos1 = (bp1['start'] + bp1['end']) / 2
     pos2 = (bp2['start'] + bp2['end']) / 2
@@ -213,10 +210,10 @@ def get_sv_read_counts(bp1,bp2,bam,columns,inserts,max_dp):
     reproc = np.empty([0,len(read_dtype)],dtype=read_dtype)
     
     split = np.empty([0,len(read_dtype)],dtype=read_dtype)
-    rc, reproc, split = get_loc_counts(loc1_reads,pos1,rc,reproc,split)
-    rc, reproc, split = get_loc_counts(loc2_reads,pos2,rc,reproc,split,2)
-    rc['bp1_win_norm'] = windowed_norm_read_count(loc1_reads,inserts)
-    rc['bp2_win_norm'] = windowed_norm_read_count(loc2_reads,inserts)
+    rc, reproc, split = get_loc_counts(loc1_reads,pos1,rc,reproc,split,max_ins)
+    rc, reproc, split = get_loc_counts(loc2_reads,pos2,rc,reproc,split,max_ins,2)
+    rc['bp1_win_norm'] = windowed_norm_read_count(loc1_reads,inserts,max_ins)
+    rc['bp2_win_norm'] = windowed_norm_read_count(loc2_reads,inserts,max_ins)
      
     reproc = np.sort(reproc,axis=0,order=['query_name','ref_start'])
     span = np.empty([0,len(read_dtype)],dtype=read_dtype)
@@ -235,7 +232,7 @@ def get_sv_read_counts(bp1,bp2,bam,columns,inserts,max_dp):
             (pos1 > pos2 and bp1['chrom']==bp2['chrom']):
             r1 = mate
             r2 = np.array(x,copy=True)
-        if is_supporting_spanning_pair(r1,r2,bp1,bp2,inserts):
+        if is_supporting_spanning_pair(r1,r2,bp1,bp2,inserts,max_ins):
             span = np.append(span,r1)            
             rc['spanning'] = rc['spanning']+1 
         #else:
@@ -262,6 +259,7 @@ def run(svin,bam,out,header,db_out,mean_dp):
     inserts = bamtools.estimateInsertSizeDistribution(bam)
     rlen = bamtools.estimateTagSize(bam)
     max_dp = ((mean_dp*(window*2))/rlen)*max_cn
+    max_ins = 2*inserts[1]+inserts[0]
 
     bp_dtype = [('chrom','S20'),('start', int), ('end', int), ('dir', 'S2')]
     sv_dtype = [('bp1_chr','S20'),('bp1_pos',int),('bp1_dir','S5'),('bp2_chr','S20'), \
@@ -280,7 +278,7 @@ def run(svin,bam,out,header,db_out,mean_dp):
         print('processing %s'%sv_str)
         bp1 = np.array((row[bp1_chr],row[bp1_pos]-window,row[bp1_pos]+window,row[bp1_dir]),dtype=bp_dtype)
         bp2 = np.array((row[bp2_chr],row[bp2_pos]-window,row[bp2_pos]+window,row[bp2_dir]),dtype=bp_dtype)
-        sv_rc  = get_sv_read_counts(bp1,bp2,bam,columns,inserts,max_dp)
+        sv_rc  = get_sv_read_counts(bp1,bp2,bam,columns,inserts,max_dp,max_ins)
         if bool(sv_rc.empty):
             print('Skipping location %s'%sv_str)
             continue
