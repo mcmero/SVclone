@@ -6,6 +6,7 @@ The script obtains all information necessary from a bam file and a list of struc
 
 Ensure you have the following dependencies installed:
 
+* [Numpy](http://www.numpy.org/) - install for python 2
 * [PySam](http://pysam.readthedocs.org/en/latest/)
 * [Pandas](http://pandas.pydata.org/)
 * [Pandasql](https://pypi.python.org/pypi/pandasql)
@@ -20,9 +21,9 @@ Install like so:
 
     python setup.py install
 
-Run like so:
+Run SV post-processing on each BAM file using:
 
-    python -m proc_svs.cmd <svs.txt> <indexed bamfile> <header.cfg> <output name> <average coverage>
+    python -m phylo_sv.cmd_proc -i <svs.txt> -b <indexed bamfile> -hd <header.cfg> -o <output name> -d <average coverage>
 
 The structural variation input file must be in the following tab-separated format:
 

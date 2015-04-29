@@ -1,5 +1,5 @@
 '''
-Get SV output, run post processing
+Using characterised SVs, count normal and supporting reads at SV locations
 '''
 
 import os
@@ -15,10 +15,10 @@ import sys
 import sqlite3
 import subprocess
 
-tr = 5 #threshold by how much read has to overlap breakpoint
-sc_len = 25 #soft-clip threshold by which we call split reads
-window = 500
-max_cn=15
+tr      = 5 #threshold by how much read has to overlap breakpoint
+sc_len  = 25 #soft-clip threshold by which we call split reads
+window  = 500
+max_cn  = 15
 
 read_dtype = [('query_name', 'S150'), ('chrom', 'S50'), ('ref_start', int), ('ref_end', int), \
               ('align_start', int), ('align_end', int), ('len', int), ('ins_len', int), ('is_reverse', np.bool)]
@@ -44,7 +44,6 @@ def is_normal_across_break(r,pos,max_ins):
           (r['align_start'] < (tr*2)) and \
           ((r['align_end'] + r['ref_start'] - r['ref_end']) < (tr*2))
 
-
 def is_normal_spanning(r,m,pos,max_ins):
     if not (is_soft_clipped(r) or is_soft_clipped(m)):
         if (not r['is_reverse'] and m['is_reverse']) or (r['is_reverse'] and not m['is_reverse']):
@@ -55,9 +54,9 @@ def is_normal_spanning(r,m,pos,max_ins):
 
 def is_supporting_split_read(r,pos,max_ins):
     """
-    return whether read is a supporting split read
-    doesn't yet check whether the soft-clip aligns
-    to the other side
+    Return whether read is a supporting split read.
+    Doesn't yet check whether the soft-clip aligns
+    to the other side.
     """
     if r['align_start'] < (tr/2): #a "soft" threshold if it is soft-clipped at the other end        
         return r['ref_end'] > (pos - tr) and r['ref_end'] < (pos + tr) and \
@@ -127,12 +126,14 @@ def get_loc_reads(bp,bamf,max_dp):
         for x in iter_loc:
             read = read_to_array(x,bamf) 
             loc_reads = np.append(loc_reads,read)
-
+            if x.is_duplicate:
+                ipdb.set_trace()
             if len(loc_reads)>max_dp:
                 print('Read depth too high at %s' % loc)
                 return np.empty(0)
 
         loc_reads = np.sort(loc_reads,axis=0,order=['query_name','ref_start'])
+        loc_reads = np.unique(loc_reads) #remove duplicates
         return loc_reads
     except ValueError:
         print('Fetching reads failed for loc: %s' % loc)
@@ -144,6 +145,9 @@ def reads_to_sam(reads,bam,bp1,bp2,name):
     Takes reads from array, matches them to bam 
     file reads by query name and outputs them to Sam
     """
+    if len(reads)==0:
+        return None
+
     bamf = pysam.AlignmentFile(bam, "rb")
     loc1 = '%s:%d:%d' % (bp1['chrom'], bp1['start'], bp1['end'])
     loc2 = '%s:%d:%d' % (bp2['chrom'], bp2['start'], bp2['end'])
@@ -164,6 +168,9 @@ def reads_to_sam(reads,bam,bp1,bp2,name):
     bam_out.close()
     
 def windowed_norm_read_count(loc_reads,inserts,max_ins):
+    '''
+    Counts normal non-soft-clipped reads within window range
+    '''
     cnorm = 0
     for idx,r in enumerate(loc_reads):
         if idx+1 >= len(loc_reads):
@@ -178,13 +185,15 @@ def windowed_norm_read_count(loc_reads,inserts,max_ins):
             cnorm = cnorm + 2
     return cnorm
 
-def get_loc_counts(loc_reads,pos,rc,reproc,split,max_ins,bp_num=1):
+def get_loc_counts(loc_reads,pos,rc,reproc,split,norm,max_ins,bp_num=1):
     for idx,x in enumerate(loc_reads):
         if idx+1 >= len(loc_reads):            
             break        
         r1 = loc_reads[idx]
         r2 = loc_reads[idx+1] if (idx+2)<=len(loc_reads) else None
+
         if is_normal_across_break(x,pos,max_ins):
+            norm = np.append(norm,r1)            
             split_norm = 'bp%d_split_norm'%bp_num
             rc[split_norm] = rc[split_norm]+1 
         elif is_supporting_split_read(x,pos,max_ins):
@@ -194,11 +203,13 @@ def get_loc_counts(loc_reads,pos,rc,reproc,split,max_ins,bp_num=1):
             rc[split_supp] = rc[split_supp]+1 
             rc[split_cnt] = rc[split_cnt]+get_sc_bases(x,pos)
         elif r2!=None and r1['query_name']==r2['query_name'] and is_normal_spanning(r1,r2,pos,max_ins):
+            norm = np.append(norm,r1)            
+            norm = np.append(norm,r2)            
             span_norm = 'bp%d_span_norm'%bp_num
             rc[span_norm] = rc[span_norm]+1 
         else:
             reproc = np.append(reproc,x) #may be spanning support or anomalous
-    return rc, reproc, split
+    return rc, reproc, split, norm
 
 def get_sv_read_counts(bp1,bp2,bam,columns,inserts,max_dp,max_ins):
     bamf = pysam.AlignmentFile(bam, "rb")
@@ -216,23 +227,25 @@ def get_sv_read_counts(bp1,bp2,bam,columns,inserts,max_dp,max_ins):
     reproc = np.empty([0,len(read_dtype)],dtype=read_dtype)
     
     split = np.empty([0,len(read_dtype)],dtype=read_dtype)
-    rc, reproc, split = get_loc_counts(loc1_reads,pos1,rc,reproc,split,max_ins)
-    rc, reproc, split = get_loc_counts(loc2_reads,pos2,rc,reproc,split,max_ins,2)
+    norm = np.empty([0,len(read_dtype)],dtype=read_dtype)
+    rc, reproc, split, norm = get_loc_counts(loc1_reads,pos1,rc,reproc,split,norm,max_ins)
+    rc, reproc, split, norm = get_loc_counts(loc2_reads,pos2,rc,reproc,split,norm,max_ins,2)
     rc['bp1_win_norm'] = windowed_norm_read_count(loc1_reads,inserts,max_ins)
     rc['bp2_win_norm'] = windowed_norm_read_count(loc2_reads,inserts,max_ins)
      
     reproc = np.sort(reproc,axis=0,order=['query_name','ref_start'])
+    reproc = np.unique(reproc) #remove dups
     span = np.empty([0,len(read_dtype)],dtype=read_dtype)
     for idx,x in enumerate(reproc):
         if idx+1 >= len(reproc):
             break        
         if reproc[idx+1]['query_name'] != reproc[idx]['query_name']:
             #not paired
-            #rc['bp1_anomalous'] = rc['bp1_anomalous']+1 
             continue
         mate = np.array(reproc[idx+1],copy=True)
         r1 = np.array(x,copy=True)
         r2 = np.array(mate,copy=True)
+        
         #if read corresponds to bp2 and mate to bp1
         if (bp1['chrom']!=bp2['chrom'] and x['chrom']==bp2['chrom']) or \
             (pos1 > pos2 and bp1['chrom']==bp2['chrom']):
@@ -241,10 +254,11 @@ def get_sv_read_counts(bp1,bp2,bam,columns,inserts,max_dp,max_ins):
         if is_supporting_spanning_pair(r1,r2,bp1,bp2,inserts,max_ins):
             span = np.append(span,r1)            
             rc['spanning'] = rc['spanning']+1 
-        #else:
-        #    rc['bp1_anomalous'] = rc['bp1_anomalous']+1
+
+    #output reads types to sam file to inspect assignments
     #reads_to_sam(span,bam,bp1,bp2,'span')
     #reads_to_sam(split,bam,bp1,bp2,'split')
+    #reads_to_sam(norm,bam,bp1,bp2,'norm')
     print('processed %d reads at loc1; %d reads at loc2' % (len(loc1_reads),len(loc2_reads)))
     return rc
 
@@ -258,10 +272,11 @@ def proc_header(header,columns):
     try:
         return hdt[keyfields].values[0]
     except KeyError: 
-        print('Key fields incorrect. Set key fields as bp1_chr, bp1_pos, bp1_dir, bp2_chr,bp2_pos, bp2_dir and classification')
+        print('Key fields incorrect. Set key fields as bp1_chr, bp1_pos, bp1_dir, ' + \
+              'bp2_chr,bp2_pos, bp2_dir and classification')
         sys.exit()
 
-def run(svin,bam,out,header,mean_dp): 
+def proc_svs(svin,bam,out,header,mean_dp): 
     db_out = '%s.db'%out
     out = '%s.txt'%out
     inserts = bamtools.estimateInsertSizeDistribution(bam)
@@ -277,7 +292,6 @@ def run(svin,bam,out,header,mean_dp):
 
     columns = ['bp1_split_norm','bp1_span_norm','bp1_win_norm','bp1_split','bp1_sc_bases', \
                'bp2_split_norm','bp2_span_norm','bp2_win_norm','bp2_split','bp2_sc_bases','spanning']
-    #rinfo = pd.DataFrame(columns=columns,index=range(len(svs.index)),dtype='float')
    
     bp1_chr,bp1_pos,bp1_dir,bp2_chr,bp2_pos,bp2_dir,classification = proc_header(header,svs.columns)
 
@@ -296,33 +310,15 @@ def run(svin,bam,out,header,mean_dp):
         newrow['support']=sv_rc['bp1_split']+sv_rc['bp2_split']+sv_rc['spanning']
         newrow['vaf1']=newrow['support']/(newrow['support']+newrow['norm1'])
         newrow['vaf2']=newrow['support']/(newrow['support']+newrow['norm2'])
-        #rinfo.loc[idx] = sv_rc
         con = sqlite3.connect(db_out)
         newrow.to_sql('sv_info',con,if_exists='append',index=False)
         con.close()
     con = sqlite3.connect(db_out)
     pd.read_sql('select * from sv_info',con).to_csv(out,sep="\t",index=False)
     con.close()
-    #con.close()
     #subprocess.call(['samtools','view','-H',bam],stdout=open('head.sam','w'))
-    #subprocess.call(['cat','head.sam','span_*.sam'],stdout=open('spanning_all.sam','w'),shell=True)
-    #subprocess.call(['samtools','view','-hbS','spanning_all.sam'],stdout=open('spanning_all.bam','w'))
-    #subprocess.call(['samtools','sort','spanning_all.bam','spanning_all_sort'])
-    #subprocess.call(['samtools','index','spanning_all_sort.bam'])
-
-#    rinfo = svs.join(rinfo)
-#    #calculate VAFs
-#    vafs = pd.DataFrame(columns=['bp1_norm','bp2_norm','support','vaf1','vaf2'],index=range(len(svs.index)))
-#    for idx,ri in rinfo.iterrows():
-#        support = (float(ri['bp1_split'])+float(ri['bp2_split'])+float(ri['spanning']))
-#        norm1 = float(ri['bp1_split_norm'])+float(ri['bp1_span_norm'])
-#        norm2 = float(ri['bp2_split_norm'])+float(ri['bp2_span_norm'])
-#        vafs['bp1_norm'][idx] = norm1
-#        vafs['bp2_norm'][idx] = norm2
-#        vafs['support'][idx] = support
-#        vafs['vaf1'][idx] = support / (support + norm1)
-#        vafs['vaf2'][idx] = support / (support + norm2)
-#    rinfo = rinfo.join(vafs)
-#    print rinfo
-#    rinfo.to_csv(out,sep="\t",index=False)    
+    #subprocess.call(['cat','head.sam','norm`_*.sam'],stdout=open('normal_all.sam','w'),shell=True)
+    #subprocess.call(['samtools','view','-hbS','normal_all.sam'],stdout=open('normal_all.bam','w'))
+    #subprocess.call(['samtools','sort','normal_all.bam','normal_all_sort'])
+    #subprocess.call(['samtools','index','normal_all_sort.bam'])
 
