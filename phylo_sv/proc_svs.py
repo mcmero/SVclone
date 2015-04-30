@@ -53,11 +53,11 @@ def is_normal_spanning(r,m,pos,max_ins):
     return False
 
 def is_supporting_split_read(r,pos,max_ins):
-    """
+    '''
     Return whether read is a supporting split read.
     Doesn't yet check whether the soft-clip aligns
     to the other side.
-    """
+    '''
     if r['align_start'] < (tr/2): #a "soft" threshold if it is soft-clipped at the other end        
         return r['ref_end'] > (pos - tr) and r['ref_end'] < (pos + tr) and \
             (r['len'] - r['align_end'] >= sc_len) and abs(r['ins_len']) < max_ins
@@ -66,9 +66,9 @@ def is_supporting_split_read(r,pos,max_ins):
             (r['align_start'] >= sc_len) and abs(r['ins_len']) < max_ins
 
 def get_sc_bases(r,pos):
-    """
+    '''
     Return the number of soft-clipped bases
-    """
+    '''
     if r['align_start'] < (tr/2):
         return r['len'] - r['align_end']
     else:
@@ -140,11 +140,11 @@ def get_loc_reads(bp,bamf,max_dp):
         return np.empty(0)
 
 def reads_to_sam(reads,bam,bp1,bp2,name):
-    """
+    '''
     For testing read assignemnts.
     Takes reads from array, matches them to bam 
     file reads by query name and outputs them to Sam
-    """
+    '''
     if len(reads)==0:
         return None
 

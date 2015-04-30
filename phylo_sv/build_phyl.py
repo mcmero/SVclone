@@ -5,71 +5,18 @@ import numpy as np
 import os
 import string
 import subprocess
-import phylo_sv as sv
 import random
 import ipdb
 import csv
-import itertools
 import random
+import graph as gp
+import phylo_sv as sv
+import itertools
 from itertools import combinations
 from subprocess import call
 from numpy import loadtxt
 from numpy import zeros
 from scipy import stats
-
-'''
-Vertex and Graph classes for building the sigma-free connection graph
-http://interactivepython.org/courselib/static/pythonds/Graphs/graphintro.html
-'''
-class Vertex:
-    def __init__(self,key):
-        self.id = key
-        self.connectedTo = {}
-
-    def addNeighbor(self,nbr):
-        self.connectedTo[nbr] = 0
-
-    def __str__(self):
-        return str(self.id) + ' connectedTo: ' + str([x.id for x in self.connectedTo])
-
-    def getConnections(self):
-        return self.connectedTo.keys()
-
-    def getId(self):
-        return self.id
-
-class Graph:
-    def __init__(self):
-        self.vertList = {}
-        self.numVertices = 0
-
-    def addVertex(self,key):
-        self.numVertices = self.numVertices + 1
-        newVertex = Vertex(key)
-        self.vertList[key] = newVertex
-        return newVertex
-
-    def getVertex(self,n):
-        if n in self.vertList:
-            return self.vertList[n]
-        else:
-            return None
-
-    def __contains__(self,n):
-        return n in self.vertList
-
-    def addEdge(self,f,t,cost=0):
-        if f not in self.vertList:
-            nv = self.addVertex(f)
-        if t not in self.vertList:
-            nv = self.addVertex(t)
-        self.vertList[f].addNeighbor(self.vertList[t])
-
-    def getVertices(self):
-        return self.vertList.keys()
-
-    def __iter__(self):
-        return iter(self.vertList.values()) 
 
 def get_allocs(class_mat,svmat):
     allocs = []
@@ -179,7 +126,7 @@ def build_graph(m,s,c):
     '''
     take the _M_ matrix and return the corresponding connection graph    
     '''
-    g = Graph()
+    g = gp.Graph()
     for si in s:
         g.addVertex(si)
     for ci in c:
@@ -357,6 +304,9 @@ def get_conflicts(mp):
     return conf_list
 
 def output_dot(pname,samples,nodes,cmat,ftab):
+    '''
+    Output drawn phylogenetic tree using dot
+    '''
     tree = []    
     nums = ftab[1:,1]
     nums = [0 if m=='' else int(m) for m in ftab[:,1]]
@@ -382,6 +332,3 @@ def output_dot(pname,samples,nodes,cmat,ftab):
             df.write('}\n') 
    
     subprocess.call(["dot","-Tps","results/%s_trees.dot"%pname],stdout=open(r'results/%s_trees.ps'%pname,'w')) 
-
-def build_tree(svs,bam,out):
-    #TODO: algorithm to handle clustering output here

@@ -7,6 +7,7 @@ The script obtains all information necessary from a bam file and a list of struc
 Ensure you have the following dependencies installed:
 
 * [Numpy](http://www.numpy.org/) - install for python 2
+* [Scipy](http://www.scipy.org/)
 * [PySam](http://pysam.readthedocs.org/en/latest/)
 * [Pandas](http://pandas.pydata.org/)
 * [Pandasql](https://pypi.python.org/pypi/pandasql)
