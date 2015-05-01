@@ -16,7 +16,7 @@ import sqlite3
 import subprocess
 
 tr      = 5 #threshold by how much read has to overlap breakpoint
-sc_len  = 25 #soft-clip threshold by which we call split reads
+sc_len  = 25 #threshold by which we call split reads
 window  = 500
 max_cn  = 15
 
@@ -37,13 +37,14 @@ def is_soft_clipped(r):
     return r['align_start'] != 0 or (r['len'] + r['ref_start'] != r['ref_end'])
 
 def is_normal_across_break(r,pos,max_ins):
-   return (not is_soft_clipped(r)) and \
-          (abs(r['ins_len'])<max_ins) and \
-          (r['ref_start'] < (pos - tr)) and \
-          (r['ref_end'] > (pos + tr)) and \
-          (r['align_start'] < (tr*2)) and \
-          ((r['align_end'] + r['ref_start'] - r['ref_end']) < (tr*2))
-
+    # tolerate minor soft-clip
+    # must overhang break by at least soft-clip threshold
+    minor_sc = (r['align_start'] < (tr*2)) and ((r['align_end'] + r['ref_start'] - r['ref_end']) < (tr*2))
+    return  (not is_soft_clipped(r) or minor_sc) and \
+            (abs(r['ins_len']) < max_ins) and \
+            (r['ref_start'] <= (pos - sc_len)) and \
+            (r['ref_end'] >= (pos + sc_len)) 
+          
 def is_normal_spanning(r,m,pos,max_ins):
     if not (is_soft_clipped(r) or is_soft_clipped(m)):
         if (not r['is_reverse'] and m['is_reverse']) or (r['is_reverse'] and not m['is_reverse']):
@@ -311,6 +312,7 @@ def proc_svs(svin,bam,out,header,mean_dp):
         newrow['vaf1']=newrow['support']/(newrow['support']+newrow['norm1'])
         newrow['vaf2']=newrow['support']/(newrow['support']+newrow['norm2'])
         con = sqlite3.connect(db_out)
+        #TODO:recognise previously processed data
         newrow.to_sql('sv_info',con,if_exists='append',index=False)
         con.close()
     con = sqlite3.connect(db_out)
