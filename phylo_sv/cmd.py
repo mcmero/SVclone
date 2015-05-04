@@ -49,7 +49,7 @@ if __name__ == '__main__':
     try:
         if insert=="":
             print("Inserts not provided, assuming insert length equals read length")
-            args.insert=rlen
+            insert=rlen
         samples = proc_arg(samples)
         n = len(samples)
         svs = proc_arg(svs)

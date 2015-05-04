@@ -61,4 +61,4 @@ def run(samples,svs,gml,cnvs,rlens,inserts,pis,out):
                         find_cn_cols(d['bp2_chr'],d['bp2_pos'],cnv)
         
         df_flt = run_filter(df,rlen,insert,cnv)
-        ps.cluster(df_flt,pi,rlen,insert)
+        ps.infer_tree(df_flt,pi,rlen,insert,out)

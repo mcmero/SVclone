@@ -15,10 +15,8 @@ import sys
 import sqlite3
 import subprocess
 
-tr      = 5 #threshold by how much read has to overlap breakpoint
-sc_len  = 25 #threshold by which we call split reads
-window  = 500
-max_cn  = 15
+tr      = 5   #threshold by how much read has to overlap breakpoint
+window  = 500 #base-pairs considered to the left and right of the break
 
 read_dtype = [('query_name', 'S150'), ('chrom', 'S50'), ('ref_start', int), ('ref_end', int), \
               ('align_start', int), ('align_end', int), ('len', int), ('ins_len', int), ('is_reverse', np.bool)]
@@ -36,7 +34,7 @@ def read_to_array(x,bamf):
 def is_soft_clipped(r):
     return r['align_start'] != 0 or (r['len'] + r['ref_start'] != r['ref_end'])
 
-def is_normal_across_break(r,pos,max_ins):
+def is_normal_across_break(r,pos,max_ins,sc_len):
     # tolerate minor soft-clip
     # must overhang break by at least soft-clip threshold
     minor_sc = (r['align_start'] < (tr*2)) and ((r['align_end'] + r['ref_start'] - r['ref_end']) < (tr*2))
@@ -53,7 +51,7 @@ def is_normal_spanning(r,m,pos,max_ins):
                    (m['ref_start'] > (pos - tr))
     return False
 
-def is_supporting_split_read(r,pos,max_ins):
+def is_supporting_split_read(r,pos,max_ins,sc_len):
     '''
     Return whether read is a supporting split read.
     Doesn't yet check whether the soft-clip aligns
@@ -167,7 +165,15 @@ def reads_to_sam(reads,bam,bp1,bp2,name):
     
     bamf.close()
     bam_out.close()
-    
+
+#TODO: sam concatenation needs de-dupping
+#def concat_sams_to_bam(bam,name):
+#    subprocess.call(['samtools','view','-H',bam],stdout=open('head.sam','w'))
+#    subprocess.call(['cat','head.sam','%s_*.sam'%name],stdout=open('all_%s.sam'%name,'w'),shell=True)
+#    subprocess.call(['samtools','view','-hbS','normal_all.sam'],stdout=open('all_%s.bam'%name,'w'))
+#    subprocess.call(['samtools','sort','all_%s.bam'%name,'all_%s_sort'%name])
+#    subprocess.call(['samtools','index','all_%s_sort.bam'%name])
+
 def windowed_norm_read_count(loc_reads,inserts,max_ins):
     '''
     Counts normal non-soft-clipped reads within window range
@@ -186,18 +192,18 @@ def windowed_norm_read_count(loc_reads,inserts,max_ins):
             cnorm = cnorm + 2
     return cnorm
 
-def get_loc_counts(loc_reads,pos,rc,reproc,split,norm,max_ins,bp_num=1):
+def get_loc_counts(loc_reads,pos,rc,reproc,split,norm,max_ins,sc_len,bp_num=1):
     for idx,x in enumerate(loc_reads):
         if idx+1 >= len(loc_reads):            
             break        
         r1 = loc_reads[idx]
         r2 = loc_reads[idx+1] if (idx+2)<=len(loc_reads) else None
 
-        if is_normal_across_break(x,pos,max_ins):
+        if is_normal_across_break(x,pos,max_ins,sc_len):
             norm = np.append(norm,r1)            
             split_norm = 'bp%d_split_norm'%bp_num
             rc[split_norm] = rc[split_norm]+1 
-        elif is_supporting_split_read(x,pos,max_ins):
+        elif is_supporting_split_read(x,pos,max_ins,sc_len):
             split = np.append(split,x)            
             split_supp = 'bp%d_split'%bp_num
             split_cnt = 'bp%d_sc_bases'%bp_num
@@ -212,7 +218,7 @@ def get_loc_counts(loc_reads,pos,rc,reproc,split,norm,max_ins,bp_num=1):
             reproc = np.append(reproc,x) #may be spanning support or anomalous
     return rc, reproc, split, norm
 
-def get_sv_read_counts(bp1,bp2,bam,columns,inserts,max_dp,max_ins):
+def get_sv_read_counts(bp1,bp2,bam,columns,inserts,max_dp,max_ins,sc_len):
     bamf = pysam.AlignmentFile(bam, "rb")
     pos1 = (bp1['start'] + bp1['end']) / 2
     pos2 = (bp2['start'] + bp2['end']) / 2
@@ -229,14 +235,16 @@ def get_sv_read_counts(bp1,bp2,bam,columns,inserts,max_dp,max_ins):
     
     split = np.empty([0,len(read_dtype)],dtype=read_dtype)
     norm = np.empty([0,len(read_dtype)],dtype=read_dtype)
-    rc, reproc, split, norm = get_loc_counts(loc1_reads,pos1,rc,reproc,split,norm,max_ins)
-    rc, reproc, split, norm = get_loc_counts(loc2_reads,pos2,rc,reproc,split,norm,max_ins,2)
+    
+    rc, reproc, split, norm = get_loc_counts(loc1_reads,pos1,rc,reproc,split,norm,sc_len,max_ins)
+    rc, reproc, split, norm = get_loc_counts(loc2_reads,pos2,rc,reproc,split,norm,sc_len,max_ins,2)
     rc['bp1_win_norm'] = windowed_norm_read_count(loc1_reads,inserts,max_ins)
     rc['bp2_win_norm'] = windowed_norm_read_count(loc2_reads,inserts,max_ins)
-     
+    
     reproc = np.sort(reproc,axis=0,order=['query_name','ref_start'])
     reproc = np.unique(reproc) #remove dups
     span = np.empty([0,len(read_dtype)],dtype=read_dtype)
+    
     for idx,x in enumerate(reproc):
         if idx+1 >= len(reproc):
             break        
@@ -264,6 +272,13 @@ def get_sv_read_counts(bp1,bp2,bam,columns,inserts,max_dp,max_ins):
     return rc
 
 def proc_header(header,columns):
+    if header=="":
+        hd = np.array(['bp1_chr','bp1_pos','bp1_dir','bp2_chr','bp2_pos','bp2_dir','classification'])
+        if np.all(np.sort(map(str,columns))==np.sort(hd)):
+            return hd
+        else:
+            print('No header config provided and headers in input file do not match defaults! Exiting')
+            sys.exit()
     hd = pd.read_csv(header,delimiter='=',header=None)
     hdt = pd.DataFrame(hd[1].values,index=hd[0].values).transpose()
     keyfields = ['bp1_chr','bp1_pos','bp1_dir','bp2_chr','bp2_pos','bp2_dir','classification']
@@ -277,18 +292,19 @@ def proc_header(header,columns):
               'bp2_chr,bp2_pos, bp2_dir and classification')
         sys.exit()
 
-def proc_svs(svin,bam,out,header,mean_dp): 
+def proc_svs(svin,bam,out,header,mean_dp,sc_len,max_cn): 
     db_out = '%s.db'%out
     out = '%s.txt'%out
+    
     inserts = bamtools.estimateInsertSizeDistribution(bam)
     rlen = bamtools.estimateTagSize(bam)
+    
     max_dp = ((mean_dp*(window*2))/rlen)*max_cn
     max_ins = 2*inserts[1]+inserts[0]
 
     bp_dtype = [('chrom','S20'),('start', int), ('end', int), ('dir', 'S2')]
     sv_dtype = [('bp1_chr','S20'),('bp1_pos',int),('bp1_dir','S5'),('bp2_chr','S20'), \
                 ('bp2_pos',int),('bp2_dir','S5'),('classification','S100')]               
-    #TODO: make this flexible
     svs = pd.read_csv(svin,delimiter='\t',dtype=sv_dtype)
 
     columns = ['bp1_split_norm','bp1_span_norm','bp1_win_norm','bp1_split','bp1_sc_bases', \
@@ -299,28 +315,27 @@ def proc_svs(svin,bam,out,header,mean_dp):
     for idx,row in svs.iterrows():
         sv_str = '%s:%d|%s:%d'%(row[bp1_chr],row[bp1_pos],row[bp2_chr],row[bp2_pos])
         print('processing %s'%sv_str)
+        
         bp1 = np.array((row[bp1_chr],row[bp1_pos]-window,row[bp1_pos]+window,row[bp1_dir]),dtype=bp_dtype)
         bp2 = np.array((row[bp2_chr],row[bp2_pos]-window,row[bp2_pos]+window,row[bp2_dir]),dtype=bp_dtype)
-        sv_rc  = get_sv_read_counts(bp1,bp2,bam,columns,inserts,max_dp,max_ins)
+        sv_rc  = get_sv_read_counts(bp1,bp2,bam,columns,inserts,max_dp,max_ins,sc_len)
         if bool(sv_rc.empty):
             print('Skipping location %s'%sv_str)
             continue
+        
         newrow = pd.DataFrame(row.append(sv_rc)).transpose()
         newrow['norm1']=sv_rc['bp1_split_norm']+sv_rc['bp1_span_norm']
         newrow['norm2']=sv_rc['bp2_split_norm']+sv_rc['bp2_span_norm']
         newrow['support']=sv_rc['bp1_split']+sv_rc['bp2_split']+sv_rc['spanning']
         newrow['vaf1']=newrow['support']/(newrow['support']+newrow['norm1'])
         newrow['vaf2']=newrow['support']/(newrow['support']+newrow['norm2'])
+        
         con = sqlite3.connect(db_out)
         #TODO:recognise previously processed data
         newrow.to_sql('sv_info',con,if_exists='append',index=False)
         con.close()
+
     con = sqlite3.connect(db_out)
     pd.read_sql('select * from sv_info',con).to_csv(out,sep="\t",index=False)
     con.close()
-    #subprocess.call(['samtools','view','-H',bam],stdout=open('head.sam','w'))
-    #subprocess.call(['cat','head.sam','norm`_*.sam'],stdout=open('normal_all.sam','w'),shell=True)
-    #subprocess.call(['samtools','view','-hbS','normal_all.sam'],stdout=open('normal_all.bam','w'))
-    #subprocess.call(['samtools','sort','normal_all.bam','normal_all_sort'])
-    #subprocess.call(['samtools','index','normal_all_sort.bam'])
 
