@@ -62,4 +62,4 @@ if __name__ == '__main__':
     except ValueError:
         print "Invalid arguments. Check arguments with -h or --help and try again."
         sys.exit
-    phylo_sv.run(samples,svs,gml,cnvs,rlen,insert,pi,out)    
+    phylo_sv.run(samples,svs,gml,cnvs,rlen,insert,pi,out)

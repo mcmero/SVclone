@@ -50,7 +50,7 @@ def run(samples,svs,gml,cnvs,rlens,inserts,pis,out):
             cnv_df = pd.DataFrame(cnv)
             cnv_df['chr'] = map(str,map(int,cnv_df['chr']))
            
-            # set BattenBerg fields
+            # set Battenberg fields
             df['bp1_maj_cnv'], df['bp1_min_cnv'], df['bp1_frac1A'] = float('nan'), float('nan'), float('nan')
             df['bp2_maj_cnv'], df['bp2_min_cnv'], df['bp2_frac1A'] = float('nan'), float('nan'), float('nan')
 
@@ -61,4 +61,7 @@ def run(samples,svs,gml,cnvs,rlens,inserts,pis,out):
                         find_cn_cols(d['bp2_chr'],d['bp2_pos'],cnv)
         
         df_flt = run_filter(df,rlen,insert,cnv)
+        if len(df_flt) < 5:
+            print("Less than 5 post-filtered SVs. Clustering not recommended for this sample. Exiting.")
+            sys.exit
         ps.infer_tree(df_flt,pi,rlen,insert,out)

@@ -10,8 +10,11 @@ import ipdb
 import csv
 import random
 import graph as gp
-import phylo_sv as sv
+import phylo_sv as ps
 import itertools
+import sys
+import pandas as pd
+from ete2 import Tree
 from itertools import combinations
 from subprocess import call
 from numpy import loadtxt
@@ -332,3 +335,105 @@ def output_dot(pname,samples,nodes,cmat,ftab):
             df.write('}\n') 
    
     subprocess.call(["dot","-Tps","results/%s_trees.dot"%pname],stdout=open(r'results/%s_trees.ps'%pname,'w')) 
+
+def index_max(values):
+    return max(xrange(len(values)),key=values.__getitem__)
+
+def infer_tree(df,pi,rlen,insert,out):
+    mcmc = ps.cluster(df,pi,rlen,insert,mcmc_samples=7000)
+    npoints = len(df.spanning.values)
+
+    # assign points to highest probabiliy cluster
+    z_trace = mcmc.trace('z')[:]
+    clus_counts = [np.bincount(z_trace[:,i]) for i in range(npoints)]
+    clus_max_prob = [index_max(c) for c in clus_counts]
+    clus_mp_counts = np.bincount(clus_max_prob)
+    clus_idx = np.nonzero(clus_mp_counts)[0]
+    clus_mp_counts = clus_mp_counts[clus_idx]
+    
+    # cluster distribution
+    clus_info = pd.DataFrame(clus_mp_counts,index=clus_idx,columns=["size"])
+    print("Initial clustering")
+    print(clus_info)
+    #print(zip(clus_idx,clus_mp_counts))
+
+    # filter clones below threshold
+    #flt_clones = sum(clus_mp_counts)*ps.subclone_threshold<clus_mp_counts
+    #clus_idx = clus_idx[flt_clones]
+    #clus_mp_counts = clus_mp_counts[flt_clones]
+    clus_info = clus_info[sum(clus_info.size.values)*ps.subclone_threshold<clus_info.size.values]
+
+    if len(clus_info) < 1:
+        print("Could not converge on any major clusters! Exiting.")
+        sys.exit
+   
+    # get cluster means
+    ps.subclone_diff = 0.4 #test only
+    center_trace = mcmc.trace("phi_k")[:]
+    ps.plot_clusters(center_trace,npoints,clus_idx)
+    phis = np.array([np.mean(center_trace[:,cid]) for cid in clus_info.index])
+    clus_info['phi'] = phis
+    clus_info = clus_info.sort('phi',ascending=False)
+    clus_members = np.array([np.where(np.array(clus_max_prob)==i)[0] for i in clus_info.index])
+
+    # merge clusters within in close distance proximity
+    del_clusts = [] #remove these clusters post-processing
+    for idx,ci in clus_info.iterrows():
+        curr_loc = int(np.where(clus_info.index==idx)[0])
+        if curr_loc+1 >= len(clus_info):
+            break
+        next_idx = clus_info.index[curr_loc+1]
+        cn = clus_info.loc[next_idx]
+        if abs(ci.phi - float(cn.phi)) < ps.subclone_diff:
+            print("Reclustering similar clusters...")
+            new_members = np.concatenate([clus_members[curr_loc],clus_members[curr_loc+1]])
+            new_size = ci['size'] + cn['size']
+            new_phi = ps.recluster(df.loc[new_members], pi, rlen, insert)
+            clus_info.loc[idx] = np.array([new_size,new_phi])
+            del_clusts.append(idx+1)
+            clus_members[curr_loc] = new_members
+   
+    #TODO BUG HERE labels [2] not contained in axis. FIX
+    clus_info = clus_info.drop(del_clusts)
+    clus_info = clus_info.sort('phi',ascending=False)
+    clus_members = np.delete(clus_members,del_clusts,0)
+    
+    print("Filtered & merged clusters")
+    print(clus_info)
+
+    if (clus_info.phi[0]*2.)>(1+(ps.subclone_threshold*2)):
+        print("Major clonal cluster VAF exceeds 0.5 - either germline breaks were not " + \
+              "adequately filtered, or provided copy-numbers are inaccurate. Please double-check and rerun.")
+        sys.exit
+    
+    # 1 cluster - no tree building possible
+    if len(clus_info)==1:
+        print("Single sample contains 1 clonal cluster, no tree building attempted")
+        t = Tree()
+        t.add_child(name=clus_info.index[0])
+        with open('%s.txt'%out,'w') as outf:
+            outf.write("id\tphi\tnum_children\tnum_svs\tsvs\n") 
+            svs = ['%s:%s|%s:%s' % x for x in \
+                    zip(df.bp1_chr.values,df.bp1_pos.values,df.bp2_chr.values,df.bp2_pos.values)]
+            outf.write('%d\t%f\t%d\t%d\t%s'%(clus_info.index[0],clus_info.phi[0],0,len(clus_info),','.join(svs)))
+            outf.write(t.get_ascii(show_internal=True))
+    #elif phis[0]<(sum(phis[1:])-ps.subclone_threshold):
+    #     algorithm to deal with this
+    #    print("Need to implement pigeon-hole principle")
+    else:
+        # we can't be sure whether the phylogeny is branching or linear with single samples
+        # generate all possible trees
+        t = Tree()
+        
+#        with open('%s.txt'%out,'w') as outf:
+#            outf.write("id\tphi\tnum_children\tnum_svs\tsvs\n")
+#            lin_phis = [phi-phi[idx+1] for idx,phi in clus_info.iterrows()) if idx+1>=len(clus_info)]
+#            lin_phis.extend(phis[len(phis)-1])
+#            
+#            for idx,c in enumerate(clusters):
+#                t.add_child(name=clus_idx[idx])
+#                svs = ['%s:%s|%s:%s' % x for x in \
+#                        zip(df.bp1_chr.values,df.bp1_pos.values,df.bp2_chr.values,df.bp2_pos.values)]
+#                outf.write('%d\t%f\t%d\t%d\t%s'%(clus_idx[idx],lin_phis[idx],idx,len(clusters[idx]),','.join(svs)))
+#
+#            outf.write(t.get_ascii(show_internal=True))
