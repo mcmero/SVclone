@@ -32,7 +32,7 @@ def is_soft_clipped(r):
 def is_normal_across_break(r,pos,max_ins,sc_len):
     # tolerate minor soft-clip
     # must overhang break by at least soft-clip threshold
-    minor_sc = (r['align_start'] < (ps.tr*2)) and ((r['align_end'] + r['ref_start'] - r['ref_end']) < (tr*2))
+    minor_sc = (r['align_start'] < (ps.tr*2)) and ((r['align_end'] + r['ref_start'] - r['ref_end']) < (ps.tr*2))
     return  (not is_soft_clipped(r) or minor_sc) and \
             (abs(r['ins_len']) < max_ins) and \
             (r['ref_start'] <= (pos - sc_len)) and \
@@ -52,7 +52,7 @@ def is_supporting_split_read(r,pos,max_ins,sc_len):
     Doesn't yet check whether the soft-clip aligns
     to the other side.
     '''
-    if r['align_start'] < (tr/2): #a "soft" threshold if it is soft-clipped at the other end        
+    if r['align_start'] < (ps.tr/2): #a "soft" threshold if it is soft-clipped at the other end        
         return r['ref_end'] > (pos - ps.tr) and r['ref_end'] < (pos + ps.tr) and \
             (r['len'] - r['align_end'] >= sc_len) and abs(r['ins_len']) < max_ins
     else:

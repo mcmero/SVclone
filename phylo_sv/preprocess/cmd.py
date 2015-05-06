@@ -5,8 +5,8 @@ Commandline input for running SV post-processing script
 '''
 
 import argparse
-import phylo_sv
-import ipdb
+import phylo_sv as ps
+import numpy as np
 
 parser = argparse.ArgumentParser(prefix_chars='--')
 parser.add_argument("-i","--input",dest="svin",
@@ -17,7 +17,7 @@ parser.add_argument("-hd","--header",dest="header",default="",
         help="Config file specifying header columns. If not provided, default column names assumed (see README)")
 parser.add_argument("-o","--out",dest="out",
         help="Output base name. Will create processed output as <name>.txt and database output as <name>.db")
-parser.add_argument("-d","--depth",dest="mean_depth",type=float,
+parser.add_argument("-d","--depth",dest="mean_dp",type=float,
         help="Average coverage for BAM file in covered region. May be calculated across binned intervals.")
 parser.add_argument("-sc","--softclip_bp",dest="sc_len",default=25,type=int,
         help="Optional: minimum number of basepairs by which reads spanning the break are considered support " + \
@@ -32,10 +32,10 @@ svin    = args.svin
 bam     = args.bam
 out     = args.out
 hd_cfg  = args.header
-mean_dp = float(args.mean_depth)
+mean_dp = float(args.mean_dp)
 sc_len  = float(args.sc_len)
 max_cn  = int(args.max_cn)
 
 if __name__ == '__main__':
-    phylo_sv.proc_svs(svin,bam,out,hd_cfg,mean_dp,sc_len,max_cn)
+    ps.preprocess.proc_svs(svin,bam,out,hd_cfg,mean_dp,sc_len,max_cn)
 

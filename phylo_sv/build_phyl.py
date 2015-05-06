@@ -353,9 +353,6 @@ def infer_tree(df,pi,rlen,insert,out):
     
     # cluster distribution
     clus_info = pd.DataFrame(clus_mp_counts,index=clus_idx,columns=["size"])
-    print("Initial clustering")
-    print(clus_info)
-    #print(zip(clus_idx,clus_mp_counts))
 
     # filter clones below threshold
     #flt_clones = sum(clus_mp_counts)*ps.subclone_threshold<clus_mp_counts
@@ -375,6 +372,7 @@ def infer_tree(df,pi,rlen,insert,out):
     clus_info['phi'] = phis
     clus_info = clus_info.sort('phi',ascending=False)
     clus_members = np.array([np.where(np.array(clus_max_prob)==i)[0] for i in clus_info.index])
+    print(clus_info)
 
     # merge clusters within in close distance proximity
     del_clusts = [] #remove these clusters post-processing
@@ -385,18 +383,18 @@ def infer_tree(df,pi,rlen,insert,out):
         next_idx = clus_info.index[curr_loc+1]
         cn = clus_info.loc[next_idx]
         if abs(ci.phi - float(cn.phi)) < ps.subclone_diff:
-            print("Reclustering similar clusters...")
+            print("\nReclustering similar clusters...")
             new_members = np.concatenate([clus_members[curr_loc],clus_members[curr_loc+1]])
             new_size = ci['size'] + cn['size']
             new_phi = ps.recluster(df.loc[new_members], pi, rlen, insert)
             clus_info.loc[idx] = np.array([new_size,new_phi])
-            del_clusts.append(idx+1)
+            del_clusts.append(next_idx)
             clus_members[curr_loc] = new_members
    
-    #TODO BUG HERE labels [2] not contained in axis. FIX
+    ipdb.set_trace()
+    clus_members = np.delete(clus_members,np.where(clus_info.index==del_clusts)[0],0)
     clus_info = clus_info.drop(del_clusts)
     clus_info = clus_info.sort('phi',ascending=False)
-    clus_members = np.delete(clus_members,del_clusts,0)
     
     print("Filtered & merged clusters")
     print(clus_info)
