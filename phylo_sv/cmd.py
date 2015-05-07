@@ -5,8 +5,8 @@ Commandline input for running SV
 '''
 
 import argparse
-import phylo_sv
 import sys
+from . import run
 
 parser = argparse.ArgumentParser(prefix_chars='--')
 parser.add_argument("-s","--samples",dest="samples",
@@ -27,6 +27,8 @@ parser.add_argument("-v","--insert",dest="insert",default="",
 parser.add_argument("-p","--purity",dest="pi",default="1.",
     help="Tumour purities for all samples given. A single parameter assumes " +
             "uniform purity for all samples. No parameter assumes 100% purity.")
+parser.add_argument("-y","--ploidy",dest="ploidy",default=2.0,
+    help="Tumour ploidy. Assumed to be diloid (2).")
 parser.add_argument("-o","--out",dest="out",
     help="Base name for outputting phylogeny info.")
 args = parser.parse_args()
@@ -39,6 +41,7 @@ out     = args.out
 rlen    = args.rlen
 insert  = args.insert
 pi      = args.pi
+ploidy  = args.ploidy
 
 def proc_arg(arg,n_args=1,of_type=str):
     arg = str.split(arg,',')
@@ -62,4 +65,4 @@ if __name__ == '__main__':
     except ValueError:
         print "Invalid arguments. Check arguments with -h or --help and try again."
         sys.exit
-    phylo_sv.run(samples,svs,gml,cnvs,rlen,insert,pi,out)
+    run.run(samples,svs,gml,cnvs,rlen,insert,pi,ploidy,out)

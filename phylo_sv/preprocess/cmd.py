@@ -5,8 +5,8 @@ Commandline input for running SV post-processing script
 '''
 
 import argparse
-import phylo_sv as ps
 import numpy as np
+from . import preprocess
 
 parser = argparse.ArgumentParser(prefix_chars='--')
 parser.add_argument("-i","--input",dest="svin",
@@ -37,5 +37,5 @@ sc_len  = float(args.sc_len)
 max_cn  = int(args.max_cn)
 
 if __name__ == '__main__':
-    ps.preprocess.proc_svs(svin,bam,out,hd_cfg,mean_dp,sc_len,max_cn)
+    preprocess.proc_svs(svin,bam,out,hd_cfg,mean_dp,sc_len,max_cn)
 

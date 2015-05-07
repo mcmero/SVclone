@@ -7,6 +7,7 @@ import scipy.optimize as op
 import colorsys
 import ipdb
 import sys
+from . import parameters as param
 from scipy.stats import itemfreq
 from IPython.core.pylabtools import figsize
 
@@ -27,7 +28,14 @@ def plot_clusters(center_trace,npoints,clusters):
     leg = plt.legend(loc="upper right")
     leg.get_frame().set_alpha(0.7)
 
-def recluster(df,pi,rlen,insert,mcmc_samples=50000,burn=5000):
+def fit_and_sample(model, iters, burn, thin):
+    # map_ = pm.MAP(model)
+    # map_.fit()
+    mcmc = pm.MCMC(model)
+    mcmc.sample(iters, burn=burn, thin=thin)
+    return mcmc
+
+def recluster(df,pi,rlen,insert,iters=param.reclus_iters,burn=param.burn,thin=param.thin):    
     '''
     reclusters group without Dirichlet (assuming only one group exists)
     '''
@@ -56,16 +64,14 @@ def recluster(df,pi,rlen,insert,mcmc_samples=50000,burn=5000):
     normp = pm.Poisson('normp', mu=nmu, observed=True, value=n)
 
     model = pm.Model([dp,sp,normp,phi_k])
-
-    mcmc = pm.MCMC(model)
-    mcmc.sample(mcmc_samples, burn=burn)
+    mcmc = fit_and_sample(model,iters,burn,thin)
     
     center_trace = mcmc.trace("phi_k")[:]
     phi = np.mean(center_trace[:])
     
     return phi
 
-def cluster(df,pi,rlen,insert,Ndp=35,mcmc_samples=100000,burn=5000):
+def cluster(df,pi,rlen,insert,Ndp=35,iters=param.init_iters,burn=param.burn,thin=param.thin):
     n1 = df.norm1.values
     n2 = df.norm2.values
     n = np.array(df.norm_mean)
@@ -101,8 +107,6 @@ def cluster(df,pi,rlen,insert,Ndp=35,mcmc_samples=100000,burn=5000):
     normp = pm.Poisson('normp', mu=nmu, observed=True, value=n)
 
     model = pm.Model([p,z,dp,sp,normp,phi_k])
-
-    mcmc = pm.MCMC(model)
-    mcmc.sample(mcmc_samples, burn=burn)
+    mcmc = fit_and_sample(model,iters,burn,thin)
     return mcmc
 

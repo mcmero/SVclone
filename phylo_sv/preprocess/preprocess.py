@@ -14,17 +14,17 @@ import bamtools
 import sys
 import sqlite3
 import subprocess
-import phylo_sv as ps
+from .. import parameters as param
 
 def read_to_array(x,bamf):
     chrom = bamf.getrname(x.reference_id)
     try:
         read = np.array((x.query_name,chrom,x.reference_start,x.reference_end,x.query_alignment_start,
-                         x.query_alignment_end,x.query_length,x.tlen,np.bool(x.is_reverse)),dtype=ps.read_dtype)
+                         x.query_alignment_end,x.query_length,x.tlen,np.bool(x.is_reverse)),dtype=param.read_dtype)
         return read
     except TypeError:
         print 'Warning: record %s contains invalid attributes' % x.query_name
-        return np.empty(len(ps.read_dtype),dtype=ps.read_dtype)
+        return np.empty(len(param.read_dtype),dtype=param.read_dtype)
 
 def is_soft_clipped(r):
     return r['align_start'] != 0 or (r['len'] + r['ref_start'] != r['ref_end'])
@@ -32,7 +32,7 @@ def is_soft_clipped(r):
 def is_normal_across_break(r,pos,max_ins,sc_len):
     # tolerate minor soft-clip
     # must overhang break by at least soft-clip threshold
-    minor_sc = (r['align_start'] < (ps.tr*2)) and ((r['align_end'] + r['ref_start'] - r['ref_end']) < (ps.tr*2))
+    minor_sc = (r['align_start'] < (param.tr*2)) and ((r['align_end'] + r['ref_start'] - r['ref_end']) < (param.tr*2))
     return  (not is_soft_clipped(r) or minor_sc) and \
             (abs(r['ins_len']) < max_ins) and \
             (r['ref_start'] <= (pos - sc_len)) and \
@@ -42,8 +42,8 @@ def is_normal_spanning(r,m,pos,max_ins):
     if not (is_soft_clipped(r) or is_soft_clipped(m)):
         if (not r['is_reverse'] and m['is_reverse']) or (r['is_reverse'] and not m['is_reverse']):
             return (abs(r['ins_len']) < max_ins) and \
-                   (r['ref_end'] < (pos + ps.tr)) and \
-                   (m['ref_start'] > (pos - ps.tr))
+                   (r['ref_end'] < (pos + param.tr)) and \
+                   (m['ref_start'] > (pos - param.tr))
     return False
 
 def is_supporting_split_read(r,pos,max_ins,sc_len):
@@ -52,18 +52,18 @@ def is_supporting_split_read(r,pos,max_ins,sc_len):
     Doesn't yet check whether the soft-clip aligns
     to the other side.
     '''
-    if r['align_start'] < (ps.tr/2): #a "soft" threshold if it is soft-clipped at the other end        
-        return r['ref_end'] > (pos - ps.tr) and r['ref_end'] < (pos + ps.tr) and \
+    if r['align_start'] < (param.tr/2): #a "soft" threshold if it is soft-clipped at the other end        
+        return r['ref_end'] > (pos - param.tr) and r['ref_end'] < (pos + param.tr) and \
             (r['len'] - r['align_end'] >= sc_len) and abs(r['ins_len']) < max_ins
     else:
-        return r['ref_start'] > (pos - ps.tr) and r['ref_start'] < (pos + ps.tr) and \
+        return r['ref_start'] > (pos - param.tr) and r['ref_start'] < (pos + param.tr) and \
             (r['align_start'] >= sc_len) and abs(r['ins_len']) < max_ins
 
 def get_sc_bases(r,pos):
     '''
     Return the number of soft-clipped bases
     '''
-    if r['align_start'] < (ps.tr/2):
+    if r['align_start'] < (param.tr/2):
         return r['len'] - r['align_end']
     else:
         return r['align_start']
@@ -101,7 +101,7 @@ def is_supporting_spanning_pair(r,m,bp1,bp2,inserts,max_ins):
 
 def get_loc_reads(bp,bamf,max_dp):
     loc = '%s:%d:%d' % (bp['chrom'], max(0,bp['start']), bp['end'])
-    loc_reads = np.empty([0,len(ps.read_dtype)],dtype=ps.read_dtype)    
+    loc_reads = np.empty([0,len(param.read_dtype)],dtype=param.read_dtype)    
     try:
         iter_loc = bamf.fetch(region=loc,until_eof=True)
         for x in iter_loc:
@@ -213,10 +213,10 @@ def get_sv_read_counts(bp1,bp2,bam,columns,inserts,max_dp,max_ins,sc_len):
     
     rc = pd.Series(np.zeros(len(columns)),index=columns,dtype='int')
     #rc['sv']='%s:%d-%s:%d'%(bp1['chrom'],pos1,bp2['chrom'],pos2)
-    reproc = np.empty([0,len(ps.read_dtype)],dtype=ps.read_dtype)
+    reproc = np.empty([0,len(param.read_dtype)],dtype=param.read_dtype)
     
-    split = np.empty([0,len(ps.read_dtype)],dtype=ps.read_dtype)
-    norm = np.empty([0,len(ps.read_dtype)],dtype=ps.read_dtype)
+    split = np.empty([0,len(param.read_dtype)],dtype=param.read_dtype)
+    norm = np.empty([0,len(param.read_dtype)],dtype=param.read_dtype)
     
     rc, reproc, split, norm = get_loc_counts(loc1_reads,pos1,rc,reproc,split,norm,sc_len,max_ins)
     rc, reproc, split, norm = get_loc_counts(loc2_reads,pos2,rc,reproc,split,norm,sc_len,max_ins,2)
@@ -225,7 +225,7 @@ def get_sv_read_counts(bp1,bp2,bam,columns,inserts,max_dp,max_ins,sc_len):
     
     reproc = np.sort(reproc,axis=0,order=['query_name','ref_start'])
     reproc = np.unique(reproc) #remove dups
-    span = np.empty([0,len(ps.read_dtype)],dtype=ps.read_dtype)
+    span = np.empty([0,len(param.read_dtype)],dtype=param.read_dtype)
     
     for idx,x in enumerate(reproc):
         if idx+1 >= len(reproc):
@@ -281,7 +281,7 @@ def proc_svs(svin,bam,out,header,mean_dp,sc_len,max_cn):
     inserts = bamtools.estimateInsertSizeDistribution(bam)
     rlen = bamtools.estimateTagSize(bam)
     
-    max_dp = ((mean_dp*(ps.window*2))/rlen)*max_cn
+    max_dp = ((mean_dp*(param.window*2))/rlen)*max_cn
     max_ins = 2*inserts[1]+inserts[0]
 
     bp_dtype = [('chrom','S20'),('start', int), ('end', int), ('dir', 'S2')]
@@ -298,8 +298,8 @@ def proc_svs(svin,bam,out,header,mean_dp,sc_len,max_cn):
         sv_str = '%s:%d|%s:%d'%(row[bp1_chr],row[bp1_pos],row[bp2_chr],row[bp2_pos])
         print('processing %s'%sv_str)
         
-        bp1 = np.array((row[bp1_chr],row[bp1_pos]-ps.window,row[bp1_pos]+ps.window,row[bp1_dir]),dtype=bp_dtype)
-        bp2 = np.array((row[bp2_chr],row[bp2_pos]-ps.window,row[bp2_pos]+ps.window,row[bp2_dir]),dtype=bp_dtype)
+        bp1 = np.array((row[bp1_chr],row[bp1_pos]-param.window,row[bp1_pos]+param.window,row[bp1_dir]),dtype=bp_dtype)
+        bp2 = np.array((row[bp2_chr],row[bp2_pos]-param.window,row[bp2_pos]+param.window,row[bp2_dir]),dtype=bp_dtype)
         sv_rc  = get_sv_read_counts(bp1,bp2,bam,columns,inserts,max_dp,max_ins,sc_len)
         if bool(sv_rc.empty):
             print('Skipping location %s'%sv_str)

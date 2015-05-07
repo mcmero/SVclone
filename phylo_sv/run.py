@@ -2,21 +2,27 @@
 Run clustering and tree building on sample inputs
 '''
 
+import sys
 import numpy as np
-import phylo_sv as ps
 import ipdb
 import pandas as pd
+from . import build_phyl
 
-def run_filter(df,rlen,insert,cnv=np.empty(0),perc=85):
+def run_filter(df,rlen,insert,cnv,ploidy,perc=85):
+    df_flt = df[df['support']>1]
+    
     #filter based on fragment length
-    itx = df['bp1_chr']!=df['bp2_chr']
+    itx = df_flt['bp1_chr']!=df_flt['bp2_chr']
     frag_len = 2*rlen+insert
-    df_flt = df[ itx | (abs(df['bp1_pos']-df['bp2_pos'])>frag_len) ]
-    df_flt = df_flt[df_flt['support']>1]
-    df['norm_mean'] = map(np.mean,zip(df['norm1'].values,df['norm2'].values))
+    df_flt = df_flt[ itx | (abs(df_flt['bp1_pos']-df_flt['bp2_pos'])>frag_len) ]
+    
     if len(cnv)>0:
-        df_flt = df[(df.bp1_frac1A==1) & (df.bp2_frac1A==1) & (df.bp1_maj_cnv+df.bp1_min_cnv<=3) & \
-            (df.bp2_maj_cnv+df.bp2_min_cnv<=3) & (df.norm_mean<np.percentile(df.norm_mean,perc))]
+        # filter out copy-aberrant SVs and outying norm read counts (>1-percentile)
+        cn1 = np.array(map(round,df.bp1_maj_cnv+df.bp1_min_cnv))
+        cn2 = np.array(map(round,df.bp2_maj_cnv+df.bp2_min_cnv))
+        df_flt = df[(df.bp1_frac1A==1) & (df.bp2_frac1A==1) & (cn1==2) & (cn2==2) & \
+                (df.norm_mean<np.percentile(df.norm_mean,perc))]
+    df_flt.index = range(len(df_flt))
     return df_flt
 
 def cnv_overlaps(bp_pos,cnv_start,cnv_end):
@@ -28,7 +34,7 @@ def find_cn_cols(bp_chr,bp_pos,cnv,cols=['nMaj1_A','nMin1_A','frac1_A']):
             return c[cols[0]],c[cols[1]],c[cols[2]]
     return float('nan'),float('nan'),float('nan')
 
-def run(samples,svs,gml,cnvs,rlens,inserts,pis,out):
+def run(samples,svs,gml,cnvs,rlens,inserts,pis,ploidy,out):
     if gml!="":
         #run germline filtering
         print
@@ -45,6 +51,7 @@ def run(samples,svs,gml,cnvs,rlens,inserts,pis,out):
         dat = pd.read_csv(sv,delimiter='\t')
         df = pd.DataFrame(dat)
         cnv_df = pd.DataFrame()
+
         if cnv!="":
             cnv = pd.read_csv(cnv,delimiter='\t')
             cnv_df = pd.DataFrame(cnv)
@@ -59,9 +66,11 @@ def run(samples,svs,gml,cnvs,rlens,inserts,pis,out):
                         find_cn_cols(d['bp1_chr'],d['bp1_pos'],cnv)
                 df['bp2_maj_cnv'][idx], df['bp2_min_cnv'][idx], df['bp2_frac1A'][idx] = \
                         find_cn_cols(d['bp2_chr'],d['bp2_pos'],cnv)
-        
-        df_flt = run_filter(df,rlen,insert,cnv)
+            df = df[pd.notnull(df['bp1_frac1A'])]        
+
+        df['norm_mean'] = map(np.mean,zip(df['norm1'].values,df['norm2'].values))
+        df_flt = run_filter(df,rlen,insert,cnv,ploidy)
         if len(df_flt) < 5:
             print("Less than 5 post-filtered SVs. Clustering not recommended for this sample. Exiting.")
-            sys.exit
-        ps.infer_tree(df_flt,pi,rlen,insert,out)
+            return None
+        build_phyl.infer_tree(df_flt,samples,pi,rlen,insert,out)
