@@ -1,7 +1,7 @@
 '''
 Run clustering and tree building on sample inputs
 '''
-
+import os
 import sys
 import numpy as np
 import ipdb
@@ -35,9 +35,12 @@ def find_cn_cols(bp_chr,bp_pos,cnv,cols=['nMaj1_A','nMin1_A','frac1_A']):
     return float('nan'),float('nan'),float('nan')
 
 def run(samples,svs,gml,cnvs,rlens,inserts,pis,ploidy,out):
+    if not os.path.exists(out):
+        os.makedirs(out)
+
     if gml!="":
-        #run germline filtering
-        print
+        #TODO: implement germline filtering
+        print("Germline filtering not yet implemented")
    
     if len(samples)>1:
         print("Multiple sample processing not yet implemented")
@@ -73,4 +76,4 @@ def run(samples,svs,gml,cnvs,rlens,inserts,pis,ploidy,out):
         if len(df_flt) < 5:
             print("Less than 5 post-filtered SVs. Clustering not recommended for this sample. Exiting.")
             return None
-        build_phyl.infer_tree(df_flt,samples,pi,rlen,insert,out)
+        build_phyl.infer_subclones(df_flt,pi,rlen,insert,out,10)

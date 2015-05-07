@@ -35,17 +35,18 @@ def fit_and_sample(model, iters, burn, thin):
     mcmc.sample(iters, burn=burn, thin=thin)
     return mcmc
 
-def recluster(df,pi,rlen,insert,iters=param.reclus_iters,burn=param.burn,thin=param.thin):    
+def recluster(df,pi,rlen,insert,iters=param.reclus_iters,burn=param.burn,thin=param.thin,dump=True):    
     '''
     reclusters group without Dirichlet (assuming only one group exists)
     '''
+    print("Reclustering with %d SVs"%len(df))
     n1 = df.norm1.values
     n2 = df.norm2.values
     n = np.array(df.norm_mean)
     d = np.array(df.bp1_split.values+df.bp2_split.values)
     s = np.array(df.spanning.values)
 
-    phi_k = pm.Uniform('phi_k', lower=0, upper=pi)
+    phi_k = pm.Uniform('phi_k', lower=0, upper=1)
 
     @pm.deterministic
     def smu(phi_k=phi_k):
@@ -65,13 +66,15 @@ def recluster(df,pi,rlen,insert,iters=param.reclus_iters,burn=param.burn,thin=pa
 
     model = pm.Model([dp,sp,normp,phi_k])
     mcmc = fit_and_sample(model,iters,burn,thin)
-    
+   
     center_trace = mcmc.trace("phi_k")[:]
+    center_trace = center_trace[len(center_trace)/4:]
     phi = np.mean(center_trace[:])
     
-    return phi
+    return phi,center_trace
 
-def cluster(df,pi,rlen,insert,Ndp=35,iters=param.init_iters,burn=param.burn,thin=param.thin):
+def cluster(df,pi,rlen,insert,Ndp=param.clus_limit,iters=param.init_iters,burn=param.burn,thin=param.thin):
+    print("Clustering with %d SVs"%len(df))
     n1 = df.norm1.values
     n2 = df.norm2.values
     n = np.array(df.norm_mean)
@@ -88,7 +91,8 @@ def cluster(df,pi,rlen,insert,Ndp=35,iters=param.init_iters,burn=param.burn,thin
         return value
 
     z = pm.Categorical('z', p=p, size=len(d), value=np.zeros(len(d)))
-    phi_k = pm.Uniform('phi_k', lower=0, upper=pi, size=Ndp)
+    #phi_init = np.mean((s+d)/(n+s+d))/pi
+    phi_k = pm.Uniform('phi_k', lower=0, upper=1, size=Ndp)#, value=[phi_init]*Ndp)
 
     @pm.deterministic
     def smu(z=z, phi_k=phi_k):

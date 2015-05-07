@@ -29,15 +29,15 @@ parser.add_argument("-p","--purity",dest="pi",default="1.",
             "uniform purity for all samples. No parameter assumes 100% purity.")
 parser.add_argument("-y","--ploidy",dest="ploidy",default=2.0,
     help="Tumour ploidy. Assumed to be diloid (2).")
-parser.add_argument("-o","--out",dest="out",
-    help="Base name for outputting phylogeny info.")
+parser.add_argument("-o","--outdir",dest="outdir",default=".",
+        help="Output directory. Default: current directory")
 args = parser.parse_args()
 
 samples = args.samples
 svs     = args.procd_svs
 gml     = args.germline
 cnvs    = args.cnvs
-out     = args.out
+out     = args.outdir
 rlen    = args.rlen
 insert  = args.insert
 pi      = args.pi
