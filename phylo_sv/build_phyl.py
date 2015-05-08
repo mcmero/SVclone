@@ -5,17 +5,14 @@ import subprocess
 import ipdb
 import sys
 import os
-import shutil
 import pandas as pd
 
 from . import cluster
 from . import parameters as param
-# from ete2 import Tree
 
 import numpy as np
 from numpy import loadtxt
 from numpy import zeros
-from scipy import stats
 
 def index_max(values):
     return max(xrange(len(values)),key=values.__getitem__)
@@ -39,7 +36,7 @@ def merge_clusters(df,clus_info,clus_merged,clus_members,cparams,out):
             to_del.append(idx+1)
             
             df_trace = pd.DataFrame(np.transpose(trace[:]))
-            df_trace.to_csv('%s/reclus%s_phi_trace.txt'%(out,ci.clus_id),sep='\t',index=False)
+            df_trace.to_csv('%s/reclus%d_phi_trace.txt'%(out,int(ci.clus_id)),sep='\t',index=False)
             clus_merged.loc[idx] = np.array([ci.clus_id,new_size,new_phi])
             print('\n')
             if idx+2 < len(clus_info):
@@ -96,7 +93,8 @@ def run_clust(df,pi,rlen,insert):
     clus_info = clus_info[sum(clus_info['size'].values)*param.subclone_sv_prop<clus_info['size'].values]
     clus_info.index = range(len(clus_info))
     
-    clus_members = np.array([np.where(np.array(clus_max_prob)==i)[0] for i in clus_info.clus_id.values])    
+    clus_members = np.array([np.where(np.array(clus_max_prob)==i)[0] for i in clus_info.clus_id.values]) 
+    print(clus_info)
     return clus_info,center_trace,z_trace,clus_members
 
 def dump_trace(clus_info,center_trace,outf):
@@ -104,26 +102,32 @@ def dump_trace(clus_info,center_trace,outf):
     df_traces = pd.DataFrame(np.transpose(traces),columns=clus_info.clus_id)
     df_traces.to_csv(outf,sep='\t',index=False)
 
-def infer_subclones(df,pi,rlen,insert,out,maxiters):
+def infer_subclones(df,pi,rlen,insert,out,num_iters):
 
     clus_info,center_trace,ztrace,clus_members = None,None,None,None
 
-    for i in range(maxiters):
+    for i in range(num_iters):
         print("Cluster run: %d"%i)
         clus_info,center_trace,z_trace,clus_members = run_clust(df,pi,rlen,insert)
         sv_loss = 1-(sum(clus_info['size'])/float(len(df)))
 
-        if len(clus_info) < 1:
-            print("\nWarning! Could not converge on any major clusters.")
-            continue
-        elif sv_loss > param.tolerate_svloss:
-            print("\nWarning! Lost %f of SVs." % sv_loss)
-        elif (clus_info.phi.values[0]*2.)>(1+param.subclone_diff):
-            print("\nWarning! Largest VAF cluster exceeds 0.5.")
-   
         clus_out_dir = '%s/run%d'%(out,i)
         if not os.path.exists(clus_out_dir):
             os.makedirs(clus_out_dir)
+
+        with open("%s/warnings.txt"%clus_out_dir,'w') as warn:
+            warn_str = ""
+            if len(clus_info) < 1:
+                warn_str = "Warning! Could not converge on any major clusters. Skipping.\n"
+                warn.write(warn_str)
+                print('\n'+warn_str)
+                continue
+            if sv_loss > param.tolerate_svloss:
+                warn_str = "Warning! Lost %f of SVs.\n" % sv_loss
+            if (clus_info.phi.values[0]*2.)>(1+param.subclone_diff):
+                warn_str = warn_str + "Warning! Largest VAF cluster exceeds 0.5.\n"
+            warn.write(warn_str)
+            print('\n'+warn_str)
         
         dump_trace(clus_info,center_trace,'%s/phi_trace.txt'%clus_out_dir)
         dump_trace(clus_info,z_trace,'%s/z_trace.txt'%clus_out_dir)

@@ -276,13 +276,17 @@ def proc_header(header,columns):
 
 def proc_svs(svin,bam,out,header,mean_dp,sc_len,max_cn): 
     db_out = '%s.db'%out
-    out = '%s.txt'%out
+    outf = '%s.txt'%out
     
     inserts = bamtools.estimateInsertSizeDistribution(bam)
     rlen = bamtools.estimateTagSize(bam)
     
     max_dp = ((mean_dp*(param.window*2))/rlen)*max_cn
     max_ins = 2*inserts[1]+inserts[0]
+
+    with open('%s_params.txt'%out,'w') as outp:
+        outp.write('read_len\tinsert_mean\tinsert_std\tinsert_cutoff\tmax_dep\n')
+        outp.write('%d\t%f\t%f\t%f\t%d'%(rlen,inserts[0]-(rlen*2),inserts[1],max_ins-(rlen*2),max_dp))
 
     bp_dtype = [('chrom','S20'),('start', int), ('end', int), ('dir', 'S2')]
     sv_dtype = [('bp1_chr','S20'),('bp1_pos',int),('bp1_dir','S5'),('bp2_chr','S20'), \
@@ -318,6 +322,6 @@ def proc_svs(svin,bam,out,header,mean_dp,sc_len,max_cn):
         con.close()
 
     con = sqlite3.connect(db_out)
-    pd.read_sql('select * from sv_info',con).to_csv(out,sep="\t",index=False)
+    pd.read_sql('select * from sv_info',con).to_csv(outf,sep="\t",index=False)
     con.close()
 

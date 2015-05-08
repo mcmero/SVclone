@@ -9,7 +9,7 @@ setup(name='phylo_sv',
       license='Unimelb',
       packages=['phylo_sv','phylo_sv.preprocess'],
       test_suite='nose.collector',
-      tests_require=['numpy','scipy','nose'],
+      tests_require=['numpy','nose'],
       entry_points = {
         'console_scripts': ['build_sets=phylo_sv.cmd:main'],
       },

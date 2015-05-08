@@ -3,13 +3,11 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import IPython
 import pymc as pm
-import scipy.optimize as op
 import colorsys
 import ipdb
-import sys
-from . import parameters as param
-from scipy.stats import itemfreq
+
 from IPython.core.pylabtools import figsize
+from . import parameters as param
 
 def plot_clusters(center_trace,npoints,clusters):
     figsize(12.5, 9)

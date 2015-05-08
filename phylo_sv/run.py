@@ -34,7 +34,7 @@ def find_cn_cols(bp_chr,bp_pos,cnv,cols=['nMaj1_A','nMin1_A','frac1_A']):
             return c[cols[0]],c[cols[1]],c[cols[2]]
     return float('nan'),float('nan'),float('nan')
 
-def run(samples,svs,gml,cnvs,rlens,inserts,pis,ploidy,out):
+def run(samples,svs,gml,cnvs,rlens,inserts,pis,ploidy,out,num_iters):
     if not os.path.exists(out):
         os.makedirs(out)
 
@@ -76,4 +76,4 @@ def run(samples,svs,gml,cnvs,rlens,inserts,pis,ploidy,out):
         if len(df_flt) < 5:
             print("Less than 5 post-filtered SVs. Clustering not recommended for this sample. Exiting.")
             return None
-        build_phyl.infer_subclones(df_flt,pi,rlen,insert,out,10)
+        build_phyl.infer_subclones(df_flt,pi,rlen,insert,out,num_iters)

@@ -31,6 +31,8 @@ parser.add_argument("-y","--ploidy",dest="ploidy",default=2.0,
     help="Tumour ploidy. Assumed to be diloid (2).")
 parser.add_argument("-o","--outdir",dest="outdir",default=".",
         help="Output directory. Default: current directory")
+parser.add_argument("-n","--iterations",dest="n_iter",default=10,
+        help="Number of times to run sampling.")
 args = parser.parse_args()
 
 samples = args.samples
@@ -42,6 +44,7 @@ rlen    = args.rlen
 insert  = args.insert
 pi      = args.pi
 ploidy  = args.ploidy
+n_iter  = args.n_iter
 
 def proc_arg(arg,n_args=1,of_type=str):
     arg = str.split(arg,',')
@@ -65,4 +68,4 @@ if __name__ == '__main__':
     except ValueError:
         print "Invalid arguments. Check arguments with -h or --help and try again."
         sys.exit
-    run.run(samples,svs,gml,cnvs,rlen,insert,pi,ploidy,out)
+    run.run(samples,svs,gml,cnvs,rlen,insert,pi,ploidy,out,n_iter)
