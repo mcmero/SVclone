@@ -32,7 +32,7 @@ def is_soft_clipped(r):
 def is_normal_across_break(r,pos,max_ins,sc_len):
     # tolerate minor soft-clip
     # must overhang break by at least soft-clip threshold
-    minor_sc = (r['align_start'] < (param.tr*2)) and ((r['align_end'] + r['ref_start'] - r['ref_end']) < (param.tr*2))
+    minor_sc = (r['align_start'] < (param.tr)) and ((r['align_end'] + r['ref_start'] - r['ref_end']) < (param.tr))
     return  (not is_soft_clipped(r) or minor_sc) and \
             (abs(r['ins_len']) < max_ins) and \
             (r['ref_start'] <= (pos - sc_len)) and \
@@ -52,7 +52,7 @@ def is_supporting_split_read(r,pos,max_ins,sc_len):
     Doesn't yet check whether the soft-clip aligns
     to the other side.
     '''
-    if r['align_start'] < (param.tr/2): #a "soft" threshold if it is soft-clipped at the other end        
+    if r['align_start'] < (param.tr): #a "soft" threshold if it is soft-clipped at the other end        
         return r['ref_end'] > (pos - param.tr) and r['ref_end'] < (pos + param.tr) and \
             (r['len'] - r['align_end'] >= sc_len) and abs(r['ins_len']) < max_ins
     else:
@@ -63,7 +63,7 @@ def get_sc_bases(r,pos):
     '''
     Return the number of soft-clipped bases
     '''
-    if r['align_start'] < (param.tr/2):
+    if r['align_start'] < (param.tr):
         return r['len'] - r['align_end']
     else:
         return r['align_start']
@@ -107,8 +107,8 @@ def get_loc_reads(bp,bamf,max_dp):
         for x in iter_loc:
             read = read_to_array(x,bamf) 
             loc_reads = np.append(loc_reads,read)
-            if x.is_duplicate:
-                ipdb.set_trace()
+            #if x.is_duplicate:
+            #    ipdb.set_trace()
             if len(loc_reads)>max_dp:
                 print('Read depth too high at %s' % loc)
                 return np.empty(0)
@@ -207,7 +207,6 @@ def get_sv_read_counts(bp1,bp2,bam,columns,inserts,max_dp,max_ins,sc_len):
     loc1_reads = get_loc_reads(bp1,bamf,max_dp)    
     loc2_reads = get_loc_reads(bp2,bamf,max_dp)    
     bamf.close() 
-    
     if len(loc1_reads)==0 or len(loc2_reads)==0:
         return pd.Series
     
@@ -218,8 +217,8 @@ def get_sv_read_counts(bp1,bp2,bam,columns,inserts,max_dp,max_ins,sc_len):
     split = np.empty([0,len(param.read_dtype)],dtype=param.read_dtype)
     norm = np.empty([0,len(param.read_dtype)],dtype=param.read_dtype)
     
-    rc, reproc, split, norm = get_loc_counts(loc1_reads,pos1,rc,reproc,split,norm,sc_len,max_ins)
-    rc, reproc, split, norm = get_loc_counts(loc2_reads,pos2,rc,reproc,split,norm,sc_len,max_ins,2)
+    rc, reproc, split, norm = get_loc_counts(loc1_reads,pos1,rc,reproc,split,norm,max_ins,sc_len)
+    rc, reproc, split, norm = get_loc_counts(loc2_reads,pos2,rc,reproc,split,norm,max_ins,sc_len,2)
     rc['bp1_win_norm'] = windowed_norm_read_count(loc1_reads,inserts,max_ins)
     rc['bp2_win_norm'] = windowed_norm_read_count(loc2_reads,inserts,max_ins)
     
@@ -276,7 +275,11 @@ def proc_header(header,columns):
 
 def proc_svs(svin,bam,out,header,mean_dp,sc_len,max_cn): 
     db_out = '%s.db'%out
-    outf = '%s.txt'%out
+    outf = '%s_svproc.txt'%out
+    
+    dirname = os.path.dirname(out)
+    if not os.path.exists(dirname):
+        os.makedirs(dirname)
     
     inserts = bamtools.estimateInsertSizeDistribution(bam)
     rlen = bamtools.estimateTagSize(bam)
@@ -297,11 +300,22 @@ def proc_svs(svin,bam,out,header,mean_dp,sc_len,max_cn):
                'bp2_split_norm','bp2_span_norm','bp2_win_norm','bp2_split','bp2_sc_bases','spanning']
    
     bp1_chr,bp1_pos,bp1_dir,bp2_chr,bp2_pos,bp2_dir,classification = proc_header(header,svs.columns)
-
+    
     for idx,row in svs.iterrows():
-        sv_str = '%s:%d|%s:%d'%(row[bp1_chr],row[bp1_pos],row[bp2_chr],row[bp2_pos])
-        print('processing %s'%sv_str)
+        sv_prop = row[bp1_chr],row[bp1_pos],row[bp2_chr],row[bp2_pos]
+        sv_str = '%s:%d|%s:%d'%sv_prop
+
+        # skip already processed
+        with sqlite3.connect(db_out) as con: 
+            exists_qry = "SELECT name FROM sqlite_master WHERE type='table' AND name='sv_info'"
+            if len(pd.read_sql(exists_qry,con))>0:
+                qry = "SELECT * FROM sv_info WHERE bp1_chr='%s' AND bp1_pos=%d and bp2_chr='%s' AND bp2_pos=%d" % sv_prop
+                sv_procd = pd.read_sql(qry,con)
+                if len(sv_procd)>0:
+                    print("SV already processed, skipping...")
+                    continue
         
+        print('processing %s'%sv_str)
         bp1 = np.array((row[bp1_chr],row[bp1_pos]-param.window,row[bp1_pos]+param.window,row[bp1_dir]),dtype=bp_dtype)
         bp2 = np.array((row[bp2_chr],row[bp2_pos]-param.window,row[bp2_pos]+param.window,row[bp2_dir]),dtype=bp_dtype)
         sv_rc  = get_sv_read_counts(bp1,bp2,bam,columns,inserts,max_dp,max_ins,sc_len)
@@ -316,12 +330,9 @@ def proc_svs(svin,bam,out,header,mean_dp,sc_len,max_cn):
         newrow['vaf1']=newrow['support']/(newrow['support']+newrow['norm1'])
         newrow['vaf2']=newrow['support']/(newrow['support']+newrow['norm2'])
         
-        con = sqlite3.connect(db_out)
-        #TODO:recognise previously processed data
-        newrow.to_sql('sv_info',con,if_exists='append',index=False)
-        con.close()
+        with sqlite3.connect(db_out) as con:
+            newrow.to_sql('sv_info',con,if_exists='append',index=False)
 
-    con = sqlite3.connect(db_out)
-    pd.read_sql('select * from sv_info',con).to_csv(outf,sep="\t",index=False)
-    con.close()
+    with sqlite3.connect(db_out) as con:
+        pd.read_sql('select * from sv_info',con).to_csv(outf,sep="\t",index=False)
 

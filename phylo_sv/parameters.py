@@ -1,7 +1,7 @@
 import numpy as np
 
 # PREPROCESSING PARAMETERS
-tr      = 5    # threshold by how much read has to overlap breakpoint
+tr      = 5    # if soft-clipped by less than these number of bases at this end, is not a "true" soft-clip
 window  = 500  # base-pairs considered to the left and right of the break
 
 # parameters extracted for each read from BAMs

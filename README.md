@@ -29,6 +29,28 @@ Run SV pre-processing on each sample BAM file using:
 
     python -m phylo_sv.preprocess.cmd -i <svs.txt> -b <indexed bamfile> -hd <header.cfg> -o <output name> -d <average coverage>
 
+#### Required Parameters ####
+
+* -i or --input : structural variants input file. See file formats section for more details.
+* -b or --bam : bam file with corresponding index file.
+* -o or --out : output base name. Will create processed output file as <name>_svproc.txt, parameters output as <name>_params.txt and database output as <name>.db
+* -d or --depth (floating-point value) : average depth of coverage for corresponding BAM file. See the calculating coverage section.
+
+#### Optional Parameters ####
+
+* -hd or --header : config file specifying header columns. If not provided, default column names assumed (see file formats section).
+* -sc or --softclip (default = 25) : reads must overlap by this many basepairs to be counted as supporting the break, or being a non-supporting normal read lying across the break.
+* -cn or --max_cn (default = 15) : maximum expected copy-number. Will skip any areas with more reads than <depth> * <max_cn>
+
+#### Beyond Advanced Parameters ####
+
+The package also contains a parameters.py file which has the following hard-coded parameters. Modify these with care.
+
+tr      = 5    # if soft-clipped by less than these number of bases at this end, is not a "true" soft-clip
+window  = 500  # base-pair window considered to the left and right of the break when processing reads
+
+#### File Formats ####
+
 The structural variation input file must be in the following tab-separated format:
 
 ```

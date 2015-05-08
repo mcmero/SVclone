@@ -33,7 +33,7 @@ bam     = args.bam
 out     = args.out
 hd_cfg  = args.header
 mean_dp = float(args.mean_dp)
-sc_len  = float(args.sc_len)
+sc_len  = int(args.sc_len)
 max_cn  = int(args.max_cn)
 
 if __name__ == '__main__':
