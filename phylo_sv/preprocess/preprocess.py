@@ -274,8 +274,8 @@ def proc_header(header,columns):
         sys.exit()
 
 def proc_svs(svin,bam,out,header,mean_dp,sc_len,max_cn): 
-    db_out = '%s.db'%out
-    outf = '%s_svproc.txt'%out
+    db_out = '%s_svinfo.db'%out
+    outf = '%s_svinfo.txt'%out
     
     dirname = os.path.dirname(out)
     if not os.path.exists(dirname):

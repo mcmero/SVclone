@@ -27,11 +27,11 @@ parser.add_argument("-v","--insert",dest="insert",default="",
 parser.add_argument("-p","--purity",dest="pi",default="1.",
     help="Tumour purities for all samples given. A single parameter assumes " +
             "uniform purity for all samples. No parameter assumes 100% purity.")
-parser.add_argument("-y","--ploidy",dest="ploidy",default=2.0,
+parser.add_argument("-y","--ploidy",dest="ploidy",default="2.0",
     help="Tumour ploidy. Assumed to be diloid (2).")
 parser.add_argument("-o","--outdir",dest="outdir",default=".",
         help="Output directory. Default: current directory")
-parser.add_argument("-n","--iterations",dest="n_iter",default=10,
+parser.add_argument("-n","--iterations",dest="n_iter",default=10,type=int,
         help="Number of times to run sampling.")
 args = parser.parse_args()
 
@@ -65,6 +65,7 @@ if __name__ == '__main__':
         rlen = proc_arg(rlen,n,int)
         insert = proc_arg(insert,n,float)
         pi = proc_arg(pi,n,float)
+        ploidy = proc_arg(ploidy,n,float)
     except ValueError:
         print "Invalid arguments. Check arguments with -h or --help and try again."
         sys.exit

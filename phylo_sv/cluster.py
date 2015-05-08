@@ -26,6 +26,12 @@ def plot_clusters(center_trace,npoints,clusters):
     leg = plt.legend(loc="upper right")
     leg.get_frame().set_alpha(0.7)
 
+def get_read_vals(df):
+    n = np.array(df.norm_mean)
+    d = np.array(df.bp1_split.values+df.bp2_split.values)
+    s = np.array(df.spanning.values)
+    return n,d,s
+
 def fit_and_sample(model, iters, burn, thin):
     # map_ = pm.MAP(model)
     # map_.fit()
@@ -38,11 +44,7 @@ def recluster(df,pi,rlen,insert,iters=param.reclus_iters,burn=param.burn,thin=pa
     reclusters group without Dirichlet (assuming only one group exists)
     '''
     print("Reclustering with %d SVs"%len(df))
-    n1 = df.norm1.values
-    n2 = df.norm2.values
-    n = np.array(df.norm_mean)
-    d = np.array(df.bp1_split.values+df.bp2_split.values)
-    s = np.array(df.spanning.values)
+    n,d,s = get_read_vals(df)
 
     phi_k = pm.Uniform('phi_k', lower=0, upper=1)
 
@@ -72,12 +74,11 @@ def recluster(df,pi,rlen,insert,iters=param.reclus_iters,burn=param.burn,thin=pa
     return phi,center_trace
 
 def cluster(df,pi,rlen,insert,Ndp=param.clus_limit,iters=param.init_iters,burn=param.burn,thin=param.thin):
+    '''
+    inital clustering using Dirichlet Process
+    '''
     print("Clustering with %d SVs"%len(df))
-    n1 = df.norm1.values
-    n2 = df.norm2.values
-    n = np.array(df.norm_mean)
-    d = np.array(df.bp1_split.values+df.bp2_split.values)
-    s = np.array(df.spanning.values)
+    n,d,s = get_read_vals(df)
 
     beta = pm.Uniform('beta', lower=0.01, upper=1)
     h = pm.Beta('h', alpha=1, beta=beta, size=Ndp)

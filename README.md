@@ -33,7 +33,7 @@ Run SV pre-processing on each sample BAM file like so:
 
 * -i or --input : structural variants input file. See file formats section for more details.
 * -b or --bam : bam file with corresponding index file.
-* -o or --out : output base name. Will create processed output file as <name>_svproc.txt, parameters output as <name>_params.txt and database output as <name>.db
+* -o or --out : output base name. Will create processed output file as <name>_svinfo.txt, parameters output as <name>_params.txt and database output as <name>_svinfo.db
 * -d or --depth (floating-point value) : average depth of coverage for corresponding BAM file. See the calculating coverage section.
 
 #### Optional Parameters ####
@@ -79,7 +79,7 @@ The left fields are used by the program (do not change these), the right fields 
 
 Running the flat clustering approach on a single sample (the only currently supported method), can be done like so:
 ```
-python -m phylo_sv.cmd -s <sample name> -i <sv preprocessing out> -c <battenberg subclones file> -o <output directory> \
+python -m phylo_sv.cmd -s <sample name> -i <sv info> -c <battenberg subclones file> -o <output directory> \
                        -p <tumour purity> -r <read length> -v <insert size>
 ```
 More info:
@@ -87,7 +87,7 @@ More info:
 #### Required Parameters ####
 
 * -s or --samples : sample names, currently only a single sample is supported.
-* -i or --input : pre-processed SV output from pre-precessing script.
+* -i or --input : sv info file from SV pre-processing script output.
 * -c or --cnvs : Battenberg subclones.txt file containing segmented copy-numbers for patient sample.
 * -o or --outdir : output directory to create files.
 
