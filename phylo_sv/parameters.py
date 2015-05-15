@@ -1,7 +1,7 @@
 import numpy as np
 
 # PREPROCESSING PARAMETERS
-tr      = 5    # if soft-clipped by less than these number of bases at this end, is not a "true" soft-clip
+tr      = 5    # "wobble length" tolerance threshold which we allow breaks to be inexact
 window  = 500  # base-pairs considered to the left and right of the break
 
 # parameters extracted for each read from BAMs

@@ -58,7 +58,7 @@ def recluster(df,pi,rlen,insert,iters=param.reclus_iters,burn=param.burn,thin=pa
 
     @pm.deterministic
     def nmu(phi_k=phi_k):
-        return (1-phi_k)+(0.5*(1-pi))
+        return (1 - pi) + (pi * (1-phi_k))
                 
     sp = pm.Poisson('sp', mu=smu, observed=True, value=s)
     dp = pm.Poisson('dp', mu=dmu, observed=True, value=d)
@@ -103,7 +103,7 @@ def cluster(df,pi,rlen,insert,Ndp=param.clus_limit,iters=param.init_iters,burn=p
 
     @pm.deterministic
     def nmu(z=z, phi_k=phi_k):
-        return (1-phi_k[z])+(0.5*(1-pi))
+        return (1 - pi) + (pi * (1-phi_k[z]))
                 
     sp = pm.Poisson('sp', mu=smu, observed=True, value=s)
     dp = pm.Poisson('dp', mu=dmu, observed=True, value=d)

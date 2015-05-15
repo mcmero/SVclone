@@ -29,11 +29,12 @@ def read_to_array(x,bamf):
 def is_soft_clipped(r):
     return r['align_start'] != 0 or (r['len'] + r['ref_start'] != r['ref_end'])
 
+def is_minor_softclip(r):
+    return (r['align_start'] < (param.tr)) and ((r['align_end'] + r['ref_start'] - r['ref_end']) < (param.tr))
+
 def is_normal_across_break(r,pos,max_ins,sc_len):
-    # tolerate minor soft-clip
     # must overhang break by at least soft-clip threshold
-    minor_sc = (r['align_start'] < (param.tr)) and ((r['align_end'] + r['ref_start'] - r['ref_end']) < (param.tr))
-    return  (not is_soft_clipped(r) or minor_sc) and \
+    return  (not is_soft_clipped(r)) and \
             (abs(r['ins_len']) < max_ins) and \
             (r['ref_start'] <= (pos - sc_len)) and \
             (r['ref_end'] >= (pos + sc_len)) 
@@ -67,7 +68,6 @@ def get_sc_bases(r,pos):
         return r['len'] - r['align_end']
     else:
         return r['align_start']
-    
 
 def get_bp_dist(x,bp_pos):
     if x['is_reverse']: 
@@ -78,8 +78,6 @@ def get_bp_dist(x,bp_pos):
 def is_supporting_spanning_pair(r,m,bp1,bp2,inserts,max_ins):
     pos1 = (bp1['start'] + bp1['end']) / 2
     pos2 = (bp2['start'] + bp2['end']) / 2
-    dir1 = bp1['dir']
-    dir2 = bp2['dir']
     
     if is_soft_clipped(r) or is_soft_clipped(m):
         return False
@@ -285,7 +283,7 @@ def proc_svs(svin,bam,out,header,mean_dp,sc_len,max_cn):
     rlen = bamtools.estimateTagSize(bam)
     
     max_dp = ((mean_dp*(param.window*2))/rlen)*max_cn
-    max_ins = 2*inserts[1]+inserts[0]
+    max_ins = 2*inserts[1]+inserts[0] #actually the *fragment* size
 
     with open('%s_params.txt'%out,'w') as outp:
         outp.write('read_len\tinsert_mean\tinsert_std\tinsert_cutoff\tmax_dep\n')
