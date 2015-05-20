@@ -18,10 +18,19 @@ def run_filter(df,rlen,insert,cnv,ploidy,perc=85):
     
     if len(cnv)>0:
         # filter out copy-aberrant SVs and outying norm read counts (>1-percentile)
-        cn1 = np.array(map(round,df.bp1_maj_cnv+df.bp1_min_cnv))
-        cn2 = np.array(map(round,df.bp2_maj_cnv+df.bp2_min_cnv))
-        df_flt = df[(df.bp1_frac1A==1) & (df.bp2_frac1A==1) & (cn1==2) & (cn2==2) & \
-                (df.norm_mean<np.percentile(df.norm_mean,perc))]
+        #cn1 = np.array(map(round,df.bp1_maj_cnv+df.bp1_min_cnv))
+        #cn2 = np.array(map(round,df.bp2_maj_cnv+df.bp2_min_cnv))
+        #df_flt = df[(df.bp1_frac1A==1) & (df.bp2_frac1A==1) & (cn1==2) & (cn2==2) & \
+        #        (df.norm_mean<np.percentile(df.norm_mean,perc))]
+        # major and minor copy-numbers must be 1
+        cn1_maj = np.array(map(round,df.bp1_maj_cnv))
+        cn1_min = np.array(map(round,df.bp1_min_cnv))
+        cn2_maj = np.array(map(round,df.bp2_maj_cnv))
+        cn2_min = np.array(map(round,df.bp2_min_cnv))
+        bp1_cnn = np.logical_and(cn1_maj==1,cn1_min==1)
+        bp2_cnn = np.logical_and(cn2_maj==1,cn2_min==1)
+        df_flt = df[(df.bp1_frac1A==1) & bp1_cnn & bp2_cnn & \
+                    (df.norm_mean<np.percentile(df.norm_mean,perc))]
     df_flt.index = range(len(df_flt))
     return df_flt
 
