@@ -98,7 +98,7 @@ def get_loc_reads(bp,bamf,max_dp):
         for x in iter_loc:
             read = read_to_array(x,bamf) 
             loc_reads = np.append(loc_reads,read)
-            if len(loc_reads)>max_dp:
+            if len(loc_reads) > max_dp:
                 print('Read depth too high at %s' % loc)
                 return np.empty(0)
 
@@ -234,7 +234,7 @@ def proc_svs(svin,bam,out,mean_dp,sc_len,max_cn,rlen,insert_mean,insert_std):
     outf = '%s_svinfo.txt'%out
     
     dirname = os.path.dirname(out)
-    if not os.path.exists(dirname):
+    if dirname!='' and not os.path.exists(dirname):
         os.makedirs(dirname)
 
     inserts = [insert_mean,insert_std]
@@ -259,16 +259,16 @@ def proc_svs(svin,bam,out,mean_dp,sc_len,max_cn,rlen,insert_mean,insert_std):
         writer.writerow(header_out)
 
     svs = np.genfromtxt(svin,dtype=params.sv_dtype,delimiter='\t',skip_header=1)
-    bp1_chr,bp1_pos,bp1_dir,bp2_chr,bp2_pos,bp2_dir,classification = [h[0] for h in params.sv_dtype] 
-    bp_dtype = [('chrom','S20'),('start', int), ('end', int), ('dir', 'S2')]
+    bp1_chr,bp1_pos,bp2_chr,bp2_pos,classification = [h[0] for h in params.sv_dtype] 
+    bp_dtype = [('chrom','S20'),('start', int), ('end', int)]
  
     for row in svs:
         sv_prop = row[bp1_chr],row[bp1_pos],row[bp2_chr],row[bp2_pos]
         sv_str = '%s:%d|%s:%d'%sv_prop
 
         print('processing %s'%sv_str)
-        bp1 = np.array((row[bp1_chr],row[bp1_pos]-params.window,row[bp1_pos]+params.window,row[bp1_dir]),dtype=bp_dtype)
-        bp2 = np.array((row[bp2_chr],row[bp2_pos]-params.window,row[bp2_pos]+params.window,row[bp2_dir]),dtype=bp_dtype)
+        bp1 = np.array((row[bp1_chr],row[bp1_pos]-params.window,row[bp1_pos]+params.window),dtype=bp_dtype)
+        bp2 = np.array((row[bp2_chr],row[bp2_pos]-params.window,row[bp2_pos]+params.window),dtype=bp_dtype)
         sv_rc  = get_sv_read_counts(bp1,bp2,bam,inserts,max_dp,max_ins,sc_len)
         
         if len(sv_rc) > 0:

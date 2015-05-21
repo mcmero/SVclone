@@ -18,10 +18,8 @@ read_dtype      = [('query_name',       'S150'),
 # dtypes for SV input file
 sv_dtype        = [('bp1_chr',          'S20'),
                    ('bp1_pos',          int),
-                   ('bp1_dir',          'S5'),
                    ('bp2_chr',          'S20'), 
                    ('bp2_pos',          int),
-                   ('bp2_dir',          'S5'),
                    ('classification',   'S100')]     
 
 # dtypes for SV output file

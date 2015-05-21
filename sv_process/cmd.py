@@ -13,7 +13,8 @@ parser.add_argument("-i","--input",dest="svin",required=True,
 parser.add_argument("-b","--bam",dest="bam",required=True,
         help="Corresponding indexed BAM file")
 parser.add_argument("-o","--out",dest="out",required=True,
-        help="Output base name. Will create processed output as <name>.txt and database output as <name>.db")
+        help="Output base name. May contain directories. " + \
+             "Will create processed output as <name>.txt and database output as <name>.db")
 parser.add_argument("-d","--depth",dest="mean_dp",type=float,default=50,
         help="Average coverage for BAM file in covered region. May be calculated across binned intervals " + \
              "and may be approximate")
