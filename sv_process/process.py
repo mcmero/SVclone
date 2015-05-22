@@ -6,6 +6,8 @@ import os
 import numpy as np
 import pysam
 import csv
+from collections import OrderedDict
+from operator import methodcaller
 from . import parameters as params
 from . import bamtools
 
@@ -229,14 +231,7 @@ def get_sv_read_counts(bp1,bp2,bam,inserts,max_dp,max_ins,sc_len):
     print('processed %d reads at loc1; %d reads at loc2' % (len(loc1_reads),len(loc2_reads)))
     return rc
 
-def proc_svs(svin,bam,out,mean_dp,sc_len,max_cn,rlen,insert_mean,insert_std):
-    db_out = '%s_svinfo.db'%out
-    outf = '%s_svinfo.txt'%out
-    
-    dirname = os.path.dirname(out)
-    if dirname!='' and not os.path.exists(dirname):
-        os.makedirs(dirname)
-
+def get_params(bam,mean_dp,max_cn,rlen,insert_mean,insert_std,out):
     inserts = [insert_mean,insert_std]
     if rlen<0:
         rlen = bamtools.estimateTagSize(bam)
@@ -252,16 +247,80 @@ def proc_svs(svin,bam,out,mean_dp,sc_len,max_cn,rlen,insert_mean,insert_std):
         outp.write('read_len\tinsert_mean\tinsert_std\tinsert_cutoff\tmax_dep\n')
         outp.write('%d\t%f\t%f\t%f\t%d'%(rlen,inserts[0]-(rlen*2),inserts[1],max_ins-(rlen*2),max_dp))
 
+    return rlen, inserts, max_dp, max_ins
+
+def proc_input_vcf(svin,simple):
+    if simple:
+        return np.genfromtxt(svin,dtype=params.sv_dtype,delimiter='\t',skip_header=1)    
+
+    svs = OrderedDict()
+    sv_in = np.genfromtxt(svin,dtype=params.sv_vcf_dtype,delimiter='\t',comments="#")
+    keys = [key[0] for key in params.sv_vcf_dtype]
+    
+    for sv in sv_in:
+        sv_id = sv['ID']
+        svs[sv_id] = OrderedDict()
+        for key,sv_data in zip(keys,sv):
+            if key=='INFO' or key=='ID': continue
+            svs[sv_id][key] = sv_data
+         
+        info = map(methodcaller('split','='),sv['INFO'].split(';'))
+        svs[sv_id]['INFO'] = OrderedDict()
+        
+        for i in info:
+            if len(i)<2: continue
+            name = i[0]
+            data = i[1]
+            svs[sv_id]['INFO'][name] = data
+    
+    sv_array = np.empty(0,params.sv_dtype)
+    procd = np.empty(0,dtype='S50')
+
+    for sv_id in svs:
+        try:
+            sv = svs[sv_id]
+            mate_id = sv['INFO']['MATEID']
+            mate = svs[mate_id]
+            
+            if (sv_id in procd) or (mate_id in procd): 
+                continue
+            
+            bp1_chr = sv['CHROM']
+            bp1_pos = sv['POS']
+            bp2_chr = mate['CHROM']
+            bp2_pos = mate['POS']
+            classification = sv['INFO']['SVTYPE']
+            
+            procd = np.append(procd,[sv_id,mate_id])
+            new_sv = np.array([(bp1_chr,bp1_pos,bp2_chr,bp2_pos,classification)],dtype=params.sv_dtype)        
+            sv_array = np.append(sv_array,new_sv)
+        except KeyError:
+            print("SV %s improperly paired or missing attributes"%sv_id)
+            continue
+
+    return sv_array
+
+def proc_svs(simple,svin,bam,out,mean_dp,sc_len,max_cn,rlen,insert_mean,insert_std):
+    db_out = '%s_svinfo.db'%out
+    outf = '%s_svinfo.txt'%out
+    
+    dirname = os.path.dirname(out)
+    if dirname!='' and not os.path.exists(dirname):
+        os.makedirs(dirname)
+
+    rlen, inserts, max_dp, max_ins = get_params(bam,mean_dp,max_cn,rlen,insert_mean,insert_std,out)
+
+    # write header output
     header_out = [h[0] for h in params.sv_dtype]
     header_out.extend([h[0] for h in params.sv_out_dtype])
     with open('%s_svinfo.txt'%out,'w') as outf:        
         writer = csv.writer(outf,delimiter='\t',quoting=csv.QUOTE_NONE)
         writer.writerow(header_out)
 
-    svs = np.genfromtxt(svin,dtype=params.sv_dtype,delimiter='\t',skip_header=1)
     bp1_chr,bp1_pos,bp2_chr,bp2_pos,classification = [h[0] for h in params.sv_dtype] 
     bp_dtype = [('chrom','S20'),('start', int), ('end', int)]
- 
+    
+    svs = proc_input_vcf(svin,simple)
     for row in svs:
         sv_prop = row[bp1_chr],row[bp1_pos],row[bp2_chr],row[bp2_pos]
         sv_str = '%s:%d|%s:%d'%sv_prop

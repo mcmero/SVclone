@@ -16,6 +16,18 @@ read_dtype      = [('query_name',       'S150'),
                    ('is_reverse',       np.bool)]
 
 # dtypes for SV input file
+sv_vcf_dtype    = [('CHROM',             'S50'),
+                   ('POS',               int),
+                   ('ID',                'S50'),
+                   ('REF',               'S50'),
+                   ('ALT',               'S50'),
+                   ('QUAL',              float),
+                   ('FILTER',            'S50'),
+                   ('INFO',              'S200'),
+                   ('FORMAT',            'S200'),
+                   ('NORMAL',            'S200'),
+                   ('TUMOUR',            'S200')]
+
 sv_dtype        = [('bp1_chr',          'S20'),
                    ('bp1_pos',          int),
                    ('bp2_chr',          'S20'), 

@@ -31,6 +31,8 @@ parser.add_argument("--insert_mean",dest="insert_mean",default=-1.,type=float,
         help="Mean insert length between paired reads. If not specified, will be inferred")
 parser.add_argument("--insert_std",dest="insert_std",default=-1.,type=float,
         help="Standard deviation of insert length. If not specified, will be inferred")
+parser.add_argument("--simple",dest="simple_svs",default=False,type=bool,
+        help="Whether sv input is in a simple format (see README), otherwise VCF format is assumed.")
 args = parser.parse_args()
 
 svin    = args.svin
@@ -42,7 +44,8 @@ max_cn  = int(args.max_cn)
 rlen    = int(args.rlen)
 ins_mn  = float(args.insert_mean)
 ins_sd  = float(args.insert_std)
+simple  = args.simple_svs
 
 if __name__ == '__main__':
-    process.proc_svs(svin,bam,out,mean_dp,sc_len,max_cn,rlen,ins_mn,ins_sd)
+    process.proc_svs(simple,svin,bam,out,mean_dp,sc_len,max_cn,rlen,ins_mn,ins_sd)
 
