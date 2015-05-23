@@ -33,7 +33,6 @@ Run SV pre-processing on each sample BAM file like so:
 * --read_len (inferred automatically by default) :  specify if the read length is known, otherwise the program will infer this through the supplied bam file.
 * --insert_mean (inferred automatically by default) : specify if the insert length is known, otherwise the program will infer this through the supplied bam file.
 * --insert_std (inferred automatically by default) : specify if the insert standard deviation is known, otherwise the program will infer this through the supplied bam file.
-* 
 
 #### Beyond Advanced Parameters ####
 
@@ -44,10 +43,7 @@ window  = 500  # base-pair window considered to the left and right of the break 
 ```
 #### File Formats ####
 
-Input is expected in VCF format.
-```
-
-Each defined SV must have a matching mate, given in the MATEID value in the INFO section.
+Input is expected in VCF format. Each defined SV must have a matching mate, given in the MATEID value in the INFO section.
 
 Optionally, if you run the program with the --simple argument, you can also provide SVs in a simple text-delimited format as follows:
 
