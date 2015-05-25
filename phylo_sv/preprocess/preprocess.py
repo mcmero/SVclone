@@ -10,10 +10,10 @@ import ipdb
 import pysam
 import pandas as pd
 import pandasql
-import bamtools
 import sys
 import sqlite3
 import subprocess
+from . import bamtools
 from .. import parameters as param
 
 def read_to_array(x,bamf):
