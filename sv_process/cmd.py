@@ -31,7 +31,7 @@ parser.add_argument("--insert_mean",dest="insert_mean",default=-1.,type=float,
         help="Mean insert length between paired reads. If not specified, will be inferred")
 parser.add_argument("--insert_std",dest="insert_std",default=-1.,type=float,
         help="Standard deviation of insert length. If not specified, will be inferred")
-parser.add_argument("--simple",dest="simple_svs",default=False,type=bool,
+parser.add_argument("--simple",dest="simple_svs",action="store_true",
         help="Whether sv input is in a simple format (see README), otherwise VCF format is assumed.")
 args = parser.parse_args()
 
