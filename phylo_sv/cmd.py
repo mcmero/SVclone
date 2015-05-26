@@ -65,8 +65,12 @@ if __name__ == '__main__':
         rlen = proc_arg(rlen,n,int)
         insert = proc_arg(insert,n,float)
         pi = proc_arg(pi,n,float)
+        for p in pi: 
+            if p<0 or p>1:
+                print("Tumour purity value not between 0 and 1!")
+                raise ValueError        
         ploidy = proc_arg(ploidy,n,float)
+        run.run(samples,svs,gml,cnvs,rlen,insert,pi,ploidy,out,n_iter)
     except ValueError:
         print "Invalid arguments. Check arguments with -h or --help and try again."
         sys.exit
-    run.run(samples,svs,gml,cnvs,rlen,insert,pi,ploidy,out,n_iter)
