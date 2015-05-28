@@ -31,8 +31,14 @@ parser.add_argument("-y","--ploidy",dest="ploidy",default="2.0",
     help="Tumour ploidy. Assumed to be diloid (2).")
 parser.add_argument("-o","--outdir",dest="outdir",default=".",
         help="Output directory. Default: current directory")
-parser.add_argument("-n","--iterations",dest="n_iter",default=10,type=int,
-        help="Number of times to run sampling.")
+parser.add_argument("-n","--n_runs",dest="n_runs",default=10,type=int,
+        help="Number of times to run whole rounds of sampling.")
+parser.add_argument("-t","--n_iter",dest="n_iter",default=10000,type=int,
+        help="Number of MCMC iterations.")
+parser.add_argument("--burn",dest="burn",default=0,type=int,
+        help="Burn-in for MCMC (default 0.)")
+parser.add_argument("--thin",dest="thin",default=1,type=int,
+        help="Thinning parameter for MCMC (default 1.)")
 args = parser.parse_args()
 
 samples = args.samples
@@ -44,7 +50,10 @@ rlen    = args.rlen
 insert  = args.insert
 pi      = args.pi
 ploidy  = args.ploidy
+n_runs  = args.n_runs
 n_iter  = args.n_iter
+burn    = args.burn
+thin    = args.thin
 
 def proc_arg(arg,n_args=1,of_type=str):
     arg = str.split(arg,',')
@@ -70,7 +79,6 @@ if __name__ == '__main__':
                 print("Tumour purity value not between 0 and 1!")
                 raise ValueError        
         ploidy = proc_arg(ploidy,n,float)
-        run.run(samples,svs,gml,cnvs,rlen,insert,pi,ploidy,out,n_iter)
     except ValueError:
-        print "Invalid arguments. Check arguments with -h or --help and try again."
-        sys.exit
+        raise("Invalid arguments. Check arguments with -h or --help and try again.")
+    run.run(samples,svs,gml,cnvs,rlen,insert,pi,ploidy,out,n_runs,n_iter,burn,thin)

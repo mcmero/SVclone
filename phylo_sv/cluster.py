@@ -39,7 +39,7 @@ def fit_and_sample(model, iters, burn, thin):
     mcmc.sample(iters, burn=burn, thin=thin)
     return mcmc
 
-def recluster(df,pi,rlen,insert,iters=param.reclus_iters,burn=param.burn,thin=param.thin,dump=True):    
+def recluster(df,pi,rlen,insert,iters,burn,thin,dump=True):
     '''
     reclusters group without Dirichlet (assuming only one group exists)
     '''
@@ -67,13 +67,12 @@ def recluster(df,pi,rlen,insert,iters=param.reclus_iters,burn=param.burn,thin=pa
     model = pm.Model([dp,sp,normp,phi_k])
     mcmc = fit_and_sample(model,iters,burn,thin)
    
-    center_trace = mcmc.trace("phi_k")[:]
-    center_trace = center_trace[len(center_trace)/4:]
-    phi = np.mean(center_trace[:])
-    
-    return phi,center_trace
+    return mcmc.trace("phi_k")[:]
+    # center_trace = center_trace[len(center_trace)/4:]
+    # phi = np.mean(center_trace[:])
+    # return center_trace
 
-def cluster(df,pi,rlen,insert,Ndp=param.clus_limit,iters=param.init_iters,burn=param.burn,thin=param.thin):
+def cluster(df,pi,rlen,insert,iters,burn,thin,Ndp=param.clus_limit):
     '''
     inital clustering using Dirichlet Process
     '''

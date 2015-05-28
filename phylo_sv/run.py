@@ -18,10 +18,6 @@ def run_filter(df,rlen,insert,cnv,ploidy,perc=85):
     
     if len(cnv)>0:
         # filter out copy-aberrant SVs and outying norm read counts (>1-percentile)
-        #cn1 = np.array(map(round,df.bp1_maj_cnv+df.bp1_min_cnv))
-        #cn2 = np.array(map(round,df.bp2_maj_cnv+df.bp2_min_cnv))
-        #df_flt = df[(df.bp1_frac1A==1) & (df.bp2_frac1A==1) & (cn1==2) & (cn2==2) & \
-        #        (df.norm_mean<np.percentile(df.norm_mean,perc))]
         # major and minor copy-numbers must be 1
         cn1_maj = np.array(map(round,df.bp1_maj_cnv))
         cn1_min = np.array(map(round,df.bp1_min_cnv))
@@ -43,7 +39,7 @@ def find_cn_cols(bp_chr,bp_pos,cnv,cols=['nMaj1_A','nMin1_A','frac1_A']):
             return c[cols[0]],c[cols[1]],c[cols[2]]
     return float('nan'),float('nan'),float('nan')
 
-def run(samples,svs,gml,cnvs,rlens,inserts,pis,ploidy,out,num_iters):
+def run(samples,svs,gml,cnvs,rlens,inserts,pis,ploidies,out,n_runs,num_iters,burn,thin):
     if not os.path.exists(out):
         os.makedirs(out)
 
@@ -59,7 +55,7 @@ def run(samples,svs,gml,cnvs,rlens,inserts,pis,ploidy,out,num_iters):
         #    df = pd.DataFrame(dat)
         #    svinfo = pd.DataFrame(dat)
     else:
-        sv,cnv,rlen,insert,pi = svs[0],cnvs[0],rlens[0],inserts[0],pis[0]
+        sample,sv,cnv,rlen,insert,pi,ploidy = samples[0],svs[0],cnvs[0],rlens[0],inserts[0],pis[0],ploidies[0]
         dat = pd.read_csv(sv,delimiter='\t')
         df = pd.DataFrame(dat)
         cnv_df = pd.DataFrame()
@@ -85,4 +81,9 @@ def run(samples,svs,gml,cnvs,rlens,inserts,pis,ploidy,out,num_iters):
         if len(df_flt) < 5:
             print("Less than 5 post-filtered SVs. Clustering not recommended for this sample. Exiting.")
             return None
-        build_phyl.infer_subclones(df_flt,pi,rlen,insert,out,num_iters)
+        
+        with open('%s/purity_ploidy.txt'%out,'w') as outf:
+            outf.write("sample\tpurity\tploidy\n")
+            outf.write('%s\t%f\t%f\n'%(sample,pi,ploidy))
+
+        build_phyl.infer_subclones(sample,df_flt,pi,rlen,insert,out,n_runs,num_iters,burn,thin)
