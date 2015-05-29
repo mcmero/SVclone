@@ -39,49 +39,48 @@ def fit_and_sample(model, iters, burn, thin):
     mcmc.sample(iters, burn=burn, thin=thin)
     return mcmc
 
-def recluster(df,pi,rlen,insert,iters,burn,thin,dump=True):
-    '''
-    reclusters group without Dirichlet (assuming only one group exists)
-    '''
-    print("Reclustering with %d SVs"%len(df))
-    n,d,s = get_read_vals(df)
+#def recluster(df,pi,rlen,insert,ploidy,iters,burn,thin,dump=True):
+#    '''
+#    reclusters group without Dirichlet (assuming only one group exists)
+#    '''
+#    print("Reclustering with %d SVs"%len(df))
+#    n,d,s = get_read_vals(df)
+#
+#    phi_k = pm.Uniform('phi_k', lower=0, upper=1)
+#
+#    @pm.deterministic
+#    def smu(phi_k=phi_k):
+#        return (rlen/(rlen+0.5*insert))*((phi_k/ploidy)/pi)
+#
+#    @pm.deterministic
+#    def dmu(phi_k=phi_k):
+#        return (insert/(2*rlen+insert))*((phi_k/ploidy)/pi)
+#
+#    @pm.deterministic
+#    def nmu(phi_k=phi_k):
+#        return (1 - pi) + (pi * (1-phi_k))
+#                
+#    sp = pm.Poisson('sp', mu=smu, observed=True, value=s)
+#    dp = pm.Poisson('dp', mu=dmu, observed=True, value=d)
+#    normp = pm.Poisson('normp', mu=nmu, observed=True, value=n)
+#
+#    model = pm.Model([dp,sp,normp,phi_k])
+#    mcmc = fit_and_sample(model,iters,burn,thin)
+#   
+#    return mcmc.trace("phi_k")[:]
+#    # center_trace = center_trace[len(center_trace)/4:]
+#    # phi = np.mean(center_trace[:])
+#    # return center_trace
 
-    phi_k = pm.Uniform('phi_k', lower=0, upper=1)
-
-    @pm.deterministic
-    def smu(phi_k=phi_k):
-        return (rlen/(rlen+0.5*insert))*(phi_k*pi)
-
-    @pm.deterministic
-    def dmu(phi_k=phi_k):
-        return (insert/(2*rlen+insert))*(phi_k*pi)
-
-    @pm.deterministic
-    def nmu(phi_k=phi_k):
-        return (1 - pi) + (pi * (1-phi_k))
-                
-    sp = pm.Poisson('sp', mu=smu, observed=True, value=s)
-    dp = pm.Poisson('dp', mu=dmu, observed=True, value=d)
-    normp = pm.Poisson('normp', mu=nmu, observed=True, value=n)
-
-    model = pm.Model([dp,sp,normp,phi_k])
-    mcmc = fit_and_sample(model,iters,burn,thin)
-   
-    return mcmc.trace("phi_k")[:]
-    # center_trace = center_trace[len(center_trace)/4:]
-    # phi = np.mean(center_trace[:])
-    # return center_trace
-
-def cluster(df,pi,rlen,insert,iters,burn,thin,Ndp=param.clus_limit):
+def cluster(df,pi,rlen,insert,ploidy,iters,burn,thin,beta,Ndp=param.clus_limit):
     '''
     inital clustering using Dirichlet Process
     '''
     print("Clustering with %d SVs"%len(df))
     n,d,s = get_read_vals(df)
 
-    beta = pm.Uniform('beta', lower=0.01, upper=1)
+    beta = pm.Uniform('beta', lower=beta[0], upper=beta[1])
     h = pm.Beta('h', alpha=1, beta=beta, size=Ndp)
-
     @pm.deterministic
     def p(h=h):
         value = [u*np.prod(1-h[:i]) for i,u in enumerate(h)]
@@ -94,15 +93,18 @@ def cluster(df,pi,rlen,insert,iters,burn,thin,Ndp=param.clus_limit):
 
     @pm.deterministic
     def smu(z=z, phi_k=phi_k):
-        return (rlen/(rlen+0.5*insert))*(phi_k[z]*pi)
+        return (rlen/(rlen+0.5*insert))*((phi_k[z]/ploidy)*pi)
+        #return (rlen/(rlen+0.5*insert))*(phi_k[z]*pi)
 
     @pm.deterministic
     def dmu(z=z, phi_k=phi_k):
-        return (insert/(2*rlen+insert))*(phi_k[z]*pi)
+        return (insert/(2*rlen+insert))*((phi_k[z]/ploidy)*pi)
+        #return (insert/(2*rlen+insert))*(phi_k[z]*pi)
 
     @pm.deterministic
     def nmu(z=z, phi_k=phi_k):
-        return (1 - pi) + (pi * (1-phi_k[z]))
+        return (1 - pi) + (pi * (1-(phi_k[z]/ploidy)))
+        #return (1 - pi) + (pi * (1-(phi_k[z])))
                 
     sp = pm.Poisson('sp', mu=smu, observed=True, value=s)
     dp = pm.Poisson('dp', mu=dmu, observed=True, value=d)

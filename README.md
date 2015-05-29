@@ -99,10 +99,13 @@ Note that read length and insert sizes are provided as outputs from the pre-proc
 * -r or --readlen (default = 100) : read length in bp. If differs from default, it is essential to set this parameter.
 * -v or --insert (default = readlen) : insert size mean in bp (may be floating point number). If differs from read length, is essential to set correctly. Insert size here means fragment_len - (2 * read_len), hence not including the read lengths.
 * -n or --iterations (default = 10) : number of complete MCMC runs (does not set the number of MCMC iterations, but the number of times the clustering runs are performed). Each run will have distinct results. 
+* -y or --ploidy (default = 1.0) : tumour ploidy, affects the phi parameter (base model assumes variants occur on one copy only). Setting the ploidy to 1 gives the raw frequencies (it ignores ploidy).
+* --burn (default = 0) : MCMC burnin parameter
+* --thin (default = 1) : MCMC thinning parameter
+* --beta (default = "0.01,1") : lower and upper bounds respectively of uniform distribution of beta parameter used in Dirichlet Process model. 
 
 #### Advanced/unimplemented Parameters ####
 
-* -y or --ploidy (default = 2.0) : tumour ploidy. Currently not considered and assumed to be diploid
 * -g or --germline (UNIMPLEMENTED!) : SV input can be optionally be automatically filtered against the germline by inputting the germline BAM file with the -g argument. Currently, all SVs are assumed to be germline filtered.
 
 #### Beyond Advanced Usage ####

@@ -39,7 +39,7 @@ def find_cn_cols(bp_chr,bp_pos,cnv,cols=['nMaj1_A','nMin1_A','frac1_A']):
             return c[cols[0]],c[cols[1]],c[cols[2]]
     return float('nan'),float('nan'),float('nan')
 
-def run(samples,svs,gml,cnvs,rlens,inserts,pis,ploidies,out,n_runs,num_iters,burn,thin):
+def run(samples,svs,gml,cnvs,rlens,inserts,pis,ploidies,out,n_runs,num_iters,burn,thin,beta):
     if not os.path.exists(out):
         os.makedirs(out)
 
@@ -86,4 +86,4 @@ def run(samples,svs,gml,cnvs,rlens,inserts,pis,ploidies,out,n_runs,num_iters,bur
             outf.write("sample\tpurity\tploidy\n")
             outf.write('%s\t%f\t%f\n'%(sample,pi,ploidy))
 
-        build_phyl.infer_subclones(sample,df_flt,pi,rlen,insert,out,n_runs,num_iters,burn,thin)
+        build_phyl.infer_subclones(sample,df_flt,pi,rlen,insert,ploidy,out,n_runs,num_iters,burn,thin,beta)
