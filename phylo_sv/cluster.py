@@ -112,7 +112,7 @@ def cluster(df,pi,rlen,insert,ploidy,iters,burn,thin,beta,Ndp=param.clus_limit):
     dp = pm.Poisson('dp', mu=dmu, observed=True, value=d)
     normp = pm.Poisson('normp', mu=nmu, observed=True, value=n)
 
-    model = pm.Model([p,z,dp,sp,normp,phi_k,h,beta])
+    model = pm.Model([beta,h,p,z,dp,sp,normp,phi_k])
     mcmc = fit_and_sample(model,iters,burn,thin)
     return mcmc
 
