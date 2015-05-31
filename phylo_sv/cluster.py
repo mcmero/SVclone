@@ -28,8 +28,8 @@ def plot_clusters(center_trace,npoints,clusters):
 
 def get_read_vals(df):
     n = np.array(df.norm_mean)
-    d = np.array(df.bp1_split.values+df.bp2_split.values)
-    s = np.array(df.spanning.values)
+    s = np.array(df.bp1_split.values+df.bp2_split.values)
+    d = np.array(df.spanning.values)
     return n,d,s
 
 def fit_and_sample(model, iters, burn, thin):
@@ -79,8 +79,8 @@ def cluster(df,pi,rlen,insert,ploidy,iters,burn,thin,beta,Ndp=param.clus_limit):
     print("Clustering with %d SVs"%len(df))
     n,d,s = get_read_vals(df)
 
-    beta = pm.Gamma('beta', 4, 1/0.05)
-    print("Beta value:%f"%beta)
+    beta = pm.Gamma('beta', 50, 1/0.002,value=0.2)
+    #print("Beta value:%f"%beta)
     h = pm.Beta('h', alpha=1, beta=beta, size=Ndp)
     @pm.deterministic
     def p(h=h):
@@ -95,16 +95,16 @@ def cluster(df,pi,rlen,insert,ploidy,iters,burn,thin,beta,Ndp=param.clus_limit):
     @pm.deterministic
     def smu(z=z, phi_k=phi_k):
         #return (rlen/(rlen+0.5*insert))*((phi_k[z]/ploidy)*pi)
-        return (rlen/(rlen+0.5*insert))*(phi_k[z]*pi)
+        return (rlen/(rlen+0.5*insert))*(phi_k[z]*pi)*(ploidy/2)
 
     @pm.deterministic
     def dmu(z=z, phi_k=phi_k):
         #return (insert/(2*rlen+insert))*((phi_k[z]/ploidy)*pi)
-        return (insert/(2*rlen+insert))*(phi_k[z]*pi)
+        return (insert/(2*rlen+insert))*(phi_k[z]*pi)*(ploidy/2)
 
     @pm.deterministic
     def nmu(z=z, phi_k=phi_k):
-        return (2/ploidy)*(2*(1 - pi)) + pi*( 2*(1-phi_k[z]) + phi_k[z])
+        return  (2*(1 - pi)) + pi*( 2*(1-phi_k[z]) + phi_k[z])*(ploidy/2)
         #return (1 - pi) + (pi * (1-(phi_k[z]/ploidy)))
         #return (1 - pi) + (pi * (1-(phi_k[z])))
                 
@@ -112,7 +112,7 @@ def cluster(df,pi,rlen,insert,ploidy,iters,burn,thin,beta,Ndp=param.clus_limit):
     dp = pm.Poisson('dp', mu=dmu, observed=True, value=d)
     normp = pm.Poisson('normp', mu=nmu, observed=True, value=n)
 
-    model = pm.Model([beta,h,p,z,dp,sp,normp,phi_k])
+    model = pm.Model([phi_k,beta,h,p,z,normp,smu,dmu])
     mcmc = fit_and_sample(model,iters,burn,thin)
     return mcmc
 
