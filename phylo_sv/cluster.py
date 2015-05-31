@@ -79,7 +79,7 @@ def cluster(df,pi,rlen,insert,ploidy,iters,burn,thin,beta,Ndp=param.clus_limit):
     print("Clustering with %d SVs"%len(df))
     n,d,s = get_read_vals(df)
 
-    beta = pm.Gamma('beta', 50, 1/0.002,value=0.2)
+    beta = pm.Gamma('beta', 50, 1/0.003,value=0.1)
     #print("Beta value:%f"%beta)
     h = pm.Beta('h', alpha=1, beta=beta, size=Ndp)
     @pm.deterministic
@@ -90,21 +90,21 @@ def cluster(df,pi,rlen,insert,ploidy,iters,burn,thin,beta,Ndp=param.clus_limit):
 
     z = pm.Categorical('z', p=p, size=len(d), value=np.zeros(len(d)))
     #phi_init = np.mean((s+d)/(n+s+d))/pi
-    phi_k = pm.Uniform('phi_k', lower=0, upper=1, size=Ndp)#, value=[phi_init]*Ndp)
+    phi_k = pm.Gamma('phi_k', alpha=3, beta=1/0.15, size=Ndp)#, value=[phi_init]*Ndp)
 
     @pm.deterministic
     def smu(z=z, phi_k=phi_k):
         #return (rlen/(rlen+0.5*insert))*((phi_k[z]/ploidy)*pi)
-        return (rlen/(rlen+0.5*insert))*(phi_k[z]*pi)*(ploidy/2)
+        return (rlen/(rlen+0.5*insert))*(phi_k[z]*pi)#*(ploidy/2)
 
     @pm.deterministic
     def dmu(z=z, phi_k=phi_k):
         #return (insert/(2*rlen+insert))*((phi_k[z]/ploidy)*pi)
-        return (insert/(2*rlen+insert))*(phi_k[z]*pi)*(ploidy/2)
+        return (insert/(2*rlen+insert))*(phi_k[z]*pi)#*(ploidy/2)
 
     @pm.deterministic
     def nmu(z=z, phi_k=phi_k):
-        return  (2*(1 - pi)) + pi*( 2*(1-phi_k[z]) + phi_k[z])*(ploidy/2)
+        return  (2*(1 - pi)) + pi*( 2*(1-phi_k[z]) + phi_k[z])#*(ploidy/2)
         #return (1 - pi) + (pi * (1-(phi_k[z]/ploidy)))
         #return (1 - pi) + (pi * (1-(phi_k[z])))
                 
