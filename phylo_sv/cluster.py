@@ -105,7 +105,7 @@ def cluster(df,pi,rlen,insert,ploidy,iters,burn,thin,beta,Ndp=param.clus_limit):
 
     @pm.deterministic
     def nmu(z=z, phi_k=phi_k):
-        return  ( 2*(1 - pi) + (ploidy-1)*pi*(phi_k[z]) + ploidy*pi*(1.05-phi_k[z]) )#*(ploidy/2)
+        return  ( 2*(1 - pi) + (ploidy-1)*pi*(phi_k[z]) + ploidy*pi*(1-phi_k[z]) )#*(ploidy/2)
         #return (1 - pi) + (pi * (1-(phi_k[z]/ploidy)))
         #return (1 - pi) + (pi * (1-(phi_k[z])))
                 
