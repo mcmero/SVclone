@@ -78,11 +78,11 @@ def cluster(df,pi,rlen,insert,ploidy,iters,burn,thin,beta,Ndp=param.clus_limit):
     '''
     print("Clustering with %d SVs"%len(df))
     n,d,s = get_read_vals(df)
-    pl=ploidy
-    #pl=2
+    #pl=ploidy
+    pl=2
 
-    beta = pm.Gamma('beta', 10, 1/0.005,value=0.01)
-    #beta = pm.Uniform('beta', 0.1, 10, value=1)
+    beta = pm.Gamma('beta', 4, 1/0.05,value=0.01)
+    #beta = pm.Uniform('beta', 0.01, 1, value=0.1)
     #print("Beta value:%f"%beta)
     h = pm.Beta('h', alpha=1, beta=beta, size=Ndp)
     @pm.deterministic
@@ -98,9 +98,6 @@ def cluster(df,pi,rlen,insert,ploidy,iters,burn,thin,beta,Ndp=param.clus_limit):
 
     @pm.deterministic
     def cmu(z=z, phi_k=phi_k):
-        #return (2*(rlen-2)/(2*rlen+insert) + insert/(2*rlen+insert))*((phi_k[z]/pl)*pi)
-        #return (rlen/(rlen+0.5*insert) + insert/(2*rlen+insert))*((phi_k[z]/pl)*pi)
-        #return (rlen/(rlen+0.5*insert) + insert/(2*rlen+insert))*((phi_k[z])*pi)
         return ((phi_k[z]*pi)/pl)
 
     #@pm.deterministic
