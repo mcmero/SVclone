@@ -90,9 +90,9 @@ def cluster(df,pi,rlen,insert,ploidy,iters,burn,thin,beta,Ndp=param.clus_limit):
     h = pm.Beta('h', alpha=1, beta=beta, size=Ndp)
     @pm.deterministic
     def p(h=h):
-        value = [u*np.prod(1-h[:i]) for i,u in enumerate(h)]
+        value = [u*np.prod(1.0-h[:i]) for i,u in enumerate(h)]
         #value /= np.sum(value)
-        value[-1] = 1-sum(value[:-1])
+        value[-1] = 1.0-sum(value[:-1])
         return value
 
     z = pm.Categorical('z', p=p, size=Nsv, value=np.zeros(Nsv))
@@ -101,10 +101,10 @@ def cluster(df,pi,rlen,insert,ploidy,iters,burn,thin,beta,Ndp=param.clus_limit):
 
     @pm.deterministic
     def mu(z=z,phi_k=phi_k):
-        pn = (1 - pi) * 2 #proportion of normal reads coming from normal cells
-        pr = pi * (1 - phi_k[z]) * pl #proportion of normal reads coming from other clusters
+        pn = (1.0 - pi) * 2 #proportion of normal reads coming from normal cells
+        pr = pi * (1.0 - phi_k[z]) * pl #proportion of normal reads coming from other clusters
         pv = pi * phi_k[z] / pl #proportion of variant reads coming from this cluster
-        pvn = pi * phi_k[z] * (pl-1) / pl #proportion of normal reads coming from this cluster
+        pvn = pi * phi_k[z] * (pl-1.0) / pl #proportion of normal reads coming from this cluster
         
         norm_const = pn + pr + pv + pvn
         pv = pv / norm_const    
@@ -113,7 +113,7 @@ def cluster(df,pi,rlen,insert,ploidy,iters,burn,thin,beta,Ndp=param.clus_limit):
 
     cbinom = pm.Binomial('cbinom', dep, mu, observed=True, value=sup)
 
-    model = pm.Model([h,p,phi_k,z,mu,cbinom])
+    model = pm.Model([beta,h,p,phi_k,z,mu,cbinom])
     mcmc = fit_and_sample(model,iters,burn,thin)
     return mcmc
 
