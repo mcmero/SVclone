@@ -75,17 +75,17 @@ def fit_and_sample(model, iters, burn, thin):
 def cluster(df,pi,rlen,insert,ploidy,iters,burn,thin,beta,Ndp=param.clus_limit):
     '''
     inital clustering using Dirichlet Process
-    '''
-    import ipdb
-    print("Clustering with %d SVs"%len(df))
-    n,d,s = get_read_vals(df)
-    dep = np.array(n+d+s,dtype=float)
-    cov = np.mean(dep)
+    '''    
     pl = ploidy
+    n,d,s = get_read_vals(df)
+    dep = np.array(n+d+s,dtype=int)
+    sup = np.array(d+s,dtype=int)
+    Nsv = len(sup)
 
-    beta = pm.Gamma('beta', 4, 1/0.05,value=0.01)
+    beta = pm.Gamma('beta', 1, 10**(-7))
     #beta = pm.Uniform('beta', 0.01, 1, value=0.1)
     #print("Beta value:%f"%beta)
+
     h = pm.Beta('h', alpha=1, beta=beta, size=Ndp)
     @pm.deterministic
     def p(h=h):
@@ -93,40 +93,24 @@ def cluster(df,pi,rlen,insert,ploidy,iters,burn,thin,beta,Ndp=param.clus_limit):
         value /= np.sum(value)   
         return value
 
-    z = pm.Categorical('z', p=p, size=len(d), value=np.zeros(len(d)))
-    #phi_init = np.mean((s+d)/(n+s+d))/pi
-    #phi_k = pm.Gamma('phi_k', alpha=3, beta=1/0.15, size=Ndp)#, value=[phi_init]*Ndp)
-    phi_k = pm.Uniform('phi_k', lower=0.01, upper=1, size=Ndp)#, value=[phi_init]*Ndp)
+    z = pm.Categorical('z', p=p, size=Nsv, value=np.zeros(Nsv))
+    #phi_init = (np.mean((s+d)/(n+s+d))/pi)*2
+    phi_k = pm.Uniform('phi_k', lower=0, upper=1, size=Ndp)#, value=[phi_init]*Ndp)
 
     @pm.deterministic
-    def cmu(z=z, phi_k=phi_k):
-        return ((phi_k[z]*pi)/pl)
+    def mu(z=z,phi_k=phi_k):
+        pn = (1 - pi) * 2
+        pr = pi * (1 - phi_k[z]) * pl
+        pv = pi * phi_k[z] * pl
+        
+        norm_const = pn + pr + pv
+        pv = pv / norm_const    
+        
+        return (pv / pl)
 
-    #@pm.deterministic
-    #def smu(z=z, phi_k=phi_k):
-    #    return (rlen/(2*rlen+insert))*((phi_k[z]/pl)*pi)
-    #    return (rlen/(rlen+0.5*insert))*((phi_k[z]/pl)*pi)
-        #return ( (rlen/(rlen+0.5*insert))*(phi_k[z]*pi) )
+    cbinom = pm.Binomial('cbinom', dep, mu, observed=True, value=sup)
 
-    #@pm.deterministic
-    #def dmu(z=z, phi_k=phi_k):
-    #    return (insert/(2*rlen+insert))*((phi_k[z]/pl)*pi)
-        #return ( (insert/(2*rlen+insert))*(phi_k[z]*pi) )
-
-    @pm.deterministic
-    def nmu(z=z, phi_k=phi_k):
-        #return  ( 2*(1 - pi) + (pl-1)*pi*(phi_k[z]) + pl*pi*(1-phi_k[z]) )#*(ploidy/2)
-        #return  ( (1 - pi) + pi*( phi_k[z]/(ploidy-1) + (1-phi_k[z]/ploidy) ) )#*(ploidy/2)
-        #return ( (1 - pi) + pi*( pl*(1-phi_k[z]) + (pl-1)*phi_k[z]/pl ))
-        return (1 - pi) + (pi * ( (1-phi_k[z]) + phi_k[z]/(pl-1) ))
-                
-    cp = pm.Poisson('cp', mu=cmu, observed=True, value=np.add(s,d))
-    #sp = pm.Poisson('sp', mu=smu, observed=True, value=s)
-    #dp = pm.Poisson('dp', mu=dmu, observed=True, value=d)
-    normp = pm.Poisson('normp', mu=nmu, observed=True, value=n)
-
-    #model = pm.Model([phi_k,beta,h,p,z,normp,smu,dmu])
-    model = pm.Model([phi_k,beta,h,p,z,normp,cmu])
+    model = pm.Model([beta,h,p,phi_k,z,mu,cbinom])
     mcmc = fit_and_sample(model,iters,burn,thin)
     return mcmc
 
