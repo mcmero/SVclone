@@ -77,12 +77,13 @@ def cluster(df,pi,rlen,insert,ploidy,iters,burn,thin,beta,Ndp=param.clus_limit):
     inital clustering using Dirichlet Process
     '''    
     pl = ploidy
+    #pl = 2
     n,d,s = get_read_vals(df)
     dep = np.array(n+d+s,dtype=int)
     sup = np.array(d+s,dtype=int)
     Nsv = len(sup)
 
-    beta = pm.Gamma('beta', 1, 10**(-7))
+    beta = pm.Gamma('beta',0.8,1/0.8) 
     #beta = pm.Uniform('beta', 0.01, 1, value=0.1)
     #print("Beta value:%f"%beta)
 
@@ -90,7 +91,8 @@ def cluster(df,pi,rlen,insert,ploidy,iters,burn,thin,beta,Ndp=param.clus_limit):
     @pm.deterministic
     def p(h=h):
         value = [u*np.prod(1-h[:i]) for i,u in enumerate(h)]
-        value /= np.sum(value)   
+        #value /= np.sum(value)
+        value[-1] = 1-sum(value[:-1])
         return value
 
     z = pm.Categorical('z', p=p, size=Nsv, value=np.zeros(Nsv))
@@ -99,18 +101,19 @@ def cluster(df,pi,rlen,insert,ploidy,iters,burn,thin,beta,Ndp=param.clus_limit):
 
     @pm.deterministic
     def mu(z=z,phi_k=phi_k):
-        pn = (1 - pi) * 2
-        pr = pi * (1 - phi_k[z]) * pl
-        pv = pi * phi_k[z] * pl
+        pn = (1 - pi) * 2 #proportion of normal reads coming from normal cells
+        pr = pi * (1 - phi_k[z]) * pl #proportion of normal reads coming from other clusters
+        pv = pi * phi_k[z] / pl #proportion of variant reads coming from this cluster
+        pvn = pi * phi_k[z] * (pl-1) / pl #proportion of normal reads coming from this cluster
         
-        norm_const = pn + pr + pv
+        norm_const = pn + pr + pv + pvn
         pv = pv / norm_const    
         
-        return (pv / pl)
+        return (pv)
 
     cbinom = pm.Binomial('cbinom', dep, mu, observed=True, value=sup)
 
-    model = pm.Model([beta,h,p,phi_k,z,mu,cbinom])
+    model = pm.Model([h,p,phi_k,z,mu,cbinom])
     mcmc = fit_and_sample(model,iters,burn,thin)
     return mcmc
 
