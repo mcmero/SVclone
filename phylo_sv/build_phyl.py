@@ -39,7 +39,8 @@ def merge_clusters(df,clus_info,clus_merged,clus_members,cparams,out,num_iters,b
             print("\nReclustering similar clusters...")
             new_size = ci['size'] + cn['size']
             new_members = np.concatenate([clus_members[idx],clus_members[idx+1]])
-            trace = cluster.recluster(df.loc[new_members], cparams[0], cparams[1], cparams[2], cparams[3], num_iters, burn, thin)
+            trace = cluster.recluster(df.loc[new_members], cparams[0], cparams[1], \
+                    cparams[2], cparams[3], num_iters, burn, thin)
             phis = mean_confidence_interval(trace)
             clus_members[idx] = new_members
             to_del.append(idx+1)

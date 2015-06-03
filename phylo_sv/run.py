@@ -9,7 +9,9 @@ import pandas as pd
 from . import build_phyl
 
 def run_filter(df,rlen,insert,cnv,ploidy,perc=85):
-    df_flt = df[df['support']>1]
+    span = np.array(df.spanning)
+    split = np.array(df.bp1_split+df.bp2_split)
+    df_flt = df[np.logical_and(span>1,split>1)]
     
     #filter based on fragment length
     itx = df_flt['bp1_chr']!=df_flt['bp2_chr']
@@ -27,6 +29,15 @@ def run_filter(df,rlen,insert,cnv,ploidy,perc=85):
         bp2_cnn = np.logical_and(cn2_maj==1,cn2_min==1)
         df_flt = df[(df.bp1_frac1A==1) & bp1_cnn & bp2_cnn & \
                     (df.norm_mean<np.percentile(df.norm_mean,perc))]
+    else:
+        df_flt['bp1_frac1A']    = 1
+        df_flt['bp1_maj_cnv']   = 1
+        df_flt['bp1_min_cnv']   = 1
+        df_flt['bp2_frac1A']    = 1
+        df_flt['bp2_maj_cnv']   = 1
+        df_flt['bp2_min_cnv']   = 1
+        df_flt = df_flt[(df_flt.norm_mean<np.percentile(df_flt.norm_mean,perc))]
+
     df_flt.index = range(len(df_flt))
     return df_flt
 
@@ -78,6 +89,7 @@ def run(samples,svs,gml,cnvs,rlens,inserts,pis,ploidies,out,n_runs,num_iters,bur
 
         df['norm_mean'] = map(np.mean,zip(df['norm1'].values,df['norm2'].values))
         df_flt = run_filter(df,rlen,insert,cnv,ploidy)
+        
         if len(df_flt) < 5:
             print("Less than 5 post-filtered SVs. Clustering not recommended for this sample. Exiting.")
             return None

@@ -76,10 +76,12 @@ def cluster(df,pi,rlen,insert,ploidy,iters,burn,thin,beta,Ndp=param.clus_limit):
     '''
     inital clustering using Dirichlet Process
     '''
+    import ipdb
     print("Clustering with %d SVs"%len(df))
     n,d,s = get_read_vals(df)
-    #pl=ploidy
-    pl=2
+    dep = np.array(n+d+s,dtype=float)
+    cov = np.mean(dep)
+    pl = ploidy
 
     beta = pm.Gamma('beta', 4, 1/0.05,value=0.01)
     #beta = pm.Uniform('beta', 0.01, 1, value=0.1)
