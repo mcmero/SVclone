@@ -59,8 +59,10 @@ def cluster(df,pi,rlen,insert,ploidy,iters,burn,thin,beta,Ndp=param.clus_limit):
     dep = np.array(n+d+s,dtype=int)
     sup = np.array(d+s,dtype=int)
     Nsv = len(sup)
+    sens = 1.0 / ((pi/pl)*np.average(dep))
+    #print(sens)
 
-    beta = pm.Gamma('beta',0.8,1/0.8) 
+    beta = pm.Gamma('beta',0.9,1/0.9) 
     #beta = pm.Gamma('beta',param.beta_shape,param.beta_rate) 
     #beta = pm.Gamma('beta',1,10**(-7)) 
     #beta = pm.Uniform('beta', 0.01, 1, value=0.1)
@@ -70,20 +72,20 @@ def cluster(df,pi,rlen,insert,ploidy,iters,burn,thin,beta,Ndp=param.clus_limit):
     @pm.deterministic
     def p(h=h):
         value = [u*np.prod(1.0-h[:i]) for i,u in enumerate(h)]
-        #value /= np.sum(value)
-        value[-1] = 1.0-sum(value[:-1])
+        value /= np.sum(value)
+        #value[-1] = 1.0-sum(value[:-1])
         return value
 
     z = pm.Categorical('z', p=p, size=Nsv, value=np.zeros(Nsv))
     #phi_init = (np.mean((s+d)/(n+s+d))/pi)*2
-    phi_k = pm.Uniform('phi_k', lower=0, upper=1, size=Ndp)#, value=[phi_init]*Ndp)
+    phi_k = pm.Uniform('phi_k', lower=sens, upper=1, size=Ndp)#, value=[phi_init]*Ndp)
 
     @pm.deterministic
     def p_var(z=z,phi_k=phi_k):
-        pn = (1.0 - pi) * 2                 #proportion of normal reads coming from normal cells
-        pr = pi * (1.0 - phi_k[z]) * pl     #proportion of normal reads coming from other clusters
-        pv = (pi * phi_k[z]) / pl           #proportion of variant reads coming from this cluster
-        pvn = pi * phi_k[z] * (pl-1.0) / pl #proportion of normal reads coming from this cluster
+        pn =  (1.0 - pi) * 2                #proportion of normal reads coming from normal cells
+        pr =  pi * (1.0 - phi_k[z]) * pl    #proportion of normal reads coming from other clusters
+        pv =  pi * phi_k[z] * (1.0/pl)      #proportion of variant reads coming from this cluster
+        pvn = pi * phi_k[z] * ((pl-1.0)/pl) #proportion of normal reads coming from this cluster
         
         norm_const = pn + pr + pv + pvn
         pv = pv / norm_const    

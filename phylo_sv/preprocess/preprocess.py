@@ -280,7 +280,8 @@ def proc_svs(svin,bam,out,header,mean_dp,sc_len,max_cn):
         os.makedirs(dirname)
     
     inserts = bamtools.estimateInsertSizeDistribution(bam)
-    rlen = bamtools.estimateTagSize(bam)
+    #rlen = bamtools.estimateTagSize(bam)
+    rlen =101 
     
     max_dp = ((mean_dp*(param.window*2))/rlen)*max_cn
     max_ins = 2*inserts[1]+inserts[0] #actually the *fragment* size
