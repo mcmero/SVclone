@@ -25,7 +25,10 @@ def mean_confidence_interval(phi_trace, alpha=0.1):
     h = se * sp.stats.t._ppf((1+(1-alpha))/2., n-1)
     return round(m,4), round(m-h,4), round(m+h,4)
 
-def merge_clusters(df,clus_info,clus_merged,clus_members,cparams,out,num_iters,burn,thin):
+def merge_clusters(df,clus_info,clus_merged,clus_members,merged_ids,cparams,num_iters,burn,thin):
+    '''
+    cparams = [pi,rlen,insert,ploidy]
+    '''
     if len(clus_info)==1:
         return (clus_info,clus_members)
 
@@ -39,13 +42,15 @@ def merge_clusters(df,clus_info,clus_merged,clus_members,cparams,out,num_iters,b
             print("\nReclustering similar clusters...")
             new_size = ci['size'] + cn['size']
             new_members = np.concatenate([clus_members[idx],clus_members[idx+1]])
-            trace = cluster.recluster(df.loc[new_members], cparams[0], cparams[1], \
-                    cparams[2], cparams[3], num_iters, burn, thin)
+            mcmc = cluster.cluster(df.loc[new_members], cparams[0], cparams[1], \
+                    cparams[2], cparams[3], num_iters, burn, thin, None, 1)
+            trace = mcmc.trace("phi_k")[:]
             phis = mean_confidence_interval(trace)
             clus_members[idx] = new_members
             to_del.append(idx+1)
-            df_trace = pd.DataFrame(np.transpose(trace[:]))
-            df_trace.to_csv('%s/reclus%d_phi_trace.txt'%(out,int(ci.clus_id)),sep='\t',index=False)
+            merged_ids.append([int(ci.clus_id),int(cn.clus_id)])
+            #df_trace = pd.DataFrame(np.transpose(trace[:]))
+            #df_trace.to_csv('%s/reclus%d_phi_trace.txt'%(out,int(ci.clus_id)),sep='\t',index=False)
             clus_merged.loc[idx] = np.array([ci.clus_id,new_size,phis[0],phis[1],phis[2]])
             print('\n')
             if idx+2 < len(clus_info):
@@ -67,10 +72,39 @@ def merge_clusters(df,clus_info,clus_merged,clus_members,cparams,out,num_iters,b
         print(clus_merged)
 
     if len(clus_info) == len(clus_merged):
-        return (clus_merged,clus_members)
+        return (clus_merged,clus_members,merged_ids)
     else: 
         new_df = pd.DataFrame(columns=clus_merged.columns,index=clus_merged.index)
-        return merge_clusters(df,clus_merged,new_df,clus_members,cparams,out,num_iters,burn,thin)
+        return merge_clusters(df,clus_merged,new_df,clus_members,merged_ids,cparams,num_iters,burn,thin)
+    
+def merge_results(clus_merged, merged_ids, df_probs, ccert):    
+    # merge probability table
+    to_drop = []
+    df_probs_new = pd.DataFrame(df_probs,copy=True)
+    for mid in merged_ids:
+        clus1_vals = df_probs_new['cluster%d'%mid[0]].values
+        clus2_vals = df_probs_new['cluster%d'%mid[1]].values
+        
+        df_probs_new['cluster%d'%mid[0]] = clus1_vals + clus2_vals
+        to_drop.append(mid[1]) 
+
+    to_drop = set(to_drop)
+    for td in to_drop:
+        df_probs_new = df_probs_new.drop('cluster%d'%td,1)
+
+    # merge certainties table
+    #TODO: FIX PHI OUTPUT
+    ccert_new = pd.DataFrame(ccert,copy=True)
+    clus_max = ccert.most_likely_assignment.values
+    for mid in merged_ids:
+        ccert_new.loc[np.where(clus_max==mid[1])[0],'most_likely_assignment'] = mid[0]
+    #    new_phis = clus_merged.loc[clus_merged.clus_id==mid[0]][['phi','phi_low_conf','phi_hi_conf']]
+    #    ccert_new.loc[np.where(clus_max==mid[1])[0],'phi'] = new_phis.phi.values[0] 
+    #    ccert_new.loc[np.where(clus_max==mid[1])[0],'phi_low_conf'] = new_phis.phi_low_conf.values[0]
+    #    ccert_new.loc[np.where(clus_max==mid[1])[0],'phi_hi_conf'] = new_phis.phi_hi_conf.values[0]
+
+    return df_probs_new,ccert_new
+
 
 def run_clust(df,pi,rlen,insert,ploidy,num_iters,burn,thin,beta):
     mcmc = cluster.cluster(df,pi,rlen,insert,ploidy,num_iters,burn,thin,beta)
@@ -91,25 +125,22 @@ def run_clust(df,pi,rlen,insert,ploidy,num_iters,burn,thin,beta):
     # get cluster means
     center_trace = mcmc.trace("phi_k")[:]
     
-    # center_trace = center_trace[len(center_trace)/4:]
-    # param.plot_clusters(center_trace,npoints,clus_idx)
-    
-    #phis = np.array([np.mean(center_trace[:,cid]) for cid in clus_info.clus_id.values])
     phis = np.array([mean_confidence_interval(center_trace[:,cid]) for cid in clus_info.clus_id.values])
     clus_info['phi'] = phis[:,0]
     clus_info['phi_low_conf'] = phis[:,1]
     clus_info['phi_hi_conf'] = phis[:,2]
     clus_info = clus_info.sort('phi',ascending=False)
+    
+    clus_ids = clus_info.clus_id.values
+    clus_members = np.array([np.where(np.array(clus_max_prob)==i)[0] for i in clus_ids])
 
+    # TODO: reimplement cluster filtering based on size/floor threshold
     # cluster filtering
     #clus_info = clus_info[clus_info['phi'].values>(param.subclone_threshold/2)]
     #clus_info = clus_info[sum(clus_info['size'].values)*param.subclone_sv_prop<clus_info['size'].values]
     #clus_counts = [np.array(c)[clus_ids] for c in clus_counts]
     #clus_max_prob = np.array(clus_max_prob)[clus_ids]
     
-    clus_ids = clus_info.clus_id.values
-    clus_members = np.array([np.where(np.array(clus_max_prob)==i)[0] for i in clus_ids])
-
     # probability of being in each cluster
     #probs = [np.array(x)[clus_info.clus_id.values] for x in probs]
     #clus_counts = [np.array(c)[clus_info.clus_id.values] for c in clus_counts]
@@ -132,6 +163,20 @@ def run_clust(df,pi,rlen,insert,ploidy,num_iters,burn,thin,beta):
 
     clus_info.index = range(len(clus_info))
     print(clus_info)
+
+    # cluster plotting
+    cluster.plot_clusters(center_trace,clus_idx,clus_max_prob,df,ploidy,pi)
+    
+    # merge clusters
+    if len(clus_info)>1:
+        clus_merged = pd.DataFrame(columns=clus_info.columns,index=clus_info.index)
+        clus_merged, clus_members, merged_ids  = merge_clusters(df,clus_info,clus_merged,
+                clus_members,[],[pi,rlen,insert,ploidy],num_iters,burn,thin)
+
+        if len(clus_merged)!=len(clus_info):
+            clus_info = clus_merged
+            df_probs, ccert = merge_results(clus_merged, merged_ids, df_probs, ccert)
+    
     return clus_info,center_trace,z_trace,clus_members,df_probs,ccert
 
 def dump_trace(clus_info,center_trace,outf):
@@ -189,7 +234,9 @@ def infer_subclones(sample,df,pi,rlen,insert,ploidy,out,n_runs,num_iters,burn,th
 
     for i in range(n_runs):
         print("Cluster run: %d"%i)
-        clus_info,center_trace,z_trace,clus_members,df_probs,clus_cert = run_clust(df,pi,rlen,insert,ploidy,num_iters,burn,thin,beta)
+        clus_info,center_trace,z_trace,clus_members,df_probs,clus_cert = \
+                run_clust(df,pi,rlen,insert,ploidy,num_iters,burn,thin,beta)
+        
         sv_loss = 1-(sum(clus_info['size'])/float(len(df)))
 
         clus_out_dir = '%s/run%d'%(out,i)

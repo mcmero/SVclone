@@ -9,22 +9,33 @@ import ipdb
 from IPython.core.pylabtools import figsize
 from . import parameters as param
 
-def plot_clusters(center_trace,npoints,clusters):
-    figsize(12.5, 9)
-    plt.subplot(311)
-    lw = 1
+def plot_clusters(center_trace,clusters,assignments,df,pl,pi):
+    #TODO: incorporate merged cluster traces
+    fig, axes = plt.subplots(3, 1, sharex=False, sharey=False, figsize=(12.5,11))
 
     N = len(clusters)
     HSV_tuples = [(x*1.0/N, 0.5, 0.5) for x in range(N)]
     RGB_tuples = map(lambda x: colorsys.hsv_to_rgb(*x), HSV_tuples)
     
+    axes[0].set_ylim([0,1])
+    axes[0].set_title("Trace of $\phi_k$")
+    
     for idx,clus in enumerate(clusters): 
-        plt.plot(center_trace[:, clus], label="trace of center 0", c=RGB_tuples[idx], lw=lw)
+        axes[0].plot(center_trace[:, clus], label="trace of center %d" % clus, c=RGB_tuples[idx], lw=1)
         # print('phi_%d ~ %f' % (idx,np.mean(center_trace[2000:,clus])))
     
-    plt.title("Trace of $\phi_k$")
-    leg = plt.legend(loc="upper right")
+    leg = axes[0].legend(loc="upper right")
     leg.get_frame().set_alpha(0.7)
+
+    for idx,clus in enumerate(clusters):
+        t1 = df[np.array(assignments)==clus]
+        s1 = t1.support.values
+        n1 = map(np.mean,zip(t1.norm1.values,t1.norm2.values))
+        axes[1].set_title("Cell fractions (raw VAFs purity-ploidy-adjusted)")
+        axes[1].hist(((s1/(n1+s1)*pl)/pi),bins=np.array(range(0,100,2))/100.,alpha=0.75,color=RGB_tuples[idx])
+        #print 'mean cluster VAF: %f' % (np.mean(s1/(n1+s1)/pi))
+        axes[2].set_title("Raw VAFs")
+        axes[2].hist(s1/(n1+s1),bins=np.array(range(0,100,2))/100.,alpha=0.75,color=RGB_tuples[idx])
 
 def get_read_vals(df):
     n = np.array(df.norm_mean)
@@ -39,51 +50,19 @@ def fit_and_sample(model, iters, burn, thin):
     mcmc.sample(iters, burn=burn, thin=thin)
     return mcmc
 
-#def recluster(df,pi,rlen,insert,ploidy,iters,burn,thin,dump=True):
-#    '''
-#    reclusters group without Dirichlet (assuming only one group exists)
-#    '''
-#    print("Reclustering with %d SVs"%len(df))
-#    n,d,s = get_read_vals(df)
-#
-#    phi_k = pm.Uniform('phi_k', lower=0, upper=1)
-#
-#    @pm.deterministic
-#    def smu(phi_k=phi_k):
-#        return (rlen/(rlen+0.5*insert))*((phi_k/ploidy)/pi)
-#
-#    @pm.deterministic
-#    def dmu(phi_k=phi_k):
-#        return (insert/(2*rlen+insert))*((phi_k/ploidy)/pi)
-#
-#    @pm.deterministic
-#    def nmu(phi_k=phi_k):
-#        return (1 - pi) + (pi * (1-phi_k))
-#                
-#    sp = pm.Poisson('sp', mu=smu, observed=True, value=s)
-#    dp = pm.Poisson('dp', mu=dmu, observed=True, value=d)
-#    normp = pm.Poisson('normp', mu=nmu, observed=True, value=n)
-#
-#    model = pm.Model([dp,sp,normp,phi_k])
-#    mcmc = fit_and_sample(model,iters,burn,thin)
-#   
-#    return mcmc.trace("phi_k")[:]
-#    # center_trace = center_trace[len(center_trace)/4:]
-#    # phi = np.mean(center_trace[:])
-#    # return center_trace
-
 def cluster(df,pi,rlen,insert,ploidy,iters,burn,thin,beta,Ndp=param.clus_limit):
     '''
     inital clustering using Dirichlet Process
     '''    
     pl = ploidy
-    #pl = 2
     n,d,s = get_read_vals(df)
     dep = np.array(n+d+s,dtype=int)
     sup = np.array(d+s,dtype=int)
     Nsv = len(sup)
 
     beta = pm.Gamma('beta',0.8,1/0.8) 
+    #beta = pm.Gamma('beta',param.beta_shape,param.beta_rate) 
+    #beta = pm.Gamma('beta',1,10**(-7)) 
     #beta = pm.Uniform('beta', 0.01, 1, value=0.1)
     #print("Beta value:%f"%beta)
 
@@ -100,20 +79,20 @@ def cluster(df,pi,rlen,insert,ploidy,iters,burn,thin,beta,Ndp=param.clus_limit):
     phi_k = pm.Uniform('phi_k', lower=0, upper=1, size=Ndp)#, value=[phi_init]*Ndp)
 
     @pm.deterministic
-    def mu(z=z,phi_k=phi_k):
-        pn = (1.0 - pi) * 2 #proportion of normal reads coming from normal cells
-        pr = pi * (1.0 - phi_k[z]) * pl #proportion of normal reads coming from other clusters
-        pv = pi * phi_k[z] / pl #proportion of variant reads coming from this cluster
+    def p_var(z=z,phi_k=phi_k):
+        pn = (1.0 - pi) * 2                 #proportion of normal reads coming from normal cells
+        pr = pi * (1.0 - phi_k[z]) * pl     #proportion of normal reads coming from other clusters
+        pv = (pi * phi_k[z]) / pl           #proportion of variant reads coming from this cluster
         pvn = pi * phi_k[z] * (pl-1.0) / pl #proportion of normal reads coming from this cluster
         
         norm_const = pn + pr + pv + pvn
         pv = pv / norm_const    
         
-        return (pv)
+        return pv
+        
+    cbinom = pm.Binomial('cbinom', dep, p_var, observed=True, value=sup)
 
-    cbinom = pm.Binomial('cbinom', dep, mu, observed=True, value=sup)
-
-    model = pm.Model([beta,h,p,phi_k,z,mu,cbinom])
+    model = pm.Model([beta,h,p,phi_k,z,p_var,cbinom])
     mcmc = fit_and_sample(model,iters,burn,thin)
     return mcmc
 

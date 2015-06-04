@@ -39,7 +39,7 @@ parser.add_argument("--burn",dest="burn",default=0,type=int,
         help="Burn-in for MCMC (default 0.)")
 parser.add_argument("--thin",dest="thin",default=1,type=int,
         help="Thinning parameter for MCMC (default 1.)")
-parser.add_argument("--beta",dest="beta",default="8,1/0.015,0.2",type=str,
+parser.add_argument("--beta",dest="beta",default="8,1/0.05,0.1",type=str,
         help="Comma separated; first two values etermine the parameters used for " + 
              "Dirichlet Processes' gamma function. Third value determines the starting value.")
 args = parser.parse_args()
