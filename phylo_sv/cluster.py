@@ -9,13 +9,28 @@ import ipdb
 from IPython.core.pylabtools import figsize
 from . import parameters as param
 
-def plot_clusters(center_trace,clusters,assignments,df,pl,pi):
-    #TODO: incorporate merged cluster traces
-    fig, axes = plt.subplots(3, 1, sharex=False, sharey=False, figsize=(12.5,11))
-
-    N = len(clusters)
+def gen_new_colours(N):
     HSV_tuples = [(x*1.0/N, 0.5, 0.5) for x in range(N)]
     RGB_tuples = map(lambda x: colorsys.hsv_to_rgb(*x), HSV_tuples)
+    return RGB_tuples
+
+def plot_cluster_hist(clusters,assignments,df,pl,pi):
+    fig, axes = plt.subplots(2, 1, sharex=False, sharey=False, figsize=(12.5,8))
+    RGB_tuples = gen_new_colours(len(clusters))
+    
+    for idx,clus in enumerate(clusters):
+        t1 = df[np.array(assignments)==clus]
+        s1 = t1.support.values
+        n1 = map(np.mean,zip(t1.norm1.values,t1.norm2.values))
+        axes[0].set_title("Clusters post-cluster merge: Cell fractions (raw VAFs purity-ploidy-adjusted)")
+        axes[0].hist(((s1/(n1+s1)*pl)/pi),bins=np.array(range(0,100,2))/100.,alpha=0.75,color=RGB_tuples[idx])
+        axes[1].set_title("Raw VAFs")
+        axes[1].hist(s1/(n1+s1),bins=np.array(range(0,100,2))/100.,alpha=0.75,color=RGB_tuples[idx])
+    
+def plot_clusters(center_trace,clusters,assignments,df,pl,pi):
+    fig, axes = plt.subplots(3, 1, sharex=False, sharey=False, figsize=(12.5,11))
+
+    RGB_tuples = gen_new_colours(len(clusters))
     
     axes[0].set_ylim([0,1])
     axes[0].set_title("Trace of $\phi_k$")
@@ -31,7 +46,7 @@ def plot_clusters(center_trace,clusters,assignments,df,pl,pi):
         t1 = df[np.array(assignments)==clus]
         s1 = t1.support.values
         n1 = map(np.mean,zip(t1.norm1.values,t1.norm2.values))
-        axes[1].set_title("Cell fractions (raw VAFs purity-ploidy-adjusted)")
+        axes[1].set_title("Unmerged clusters: Cell fractions (raw VAFs purity-ploidy-adjusted)")
         axes[1].hist(((s1/(n1+s1)*pl)/pi),bins=np.array(range(0,100,2))/100.,alpha=0.75,color=RGB_tuples[idx])
         #print 'mean cluster VAF: %f' % (np.mean(s1/(n1+s1)/pi))
         axes[2].set_title("Raw VAFs")

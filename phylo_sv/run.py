@@ -2,7 +2,6 @@
 Run clustering and tree building on sample inputs
 '''
 import os
-import sys
 import numpy as np
 import ipdb
 import pandas as pd

@@ -3,14 +3,15 @@ Takes an SV matrix and attempts to build a phylogeny
 '''
 import subprocess
 import ipdb
-import sys
 import os
 import pandas as pd
 import scipy as sp
 import scipy.stats
+from collections import OrderedDict
 
 from . import cluster
 from . import parameters as param
+from . import cmd
 
 import numpy as np
 from numpy import loadtxt
@@ -25,7 +26,7 @@ def mean_confidence_interval(phi_trace, alpha=0.1):
     h = se * sp.stats.t._ppf((1+(1-alpha))/2., n-1)
     return round(m,4), round(m-h,4), round(m+h,4)
 
-def merge_clusters(df,clus_info,clus_merged,clus_members,merged_ids,cparams,num_iters,burn,thin):
+def merge_clusters(clus_out_dir,df,clus_info,clus_merged,clus_members,merged_ids,cparams,num_iters,burn,thin):
     '''
     cparams = [pi,rlen,insert,ploidy]
     '''
@@ -41,17 +42,28 @@ def merge_clusters(df,clus_info,clus_merged,clus_members,merged_ids,cparams,num_
         if abs(ci.phi - float(cn.phi)) < param.subclone_diff:
             print("\nReclustering similar clusters...")
             new_size = ci['size'] + cn['size']
+
             new_members = np.concatenate([clus_members[idx],clus_members[idx+1]])
             mcmc = cluster.cluster(df.loc[new_members], cparams[0], cparams[1], \
                     cparams[2], cparams[3], num_iters, burn, thin, None, 1)
             trace = mcmc.trace("phi_k")[:]
+
             phis = mean_confidence_interval(trace)
+            clus_merged.loc[idx] = np.array([ci.clus_id,new_size,phis[0],phis[1],phis[2]])            
             clus_members[idx] = new_members
+
             to_del.append(idx+1)
             merged_ids.append([int(ci.clus_id),int(cn.clus_id)])
-            #df_trace = pd.DataFrame(np.transpose(trace[:]))
-            #df_trace.to_csv('%s/reclus%d_phi_trace.txt'%(out,int(ci.clus_id)),sep='\t',index=False)
-            clus_merged.loc[idx] = np.array([ci.clus_id,new_size,phis[0],phis[1],phis[2]])
+            
+            df_trace = pd.DataFrame(trace[:])
+            df_trace.to_csv('%s/reclus%d_phi_trace.txt'%(clus_out_dir,int(ci.clus_id)),sep='\t',index=False)
+            
+            # plot new trace
+            #assignments = [int(ci.clus_id)]*len(new_members)
+            #tmp_trace = np.zeros((len(trace),int(ci.clus_id)+1))
+            #tmp_trace[:,int(ci.clus_id)] = trace[:,0]
+            #cluster.plot_clusters(tmp_trace,[int(ci.clus_id)],assignments,df.loc[new_members],cparams[3],cparams[0])
+
             print('\n')
             if idx+2 < len(clus_info):
                 clus_merged.loc[idx+2:] = clus_info.loc[idx+2:]
@@ -61,10 +73,12 @@ def merge_clusters(df,clus_info,clus_merged,clus_members,merged_ids,cparams,num_
     
     if len(to_del)>0:
         clus_members = np.delete(clus_members,to_del)
+        
         # clean and reorder merged dataframe
         clus_merged = clus_merged[pd.notnull(clus_merged['clus_id'])]
         clus_merged = clus_merged.sort('phi',ascending=False)
         clus_merged.index = range(len(clus_merged))
+        
         print("\nMerged clusters")
         print('Input')
         print(clus_info)
@@ -75,12 +89,13 @@ def merge_clusters(df,clus_info,clus_merged,clus_members,merged_ids,cparams,num_
         return (clus_merged,clus_members,merged_ids)
     else: 
         new_df = pd.DataFrame(columns=clus_merged.columns,index=clus_merged.index)
-        return merge_clusters(df,clus_merged,new_df,clus_members,merged_ids,cparams,num_iters,burn,thin)
-    
+        return merge_clusters(clus_out_dir,df,clus_merged,new_df,clus_members,merged_ids,cparams,num_iters,burn,thin)
+
 def merge_results(clus_merged, merged_ids, df_probs, ccert):    
     # merge probability table
     to_drop = []
     df_probs_new = pd.DataFrame(df_probs,copy=True)
+    
     for mid in merged_ids:
         clus1_vals = df_probs_new['cluster%d'%mid[0]].values
         clus2_vals = df_probs_new['cluster%d'%mid[1]].values
@@ -91,22 +106,23 @@ def merge_results(clus_merged, merged_ids, df_probs, ccert):
     to_drop = set(to_drop)
     for td in to_drop:
         df_probs_new = df_probs_new.drop('cluster%d'%td,1)
-
-    # merge certainties table
-    #TODO: FIX PHI OUTPUT
+    
+    # merge assignments in certainties table
     ccert_new = pd.DataFrame(ccert,copy=True)
-    clus_max = ccert.most_likely_assignment.values
     for mid in merged_ids:
+        clus_max = ccert_new.most_likely_assignment.values
         ccert_new.loc[np.where(clus_max==mid[1])[0],'most_likely_assignment'] = mid[0]
-    #    new_phis = clus_merged.loc[clus_merged.clus_id==mid[0]][['phi','phi_low_conf','phi_hi_conf']]
-    #    ccert_new.loc[np.where(clus_max==mid[1])[0],'phi'] = new_phis.phi.values[0] 
-    #    ccert_new.loc[np.where(clus_max==mid[1])[0],'phi_low_conf'] = new_phis.phi_low_conf.values[0]
-    #    ccert_new.loc[np.where(clus_max==mid[1])[0],'phi_hi_conf'] = new_phis.phi_hi_conf.values[0]
+
+    #update phis
+    for idx,ci in clus_merged.iterrows():
+        ccert_new.loc[ccert_new.most_likely_assignment==ci.clus_id,'average_ccf'] = ci.phi
+        ccert_new.loc[ccert_new.most_likely_assignment==ci.clus_id,'90_perc_CI_lo'] = ci.phi_low_conf
+        ccert_new.loc[ccert_new.most_likely_assignment==ci.clus_id,'90_perc_CI_hi'] = ci.phi_hi_conf
 
     return df_probs_new,ccert_new
 
 
-def run_clust(df,pi,rlen,insert,ploidy,num_iters,burn,thin,beta):
+def run_clust(clus_out_dir,df,pi,rlen,insert,ploidy,num_iters,burn,thin,beta):
     mcmc = cluster.cluster(df,pi,rlen,insert,ploidy,num_iters,burn,thin,beta)
     npoints = len(df.spanning.values)
 
@@ -165,17 +181,22 @@ def run_clust(df,pi,rlen,insert,ploidy,num_iters,burn,thin,beta):
     print(clus_info)
 
     # cluster plotting
-    cluster.plot_clusters(center_trace,clus_idx,clus_max_prob,df,ploidy,pi)
+    if cmd.plot:
+        cluster.plot_clusters(center_trace,clus_idx,clus_max_prob,df,ploidy,pi)
+    dump_trace(clus_info,center_trace,'%s/premerge_phi_trace.txt'%clus_out_dir)
+    dump_trace(clus_info,z_trace,'%s/premerge_z_trace.txt'%clus_out_dir)
     
     # merge clusters
-    if len(clus_info)>1:
+    if len(clus_info)>1:        
         clus_merged = pd.DataFrame(columns=clus_info.columns,index=clus_info.index)
-        clus_merged, clus_members, merged_ids  = merge_clusters(df,clus_info,clus_merged,
+        clus_merged, clus_members, merged_ids  = merge_clusters(clus_out_dir,df,clus_info,clus_merged,
                 clus_members,[],[pi,rlen,insert,ploidy],num_iters,burn,thin)
-
+        
         if len(clus_merged)!=len(clus_info):
             clus_info = clus_merged
             df_probs, ccert = merge_results(clus_merged, merged_ids, df_probs, ccert)
+            if cmd.plot:
+                cluster.plot_cluster_hist(clus_merged.clus_id.values,ccert.most_likely_assignment.values,df,ploidy,pi)
     
     return clus_info,center_trace,z_trace,clus_members,df_probs,ccert
 
@@ -231,17 +252,17 @@ def write_out_files(df,clus_info,clus_members,df_probs,clus_cert,clus_out_dir,sa
 def infer_subclones(sample,df,pi,rlen,insert,ploidy,out,n_runs,num_iters,burn,thin,beta):
 
     clus_info,center_trace,ztrace,clus_members = None,None,None,None
-
     for i in range(n_runs):
         print("Cluster run: %d"%i)
-        clus_info,center_trace,z_trace,clus_members,df_probs,clus_cert = \
-                run_clust(df,pi,rlen,insert,ploidy,num_iters,burn,thin,beta)
-        
-        sv_loss = 1-(sum(clus_info['size'])/float(len(df)))
 
         clus_out_dir = '%s/run%d'%(out,i)
         if not os.path.exists(clus_out_dir):
             os.makedirs(clus_out_dir)
+
+        clus_info,center_trace,z_trace,clus_members,df_probs,clus_cert = \
+                run_clust(clus_out_dir,df,pi,rlen,insert,ploidy,num_iters,burn,thin,beta)
+        
+        sv_loss = 1-(sum(clus_info['size'])/float(len(df)))
 
         with open("%s/warnings.txt"%clus_out_dir,'w') as warn:
             warn_str = ""
@@ -250,15 +271,14 @@ def infer_subclones(sample,df,pi,rlen,insert,ploidy,out,n_runs,num_iters,burn,th
                 warn.write(warn_str)
                 print('\n'+warn_str)
                 continue
-            if sv_loss > param.tolerate_svloss:
-                warn_str = "Warning! Lost %f of SVs.\n" % sv_loss
+            #if sv_loss > param.tolerate_svloss:
+            #    warn_str = "Warning! Lost %f of SVs.\n" % sv_loss
             #if (clus_info.phi.values[0]*2.)>(1+param.subclone_diff):
             #    warn_str = warn_str + "Warning! Largest VAF cluster exceeds 0.5.\n"
-            warn.write(warn_str)
-            print('\n'+warn_str)
-        
-        dump_trace(clus_info,center_trace,'%s/phi_trace.txt'%clus_out_dir)
-        dump_trace(clus_info,z_trace,'%s/z_trace.txt'%clus_out_dir)
+            if warn_str!="": 
+                warn.write(warn_str)
+                print('\n'+warn_str)
+
 #        clus_info.to_csv('%s/clusters_premerged.txt'%(clus_out_dir),sep='\t',index=False)
 #        clus_init = pd.DataFrame(columns=clus_info.columns,index=clus_info.index)
 #        clus_info,clus_new_members = \
