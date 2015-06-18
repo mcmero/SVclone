@@ -4,6 +4,7 @@ Run clustering and tree building on sample inputs
 import os
 import numpy as np
 import ipdb
+import re
 import pandas as pd
 from . import build_phyl
 
@@ -43,11 +44,30 @@ def run_filter(df,rlen,insert,cnv,ploidy,perc=85):
 def cnv_overlaps(bp_pos,cnv_start,cnv_end):
     return (bp_pos >= cnv_start and bp_pos <= cnv_end)
 
-def find_cn_cols(bp_chr,bp_pos,cnv,cols=['nMaj1_A','nMin1_A','frac1_A']):
+#def find_cn_cols(bp_chr,bp_pos,cnv,cols=['nMaj1_A','nMin1_A','frac1_A','nMaj2_A','nMin2_A','frac2_A']):
+#    for idx,c in cnv.iterrows():
+#        if str(bp_chr)==c['chr'] and cnv_overlaps(bp_pos,c['startpos'],c['endpos']):
+#            return c[cols[0]],c[cols[1]],c[cols[2]],c[cols[3]],c[cols[4]],c[cols[5]]
+#    return float('nan'),float('nan'),float('nan'),float('nan'),float('nan'),float('nan')
+
+def find_cn_col(bp_chr,bp_pos,cnv):
     for idx,c in cnv.iterrows():
         if str(bp_chr)==c['chr'] and cnv_overlaps(bp_pos,c['startpos'],c['endpos']):
-            return c[cols[0]],c[cols[1]],c[cols[2]]
-    return float('nan'),float('nan'),float('nan')
+            return c
+    return pd.Series()
+
+def get_genotype(cnrow):
+    gtype = []
+    for col in cnrow.iteritems():
+        mj = re.search("n(Maj)(?P<fraction>\d_\w)",col[0])
+        if len(gtype)==2: break
+        if mj:
+            if np.isnan(col[1]): break
+            nmin = 'nMin' + mj.group("fraction") #corresponding minor allele
+            frac = 'frac' + mj.group("fraction") #allele fraction
+            gtype.append([col[1],cnrow[nmin],cnrow[frac]])
+    g_str = ["%d,%d,%f"%(gt[0],gt[1],gt[2]) for gt in gtype]
+    return '|'.join(g_str)
 
 def run(samples,svs,gml,cnvs,rlens,inserts,pis,ploidies,out,n_runs,num_iters,burn,thin,beta):
     if not os.path.exists(out):
@@ -75,19 +95,32 @@ def run(samples,svs,gml,cnvs,rlens,inserts,pis,ploidies,out,n_runs,num_iters,bur
             cnv_df = pd.DataFrame(cnv)
             cnv_df['chr'] = map(str,map(int,cnv_df['chr']))
            
-            # set Battenberg fields
-            df['bp1_maj_cnv'], df['bp1_min_cnv'], df['bp1_frac1A'] = float('nan'), float('nan'), float('nan')
-            df['bp2_maj_cnv'], df['bp2_min_cnv'], df['bp2_frac1A'] = float('nan'), float('nan'), float('nan')
-
+            df['gtype1'] = "" 
+            df['gtype2'] = "" 
             for idx,d in df.iterrows():
-                df['bp1_maj_cnv'][idx], df['bp1_min_cnv'][idx], df['bp1_frac1A'][idx] = \
-                        find_cn_cols(d['bp1_chr'],d['bp1_pos'],cnv)
-                df['bp2_maj_cnv'][idx], df['bp2_min_cnv'][idx], df['bp2_frac1A'][idx] = \
-                        find_cn_cols(d['bp2_chr'],d['bp2_pos'],cnv)
-            df = df[pd.notnull(df['bp1_frac1A'])]        
+                cn1 = find_cn_col(d.bp1_chr,d.bp1_pos,cnv)
+                cn2 = find_cn_col(d.bp2_chr,d.bp2_pos,cnv)
+                df['gtype1'][idx] = get_genotype(cn1)
+                df['gtype2'][idx] = get_genotype(cn2)
+
+#            # set Battenberg fields
+#            df['bp1_maj_cnv1'], df['bp1_min_cnv1'], df['bp1_frac1A'] = float('nan'), float('nan'), float('nan')
+#            df['bp1_maj_cnv2'], df['bp1_min_cnv2'], df['bp1_frac2A'] = float('nan'), float('nan'), float('nan')
+#            df['bp2_maj_cnv1'], df['bp2_min_cnv1'], df['bp2_frac1A'] = float('nan'), float('nan'), float('nan')
+#            df['bp2_maj_cnv2'], df['bp2_min_cnv2'], df['bp2_frac2A'] = float('nan'), float('nan'), float('nan')
+#            
+#            for idx,d in df.iterrows():
+#                df['bp1_maj_cnv1'][idx], df['bp1_min_cnv1'][idx], df['bp1_frac1A'][idx], \
+#                df['bp1_maj_cnv2'][idx], df['bp1_min_cnv2'][idx], df['bp1_frac2A'][idx] = \
+#                        find_cn_cols(d['bp1_chr'],d['bp1_pos'],cnv)
+#                df['bp2_maj_cnv1'][idx], df['bp2_min_cnv1'][idx], df['bp2_frac1A'][idx], \
+#                df['bp2_maj_cnv2'][idx], df['bp2_min_cnv2'][idx], df['bp2_frac2A'][idx] = \
+#                        find_cn_cols(d['bp2_chr'],d['bp2_pos'],cnv)
+#            #df = df[pd.notnull(df['bp1_frac1A'])]        
 
         df['norm_mean'] = map(np.mean,zip(df['norm1'].values,df['norm2'].values))
-        df_flt = run_filter(df,rlen,insert,cnv,ploidy)
+        #df_flt = run_filter(df,rlen,insert,cnv,ploidy)
+        df_flt = df
         
         if len(df_flt) < 5:
             print("Less than 5 post-filtered SVs. Clustering not recommended for this sample. Exiting.")
@@ -98,3 +131,4 @@ def run(samples,svs,gml,cnvs,rlens,inserts,pis,ploidies,out,n_runs,num_iters,bur
             outf.write('%s\t%f\t%f\n'%(sample,pi,ploidy))
         
         build_phyl.infer_subclones(sample,df_flt,pi,rlen,insert,ploidy,out,n_runs,num_iters,burn,thin,beta)
+

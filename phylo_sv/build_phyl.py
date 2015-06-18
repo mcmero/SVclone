@@ -226,9 +226,12 @@ def write_out_files(df,clus_info,clus_members,df_probs,clus_cert,clus_out_dir,sa
     clus_svs = df.loc[cmem].copy()
     
     for idx,sv in clus_svs.iterrows():
+        #TODO: proper copy-number outputs here
+        #maj_cn1,min_cn1 = sv['bp1_maj_cnv'],sv['bp1_min_cnv']
+        #maj_cn2,min_cn2 = sv['bp2_maj_cnv'],sv['bp2_min_cnv']
+        maj_cn1,min_cn1 = 1,1 
+        maj_cn2,min_cn2 = 1,1
 
-        maj_cn1,min_cn1 = sv['bp1_maj_cnv'],sv['bp1_min_cnv']
-        maj_cn2,min_cn2 = sv['bp2_maj_cnv'],sv['bp2_min_cnv']
 
         maj_cn1 = int(maj_cn1) if maj_cn1!="" else np.nan
         min_cn1 = int(min_cn1) if min_cn1!="" else np.nan
