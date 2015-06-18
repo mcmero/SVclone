@@ -8,17 +8,18 @@ import re
 import pandas as pd
 from . import build_phyl
 
-def run_filter(df,rlen,insert,cnv,ploidy,perc=85):
+def run_filter(df,rlen,insert,cnv,ploidy,cnv_neutral,perc=85):
     span = np.array(df.spanning)
     split = np.array(df.bp1_split+df.bp2_split)
-    df_flt = df[np.logical_and(span>1,split>1)]
+    #df_flt = df[np.logical_and(span>1,split>1)]
+    df_flt = df[(span+split)>=1]
     
     #filter based on fragment length
     itx = df_flt['bp1_chr']!=df_flt['bp2_chr']
     frag_len = 2*rlen+insert
-    df_flt = df_flt[ itx | (abs(df_flt['bp1_pos']-df_flt['bp2_pos'])>frag_len) ]
+    df_flt = df_flt[ itx | (abs(df_flt['bp1_pos']-df_flt['bp2_pos'])>2*rlen) ]
     
-    if len(cnv)>0:
+    if len(cnv)>0 and cnv_neutral:
         # filter out copy-aberrant SVs and outying norm read counts (>1-percentile)
         # major and minor copy-numbers must be 1
         cn1_maj = np.array(map(round,df.bp1_maj_cnv))
@@ -29,6 +30,9 @@ def run_filter(df,rlen,insert,cnv,ploidy,perc=85):
         bp2_cnn = np.logical_and(cn2_maj==1,cn2_min==1)
         df_flt = df[(df.bp1_frac1A==1) & bp1_cnn & bp2_cnn & \
                     (df.norm_mean<np.percentile(df.norm_mean,perc))]
+    elif len(cnv)>0:
+        #TODO: would be good to make a filter to check if normal reads differ wildly from possible CNV states
+        df_flt = df_flt[np.logical_or(df_flt.gtype1.values!='',df_flt.gtype2.values!='')]
     else:
         df_flt['bp1_frac1A']    = 1
         df_flt['bp1_maj_cnv']   = 1
@@ -37,7 +41,6 @@ def run_filter(df,rlen,insert,cnv,ploidy,perc=85):
         df_flt['bp2_maj_cnv']   = 1
         df_flt['bp2_min_cnv']   = 1
         df_flt = df_flt[(df_flt.norm_mean<np.percentile(df_flt.norm_mean,perc))]
-
     df_flt.index = range(len(df_flt))
     return df_flt
 
@@ -118,9 +121,9 @@ def run(samples,svs,gml,cnvs,rlens,inserts,pis,ploidies,out,n_runs,num_iters,bur
 #                        find_cn_cols(d['bp2_chr'],d['bp2_pos'],cnv)
 #            #df = df[pd.notnull(df['bp1_frac1A'])]        
 
+        cnv_neutral = False
         df['norm_mean'] = map(np.mean,zip(df['norm1'].values,df['norm2'].values))
-        #df_flt = run_filter(df,rlen,insert,cnv,ploidy)
-        df_flt = df
+        df_flt = run_filter(df,rlen,insert,cnv,ploidy,cnv_neutral)
         
         if len(df_flt) < 5:
             print("Less than 5 post-filtered SVs. Clustering not recommended for this sample. Exiting.")

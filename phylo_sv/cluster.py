@@ -74,7 +74,7 @@ def get_cn_mu_v(cn):
 def get_allele_combos_tuple(c):
     cn_r = [tuple([0.,0.]),tuple([0.,0.])]
     cn_v = [tuple([0.,0.]),tuple([0.,0.])]
-    mu_v = [tuple([0.5,0.5]),tuple([0.5,0.5])]
+    mu_v = [tuple([0.,0.]),tuple([0.,0.])]
     
     if len(c) < 1:
         return cn_r,cn_v,mu_v
@@ -106,7 +106,7 @@ def get_read_vals(df):
         cn_r.append(tuple([cnr_bp1,cnr_bp2]))
         cn_v.append(tuple([cnv_bp1,cnv_bp2]))
         mu_v.append(tuple([mu_bp1,mu_bp2]))
-
+    
     return n,d,s,cn_r,cn_v,mu_v
 
 def fit_and_sample(model, iters, burn, thin):
@@ -175,10 +175,10 @@ def cluster(df,pi,rlen,insert,ploidy,iters,burn,thin,beta,Ndp=param.clus_limit):
                         temp = pm.binomial_like(si,di,pv)
                         llik.append(temp)
         
-        idx = np.where(np.array(llik)==max(llik))[0]
-        if len(idx)==0:
-            return [2.,2.,0.5]
-        elif len(idx) >1: 
+        idx = np.where(np.array(llik)==np.nanmax(llik))[0]
+        #if len(idx)==0:        
+        #    return [0.,0.,0.0]
+        if len(idx) >1: 
             return vals[idx[0]]
         else:
             return vals[idx]
@@ -205,6 +205,7 @@ def cluster(df,pi,rlen,insert,ploidy,iters,burn,thin,beta,Ndp=param.clus_limit):
 #        
 #        return pv
     #ipdb.set_trace() 
+    #TODO: still requires 'dep' to be set un-dynamically (rather than specifying depth of a certain side). Is there a way around this?
     cbinom = pm.Binomial('cbinom', dep, p_var, observed=True, value=sup)
 
     model = pm.Model([beta,h,p,phi_k,z,p_var,cbinom])
