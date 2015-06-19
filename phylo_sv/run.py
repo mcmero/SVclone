@@ -65,7 +65,7 @@ def get_genotype(cnrow):
         mj = re.search("n(Maj)(?P<fraction>\d_\w)",col[0])
         if len(gtype)==2: break
         if mj:
-            if np.isnan(col[1]): break
+            if np.isnan(col[1]) or col[1]==0: break
             nmin = 'nMin' + mj.group("fraction") #corresponding minor allele
             frac = 'frac' + mj.group("fraction") #allele fraction
             gtype.append([col[1],cnrow[nmin],cnrow[frac]])
@@ -123,6 +123,7 @@ def run(samples,svs,gml,cnvs,rlens,inserts,pis,ploidies,out,n_runs,num_iters,bur
 
         cnv_neutral = False
         df['norm_mean'] = map(np.mean,zip(df['norm1'].values,df['norm2'].values))
+        
         df_flt = run_filter(df,rlen,insert,cnv,ploidy,cnv_neutral)
         
         if len(df_flt) < 5:
@@ -133,5 +134,6 @@ def run(samples,svs,gml,cnvs,rlens,inserts,pis,ploidies,out,n_runs,num_iters,bur
             outf.write("sample\tpurity\tploidy\n")
             outf.write('%s\t%f\t%f\n'%(sample,pi,ploidy))
         
+        print('Clustering with %d SVs'%len(df_flt))
         build_phyl.infer_subclones(sample,df_flt,pi,rlen,insert,ploidy,out,n_runs,num_iters,burn,thin,beta)
 

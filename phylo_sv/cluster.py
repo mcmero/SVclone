@@ -116,6 +116,41 @@ def fit_and_sample(model, iters, burn, thin):
     mcmc.sample(iters, burn=burn, thin=thin)
     return mcmc
 
+def get_pv(phi,cn_r,cn_v,mu,pi):
+    pn =  (1.0 - pi) * 2            #proportion of normal reads coming from normal cells
+    pr =  pi * (1.0 - phi) * cn_r   #proportion of normal reads coming from other clusters
+    pv =  pi * phi * cn_v           #proportion of variant reads coming from this cluster
+    
+    norm_const = pn + pr + pv
+    pv = pv / norm_const  
+
+    return pv * mu
+
+def get_most_likely_cn(cn_r,cn_v,mu_v,si,di,phi,pi):
+    llik = []
+    vals = []
+    # for each side of the break
+    for side in range(2):
+        # for each subclone
+        for cn_rx, cn_vx, mu_vx in zip(cn_r[side],cn_v[side],mu_v[side]): 
+            # for each allelic state
+            for cn_ri, cn_vi, mu_vi in zip(cn_rx,cn_vx,mu_vx):                    
+                vals.append([cn_ri,cn_vi,mu_vi])
+                if cn_vi==0 or mu_vi==0: 
+                    llik.append(float('nan'))
+                else:
+                    pv = get_pv(phi,cn_ri,cn_vi,mu_vi,pi)
+                    temp = pm.binomial_like(si,di,pv)
+                    llik.append(temp)
+    
+    idx = np.where(np.array(llik)==np.nanmax(llik))[0]
+    #if len(idx)==0:        
+    #    return [0.,0.,0.0]
+    if len(idx) >1: 
+        return vals[idx[0]]
+    else:
+        return vals[idx]
+
 def cluster(df,pi,rlen,insert,ploidy,iters,burn,thin,beta,Ndp=param.clus_limit):
     '''
     inital clustering using Dirichlet Process
@@ -148,50 +183,14 @@ def cluster(df,pi,rlen,insert,ploidy,iters,burn,thin,beta,Ndp=param.clus_limit):
     #phi_init = (np.mean((s+d)/(n+s+d))/pi)*2
     phi_k = pm.Uniform('phi_k', lower=sens, upper=1, size=Ndp)#, value=[phi_init]*Ndp)
 
-    def get_pv(phi,cn_r,cn_v,mu):
-        pn =  (1.0 - pi) * 2            #proportion of normal reads coming from normal cells
-        pr =  pi * (1.0 - phi) * cn_r   #proportion of normal reads coming from other clusters
-        pv =  pi * phi * cn_v           #proportion of variant reads coming from this cluster
-        
-        norm_const = pn + pr + pv
-        pv = pv / norm_const  
-
-        return pv * mu
-
-    def get_most_likely_cn(cn_r,cn_v,mu_v,si,di,phi):
-        llik = []
-        vals = []
-        # for each side of the break
-        for side in range(2):
-            # for each subclone
-            for cn_rx, cn_vx, mu_vx in zip(cn_r[side],cn_v[side],mu_v[side]): 
-                # for each allelic state
-                for cn_ri, cn_vi, mu_vi in zip(cn_rx,cn_vx,mu_vx):                    
-                    vals.append([cn_ri,cn_vi,mu_vi])
-                    if cn_vi==0 or mu_vi==0: 
-                        llik.append(float('nan'))
-                    else:
-                        pv = get_pv(phi,cn_ri,cn_vi,mu_vi)
-                        temp = pm.binomial_like(si,di,pv)
-                        llik.append(temp)
-        
-        idx = np.where(np.array(llik)==np.nanmax(llik))[0]
-        #if len(idx)==0:        
-        #    return [0.,0.,0.0]
-        if len(idx) >1: 
-            return vals[idx[0]]
-        else:
-            return vals[idx]
-
     @pm.deterministic
     def p_var(z=z,phi_k=phi_k):
-        ml_cn = [get_most_likely_cn(cn_ri,cn_vi,mu_vi,si,di,phi) for cn_ri,cn_vi,mu_vi,si,di,phi in zip(cn_r,cn_v,mu_v,sup,dep,phi_k[z])]   
+        ml_cn = [get_most_likely_cn(cn_ri,cn_vi,mu_vi,si,di,phi,pi) for cn_ri,cn_vi,mu_vi,si,di,phi in zip(cn_r,cn_v,mu_v,sup,dep,phi_k[z])]   
         cn_rn = [m[0] for m in ml_cn]
         cn_vn = [m[1] for m in ml_cn]
         mu_vn = [m[2] for m in ml_cn]    
-        #ipdb.set_trace()
         
-        return get_pv(phi_k[z],cn_rn,cn_vn,mu_vn)
+        return get_pv(phi_k[z],cn_rn,cn_vn,mu_vn,pi)
 
 #    @pm.deterministic
 #    def p_var(z=z,phi_k=phi_k):
@@ -204,7 +203,7 @@ def cluster(df,pi,rlen,insert,ploidy,iters,burn,thin,beta,Ndp=param.clus_limit):
 #        pv = pv / norm_const    
 #        
 #        return pv
-    #ipdb.set_trace() 
+    
     #TODO: still requires 'dep' to be set un-dynamically (rather than specifying depth of a certain side). Is there a way around this?
     cbinom = pm.Binomial('cbinom', dep, p_var, observed=True, value=sup)
 

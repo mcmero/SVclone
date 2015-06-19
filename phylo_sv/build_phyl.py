@@ -7,6 +7,7 @@ import os
 import pandas as pd
 import scipy as sp
 import scipy.stats
+from operator import methodcaller
 from collections import OrderedDict
 
 from . import cluster
@@ -205,7 +206,7 @@ def dump_trace(clus_info,center_trace,outf):
     df_traces = pd.DataFrame(np.transpose(traces),columns=clus_info.clus_id)
     df_traces.to_csv(outf,sep='\t',index=False)
 
-def write_out_files(df,clus_info,clus_members,df_probs,clus_cert,clus_out_dir,sample):
+def write_out_files(df,clus_info,clus_members,df_probs,clus_cert,clus_out_dir,sample,pi):
     
     clus_info.to_csv('%s/clusters.txt'%(clus_out_dir),sep='\t',index=False)
     with open('%s/number_of_clusters.txt'%clus_out_dir,'w') as outf:
@@ -221,24 +222,35 @@ def write_out_files(df,clus_info,clus_members,df_probs,clus_cert,clus_out_dir,sa
                  ('total_copynumber2',int),
                  ('no_chrs_bearing_mutation2',int)]
 
+    mlcn_dtype =[('chr1','S50'),
+                 ('pos1',int),
+                 ('chr2','S50'),
+                 ('pos2',int),
+                 ('most_likely_ref_copynumber',int),
+                 ('most_likely_variant_copynumber',int),
+                 ('prop_chrs_bearing_mutation',float)]
+
     cmem = np.hstack(clus_members)
     cn_vect = np.empty((0,len(cmem)),dtype=cn_dtype)
+    mlcn_vect = np.empty((0,len(cmem)),dtype=mlcn_dtype)
     clus_svs = df.loc[cmem].copy()
     
+    n,d,s,cn_r,cn_v,mu_v = cluster.get_read_vals(clus_svs)
+    n_max = np.array(map(max,zip(n[0],n[1])))
+    sup = np.array(d+s,dtype=int)
+    dep = np.array(n_max+sup,dtype=int)
+    phis = clus_cert.average_ccf.values
+
     for idx,sv in clus_svs.iterrows():
-        #TODO: proper copy-number outputs here
-        #maj_cn1,min_cn1 = sv['bp1_maj_cnv'],sv['bp1_min_cnv']
-        #maj_cn2,min_cn2 = sv['bp2_maj_cnv'],sv['bp2_min_cnv']
-        maj_cn1,min_cn1 = 1,1 
-        maj_cn2,min_cn2 = 1,1
-
-
-        maj_cn1 = int(maj_cn1) if maj_cn1!="" else np.nan
-        min_cn1 = int(min_cn1) if min_cn1!="" else np.nan
-        maj_cn2 = int(maj_cn2) if maj_cn2!="" else np.nan
-        min_cn2 = int(min_cn2) if min_cn2!="" else np.nan
-        tot_cn1 = maj_cn1+min_cn1 if not np.isnan(maj_cn1) and not np.isnan(min_cn1) else np.nan
-        tot_cn2 = maj_cn1+min_cn2 if not np.isnan(maj_cn2) and not np.isnan(min_cn2) else np.nan
+        gtype1,gtype2 = sv['gtype1'].split('|'),sv['gtype2'].split('|')
+        gtype1,gtype2 = map(methodcaller('split', ','), gtype1),map(methodcaller('split', ','), gtype2)
+      
+        #select the first clonal/major fraction copy-number state as the one to output
+        maj_cn1,min_cn1 = map(float,gtype1[0])[:2] if gtype1[0][0]!='' else [0.,0.]
+        maj_cn2,min_cn2 = map(float,gtype2[0])[:2] if gtype2[0][0]!='' else [0.,0.]
+        
+        tot_cn1 = maj_cn1+min_cn2
+        tot_cn2 = maj_cn2+min_cn2
 
         bp1_chr = str(sv['bp1_chr'])
         bp1_pos = int(sv['bp1_pos'])
@@ -247,7 +259,12 @@ def write_out_files(df,clus_info,clus_members,df_probs,clus_cert,clus_out_dir,sa
 
         cn_new_row = np.array([(bp1_chr,bp1_pos,tot_cn1,min_cn1,bp2_chr,bp2_pos,tot_cn2,min_cn2)],dtype=cn_dtype)
         cn_vect = np.append(cn_vect,cn_new_row)
+        
+        ref_cn, sc_cn, freq = cluster.get_most_likely_cn(cn_r[idx],cn_v[idx],mu_v[idx],s[idx],d[idx],phis[idx],pi) 
+        ml_new_row = np.array([(bp1_chr,bp1_pos,bp2_chr,bp2_pos,ref_cn,sc_cn,freq)],dtype=mlcn_dtype)
+        mlcn_vect = np.append(mlcn_vect,ml_new_row)
 
+    pd.DataFrame(mlcn_vect).to_csv('%s/%s_most_likely_copynumbers.txt'%(clus_out_dir,sample),sep='\t',index=False)
     pd.DataFrame(cn_vect).to_csv('%s/%s_copynumber.txt'%(clus_out_dir,sample),sep='\t',index=False)
     df_probs.to_csv('%s/%s_assignment_probability_table.txt'%(clus_out_dir,sample),sep='\t',index=False)
     clus_cert.to_csv('%s/%s_cluster_certainty.txt'%(clus_out_dir,sample),sep='\t',index=False)
@@ -292,5 +309,5 @@ def infer_subclones(sample,df,pi,rlen,insert,ploidy,out,n_runs,num_iters,burn,th
 #        clus_info['size'] = map(int,clus_info['size'].values)
 #        print(clus_info)
         
-        write_out_files(df,clus_info,clus_members,df_probs,clus_cert,clus_out_dir,sample)
+        write_out_files(df,clus_info,clus_members,df_probs,clus_cert,clus_out_dir,sample,pi)
 
