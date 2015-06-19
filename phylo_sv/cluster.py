@@ -62,12 +62,12 @@ def get_cn_mu_v(cn):
     
     c = map(float,c)
     cn_t = c[0]+c[1]
-    cn_v[0] = cn_t
-    mu_v[0] = float(c[0])/(c[0]+c[1])
+    cn_v[0] = float(cn_t)
+    mu_v[0] = c[0]/cn_t if cn_t!=0 else 0.
 
     if c[0]!=c[1] and c[1]>0: 
         cn_v[1] = cn_t
-        mu_v[1] = float(c[1])/(c[0]+c[1])
+        mu_v[1] = c[1]/cn_t if cn_t!=0 else 0.
     
     return tuple(cn_v),tuple(mu_v)
 
