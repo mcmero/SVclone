@@ -55,13 +55,13 @@ def plot_clusters(center_trace,clusters,assignments,df,pl,pi):
 def get_cn_mu_v(cn):
     cn_v = [0.,0.]
     mu_v = [0.,0.]
-
+    
     c = cn.split(',')
     if len(c)<2:
         return tuple(cn_v),tuple(mu_v)
     
     c = map(float,c)
-    cn_t = c[0]+c[1]
+    cn_t = float(c[0]+c[1])
     cn_v[0] = float(cn_t)
     mu_v[0] = c[0]/cn_t if cn_t!=0 else 0.
 
@@ -76,20 +76,21 @@ def get_allele_combos_tuple(c):
     cn_v = [tuple([0.,0.]),tuple([0.,0.])]
     mu_v = [tuple([0.,0.]),tuple([0.,0.])]
     
-    if len(c) < 1:
+    if len(c) == 0 or c[0]=='':
         return cn_r,cn_v,mu_v
 
     cn_v[0],mu_v[0] = get_cn_mu_v(c[0])
     cn1_tmp = map(float,c[0].split(',')) if len(c[0])>1 else c[0]
+    cnr1_tmp = cn1_tmp[0]+cn1_tmp[1]
+    
     if len(c) > 1:
         cn_v[1],mu_v[1] = get_cn_mu_v(c[1])
         cn2_tmp = map(float,c[1].split(','))
-        
-        cnr1_tmp = cn1_tmp[0]+cn1_tmp[1]
         cnr2_tmp = cn2_tmp[0]+cn2_tmp[1]
         cn_r[1],cn_r[0] = tuple([cnr1_tmp,cnr1_tmp]),tuple([cnr2_tmp,cnr2_tmp])
     else:
-        cn_r[0],cn_r[1] = tuple([2.,2.]),tuple([2.,2.])
+        cn_r[0],cn_r[1] = tuple([cnr1_tmp,cnr1_tmp]),tuple([cnr1_tmp,cnr1_tmp])
+    
     return tuple(cn_r),tuple(cn_v),tuple(mu_v)
 
 def get_read_vals(df):
@@ -119,7 +120,7 @@ def fit_and_sample(model, iters, burn, thin):
 def get_pv(phi,cn_r,cn_v,mu,pi):
     pn =  (1.0 - pi) * 2            #proportion of normal reads coming from normal cells
     pr =  pi * (1.0 - phi) * cn_r   #proportion of normal reads coming from other clusters
-    pv =  pi * phi * cn_v           #proportion of variant reads coming from this cluster
+    pv =  pi * phi * cn_v           #proportion of variant + normal reads coming from this cluster
     
     norm_const = pn + pr + pv
     pv = pv / norm_const  

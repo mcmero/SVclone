@@ -226,6 +226,8 @@ def write_out_files(df,clus_info,clus_members,df_probs,clus_cert,clus_out_dir,sa
                  ('pos1',int),
                  ('chr2','S50'),
                  ('pos2',int),
+                 ('pos1_bb_CN','S50'),
+                 ('pos2_bb_CN','S50'),
                  ('most_likely_ref_copynumber',int),
                  ('most_likely_variant_copynumber',int),
                  ('prop_chrs_bearing_mutation',float)]
@@ -256,12 +258,13 @@ def write_out_files(df,clus_info,clus_members,df_probs,clus_cert,clus_out_dir,sa
         bp1_pos = int(sv['bp1_pos'])
         bp2_chr = str(sv['bp2_chr'])
         bp2_pos = int(sv['bp2_pos'])
-
-        cn_new_row = np.array([(bp1_chr,bp1_pos,tot_cn1,min_cn1,bp2_chr,bp2_pos,tot_cn2,min_cn2)],dtype=cn_dtype)
-        cn_vect = np.append(cn_vect,cn_new_row)
         
         ref_cn, sc_cn, freq = cluster.get_most_likely_cn(cn_r[idx],cn_v[idx],mu_v[idx],s[idx],d[idx],phis[idx],pi) 
-        ml_new_row = np.array([(bp1_chr,bp1_pos,bp2_chr,bp2_pos,ref_cn,sc_cn,freq)],dtype=mlcn_dtype)
+        
+        cn_new_row = np.array([(bp1_chr,bp1_pos,tot_cn1,int(sc_cn*freq),bp2_chr,bp2_pos,tot_cn2,int(sc_cn*freq))],dtype=cn_dtype)
+        cn_vect = np.append(cn_vect,cn_new_row)
+        
+        ml_new_row = np.array([(bp1_chr,bp1_pos,bp2_chr,bp2_pos,sv['gtype1'],sv['gtype2'],ref_cn,sc_cn,freq)],dtype=mlcn_dtype)
         mlcn_vect = np.append(mlcn_vect,ml_new_row)
 
     pd.DataFrame(mlcn_vect).to_csv('%s/%s_most_likely_copynumbers.txt'%(clus_out_dir,sample),sep='\t',index=False)
