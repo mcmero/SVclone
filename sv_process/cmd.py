@@ -25,9 +25,9 @@ parser.add_argument("-sc","--softclip_bp",dest="sc_len",default=25,type=int,
 parser.add_argument("-cn","--max_cn",dest="max_cn",default=15,type=int,
         help="Optional: maximum expected copy-number. Will skip the processing of any areas where" + \
              "# reads > average coverage * max_cn")
-parser.add_argument("--read_len",dest="rlen",default=-1,type=int,
+parser.add_argument("-r","--read_len",dest="rlen",default=-1,type=int,
         help="Read length. If not specified, will be inferred")
-parser.add_argument("--insert_mean",dest="insert_mean",default=-1.,type=float,
+parser.add_argument("-v","--insert_mean",dest="insert_mean",default=-1.,type=float,
         help="Mean insert length between paired reads. If not specified, will be inferred")
 parser.add_argument("--insert_std",dest="insert_std",default=-1.,type=float,
         help="Standard deviation of insert length. If not specified, will be inferred")

@@ -30,8 +30,8 @@ Run SV pre-processing on each sample BAM file like so:
 
 * -sc or --softclip (default = 25) : reads must overlap by this many basepairs to be counted as supporting the break, or being a non-supporting normal read lying across the break.
 * -cn or --max_cn (default = 15) : maximum expected copy-number. Will skip any areas with more average depth higher than <depth> * <max_cn>
-* --read_len (inferred automatically by default) :  specify if the read length is known, otherwise the program will infer this through the supplied bam file.
-* --insert_mean (inferred automatically by default) : specify if the insert length is known, otherwise the program will infer this through the supplied bam file.
+* -r or --read_len (inferred automatically by default) :  specify if the read length is known, otherwise the program will infer this through the supplied bam file.
+* -v or --insert_mean (inferred automatically by default) : specify if the insert length is known, otherwise the program will infer this through the supplied bam file.
 * --insert_std (inferred automatically by default) : specify if the insert standard deviation is known, otherwise the program will infer this through the supplied bam file.
 
 #### Beyond Advanced Parameters ####
