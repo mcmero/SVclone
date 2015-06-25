@@ -39,6 +39,8 @@ parser.add_argument("--thin",dest="thin",default=1,type=int,
         help="Thinning parameter for MCMC (default 1.)")
 parser.add_argument("--plot",dest="plot",action="store_true",
         help="Plot traces and clusters.")
+parser.add_argument("--neutral",dest="neutral",action="store_true",
+        help="Keep only copy-number neutral SVs.")
 parser.add_argument("--beta",dest="beta",default="8,1/0.05,0.1",type=str,
         help="Comma separated; first two values etermine the parameters used for " + 
              "Dirichlet Processes' gamma function. Third value determines the starting value.")
@@ -59,6 +61,7 @@ burn    = args.burn
 thin    = args.thin
 beta    = args.beta
 plot    = args.plot
+neutral = args.neutral
 
 def proc_arg(arg,n_args=1,of_type=str):
     arg = str.split(arg,',')
@@ -87,4 +90,4 @@ if __name__ == '__main__':
         if p<0 or p>1:
             raise ValueError("Tumour purity value not between 0 and 1!")
     ploidy = proc_arg(ploidy,n,float)
-    run.run(samples,svs,gml,cnvs,rlen,insert,pi,ploidy,out,n_runs,n_iter,burn,thin,beta)
+    run.run(samples,svs,gml,cnvs,rlen,insert,pi,ploidy,out,n_runs,n_iter,burn,thin,beta,neutral)

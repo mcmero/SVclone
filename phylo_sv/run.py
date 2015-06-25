@@ -6,7 +6,16 @@ import numpy as np
 import ipdb
 import re
 import pandas as pd
+from operator import methodcaller
 from . import build_phyl
+
+def is_clonal_neutral(gtype):
+    if gtype=='': return False
+    gtype = map(methodcaller('split',','),gtype.split('|'))
+    if len(gtype)==1:
+        gt = map(float,gtype[0])
+        return (gt[0]==1 and gt[1]==1 and gt[2]==1)
+    return False
 
 def run_filter(df,rlen,insert,cnv,ploidy,cnv_neutral,perc=85):
     span = np.array(df.spanning)
@@ -22,24 +31,17 @@ def run_filter(df,rlen,insert,cnv,ploidy,cnv_neutral,perc=85):
     if len(cnv)>0 and cnv_neutral:
         # filter out copy-aberrant SVs and outying norm read counts (>1-percentile)
         # major and minor copy-numbers must be 1
-        cn1_maj = np.array(map(round,df.bp1_maj_cnv))
-        cn1_min = np.array(map(round,df.bp1_min_cnv))
-        cn2_maj = np.array(map(round,df.bp2_maj_cnv))
-        cn2_min = np.array(map(round,df.bp2_min_cnv))
-        bp1_cnn = np.logical_and(cn1_maj==1,cn1_min==1)
-        bp2_cnn = np.logical_and(cn2_maj==1,cn2_min==1)
-        df_flt = df[(df.bp1_frac1A==1) & bp1_cnn & bp2_cnn & \
-                    (df.norm_mean<np.percentile(df.norm_mean,perc))]
+        gt1_is_neutral = map(is_clonal_neutral,df_flt.gtype1.values)
+        gt2_is_neutral = map(is_clonal_neutral,df_flt.gtype2.values)
+        is_neutral = np.logical_and(gt1_is_neutral,gt2_is_neutral)
+        df_flt = df_flt[is_neutral & (df_flt.norm_mean<np.percentile(df.norm_mean,perc))] 
     elif len(cnv)>0:
         #TODO: would be good to make a filter to check if normal reads differ wildly from possible CNV states
         df_flt = df_flt[np.logical_or(df_flt.gtype1.values!='',df_flt.gtype2.values!='')]
     else:
-        df_flt['bp1_frac1A']    = 1
-        df_flt['bp1_maj_cnv']   = 1
-        df_flt['bp1_min_cnv']   = 1
-        df_flt['bp2_frac1A']    = 1
-        df_flt['bp2_maj_cnv']   = 1
-        df_flt['bp2_min_cnv']   = 1
+        # assume CNV neutrality if no BB input file is given
+        df_flt['gtype1'] = '1,1,1.000000'
+        df_flt['gtype2'] = '1,1,1.000000'
         df_flt = df_flt[(df_flt.norm_mean<np.percentile(df_flt.norm_mean,perc))]
     df_flt.index = range(len(df_flt))
     return df_flt
@@ -72,7 +74,7 @@ def get_genotype(cnrow):
     g_str = ["%d,%d,%f"%(gt[0],gt[1],gt[2]) for gt in gtype]
     return '|'.join(g_str)
 
-def run(samples,svs,gml,cnvs,rlens,inserts,pis,ploidies,out,n_runs,num_iters,burn,thin,beta):
+def run(samples,svs,gml,cnvs,rlens,inserts,pis,ploidies,out,n_runs,num_iters,burn,thin,beta,neutral):
     if not os.path.exists(out):
         os.makedirs(out)
 
@@ -121,10 +123,8 @@ def run(samples,svs,gml,cnvs,rlens,inserts,pis,ploidies,out,n_runs,num_iters,bur
 #                        find_cn_cols(d['bp2_chr'],d['bp2_pos'],cnv)
 #            #df = df[pd.notnull(df['bp1_frac1A'])]        
 
-        cnv_neutral = False
         df['norm_mean'] = map(np.mean,zip(df['norm1'].values,df['norm2'].values))
-        
-        df_flt = run_filter(df,rlen,insert,cnv,ploidy,cnv_neutral)
+        df_flt = run_filter(df,rlen,insert,cnv,ploidy,neutral)
         
         if len(df_flt) < 5:
             print("Less than 5 post-filtered SVs. Clustering not recommended for this sample. Exiting.")
