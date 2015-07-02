@@ -1,12 +1,10 @@
 #!/usr/bin/env python
 
 '''
-Commandline input for running SV 
+Commandline input for running SV
 '''
 
 import argparse
-import sys
-from . import run
 
 parser = argparse.ArgumentParser(prefix_chars='--')
 parser.add_argument("-s","--samples",dest="samples",
@@ -27,8 +25,8 @@ parser.add_argument("-v","--insert",dest="insert",default="",
 parser.add_argument("-p","--purity",dest="pi",default="1.",
     help="Tumour purities for all samples given. A single parameter assumes " +
             "uniform purity for all samples. No parameter assumes 100% purity.")
-parser.add_argument("-y","--ploidy",dest="ploidy",default="1.0",
-    help="Tumour ploidy. The defailt (1.0) ignores ploidy.")
+parser.add_argument("-y","--ploidy",dest="ploidy",default="2.0",
+    help="Tumour ploidy; default = 2 (diploid).")
 parser.add_argument("-o","--outdir",dest="outdir",default=".",
         help="Output directory. Default: current directory")
 parser.add_argument("-n","--n_runs",dest="n_runs",default=10,type=int,
@@ -39,9 +37,16 @@ parser.add_argument("--burn",dest="burn",default=0,type=int,
         help="Burn-in for MCMC (default 0.)")
 parser.add_argument("--thin",dest="thin",default=1,type=int,
         help="Thinning parameter for MCMC (default 1.)")
-parser.add_argument("--beta",dest="beta",default="8,1/0.015,0.2",type=str,
-        help="Comma separated; first two values etermine the parameters used for " + 
+parser.add_argument("--plot",dest="plot",action="store_true",
+        help="Plot traces and clusters.")
+parser.add_argument("--neutral",dest="neutral",action="store_true",
+        help="Keep only copy-number neutral SVs.")
+parser.add_argument("--beta",dest="beta",default="8,1/0.05,0.1",type=str,
+        help="Comma separated; first two values etermine the parameters used for " +
              "Dirichlet Processes' gamma function. Third value determines the starting value.")
+parser.add_argument("--snvs",dest="snvs",default="",type=str,
+        help="SNVs in VCF format to (optionally) compare the clustering with SVs.")
+
 args = parser.parse_args()
 
 samples = args.samples
@@ -58,6 +63,9 @@ n_iter  = args.n_iter
 burn    = args.burn
 thin    = args.thin
 beta    = args.beta
+plot    = args.plot
+neutral = args.neutral
+snvs    = args.snvs
 
 def proc_arg(arg,n_args=1,of_type=str):
     arg = str.split(arg,',')
@@ -68,7 +76,7 @@ def proc_arg(arg,n_args=1,of_type=str):
         return map(of_type,arg)
 
 if __name__ == '__main__':
-    import ipdb
+    from . import run
     if insert=="":
         print("Inserts not provided, assuming insert length equals read length")
         insert=rlen
@@ -82,8 +90,8 @@ if __name__ == '__main__':
     insert = proc_arg(insert,n,float)
     pi = proc_arg(pi,n,float)
     beta = proc_arg(beta,3,float)
-    for p in pi: 
+    for p in pi:
         if p<0 or p>1:
             raise ValueError("Tumour purity value not between 0 and 1!")
     ploidy = proc_arg(ploidy,n,float)
-    run.run(samples,svs,gml,cnvs,rlen,insert,pi,ploidy,out,n_runs,n_iter,burn,thin,beta)
+    run.run(samples,svs,gml,cnvs,rlen,insert,pi,ploidy,out,n_runs,n_iter,burn,thin,beta,neutral,snvs)
