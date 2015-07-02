@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 
 '''
-Commandline input for running SV 
+Commandline input for running SV
 '''
 
 import argparse
@@ -42,8 +42,11 @@ parser.add_argument("--plot",dest="plot",action="store_true",
 parser.add_argument("--neutral",dest="neutral",action="store_true",
         help="Keep only copy-number neutral SVs.")
 parser.add_argument("--beta",dest="beta",default="8,1/0.05,0.1",type=str,
-        help="Comma separated; first two values etermine the parameters used for " + 
+        help="Comma separated; first two values etermine the parameters used for " +
              "Dirichlet Processes' gamma function. Third value determines the starting value.")
+parser.add_argument("--snvs",dest="snvs",default="",type=str,
+        help="SNVs in VCF format to (optionally) compare the clustering with SVs.")
+
 args = parser.parse_args()
 
 samples = args.samples
@@ -62,6 +65,7 @@ thin    = args.thin
 beta    = args.beta
 plot    = args.plot
 neutral = args.neutral
+snvs    = args.snvs
 
 def proc_arg(arg,n_args=1,of_type=str):
     arg = str.split(arg,',')
@@ -86,8 +90,8 @@ if __name__ == '__main__':
     insert = proc_arg(insert,n,float)
     pi = proc_arg(pi,n,float)
     beta = proc_arg(beta,3,float)
-    for p in pi: 
+    for p in pi:
         if p<0 or p>1:
             raise ValueError("Tumour purity value not between 0 and 1!")
     ploidy = proc_arg(ploidy,n,float)
-    run.run(samples,svs,gml,cnvs,rlen,insert,pi,ploidy,out,n_runs,n_iter,burn,thin,beta,neutral)
+    run.run(samples,svs,gml,cnvs,rlen,insert,pi,ploidy,out,n_runs,n_iter,burn,thin,beta,neutral,snvs)

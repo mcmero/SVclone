@@ -6,8 +6,9 @@ import numpy as np
 import ipdb
 import re
 import pandas as pd
+import vcf
 from operator import methodcaller
-from . import build_phyl
+from . import run_clus
 
 def is_clonal_neutral(gtype):
     if gtype=='': return False
@@ -20,7 +21,6 @@ def is_clonal_neutral(gtype):
 def run_filter(df,rlen,insert,cnv,ploidy,cnv_neutral,perc=85):
     span = np.array(df.spanning)
     split = np.array(df.bp1_split+df.bp2_split)
-    #df_flt = df[np.logical_and(span>1,split>1)]
     df_flt = df[(span+split)>=1]
     
     #filter based on fragment length
@@ -74,14 +74,28 @@ def get_genotype(cnrow):
     g_str = ["%d,%d,%f"%(gt[0],gt[1],gt[2]) for gt in gtype]
     return '|'.join(g_str)
 
-def run(samples,svs,gml,cnvs,rlens,inserts,pis,ploidies,out,n_runs,num_iters,burn,thin,beta,neutral):
+def load_snvs(snvs):
+    vcf_reader = vcf.Reader(filename=snvs)
+    snv_dtype = [('chrom','S50'),('pos',int),('gtype','S50'),('ref',int),('var',int)]
+    snv_df = np.empty([0,5],dtype=snv_dtype)
+    sample = vcf_reader.samples[0]
+
+    if len(vcf_reader.samples)>1 or sample=='':
+        print('Skipping SNV clustering, VCF does not have exactly one sample')
+        return pd.DataFrame()
+        
+    for record in vcf_reader:
+        ad = record.genotype(sample)['AD']
+        if ad[1]!=0:
+            tmp = np.array((record.CHROM,record.POS,'',ad[0],ad[1]),dtype=snv_dtype)
+            snv_df = np.append(snv_df,tmp)
+
+    return pd.DataFrame(snv_df)
+
+def run(samples,svs,gml,cnvs,rlens,inserts,pis,ploidies,out,n_runs,num_iters,burn,thin,beta,neutral,snvs):
     if not os.path.exists(out):
         os.makedirs(out)
 
-    if gml!="":
-        #TODO: implement germline filtering
-        print("Germline filtering not yet implemented")
-   
     if len(samples)>1:
         print("Multiple sample processing not yet implemented")
         #TODO: processing of multiple samples
@@ -94,12 +108,26 @@ def run(samples,svs,gml,cnvs,rlens,inserts,pis,ploidies,out,n_runs,num_iters,bur
         dat = pd.read_csv(sv,delimiter='\t')
         df = pd.DataFrame(dat)
         cnv_df = pd.DataFrame()
+        snv_df = pd.DataFrame()
+        
+        if gml!="":
+            #TODO: implement germline filtering
+            print("Germline filtering not yet implemented")
+
+        if snvs!="":
+            snv_df = load_snvs(snvs)
 
         if cnv!="":
             cnv = pd.read_csv(cnv,delimiter='\t')
             cnv_df = pd.DataFrame(cnv)
             cnv_df['chr'] = map(str,map(int,cnv_df['chr']))
            
+            if len(snv_df)>0:
+                for idx,snv in snv_df.iterrows():
+                    cn = find_cn_col(snv.chrom,snv.pos,cnv)
+                    snv_df['gtype'][idx] = get_genotype(cn)
+                snv_df = snv_df[snv_df.gtype!='']
+
             df['gtype1'] = "" 
             df['gtype2'] = "" 
             for idx,d in df.iterrows():
@@ -107,21 +135,6 @@ def run(samples,svs,gml,cnvs,rlens,inserts,pis,ploidies,out,n_runs,num_iters,bur
                 cn2 = find_cn_col(d.bp2_chr,d.bp2_pos,cnv)
                 df['gtype1'][idx] = get_genotype(cn1)
                 df['gtype2'][idx] = get_genotype(cn2)
-
-#            # set Battenberg fields
-#            df['bp1_maj_cnv1'], df['bp1_min_cnv1'], df['bp1_frac1A'] = float('nan'), float('nan'), float('nan')
-#            df['bp1_maj_cnv2'], df['bp1_min_cnv2'], df['bp1_frac2A'] = float('nan'), float('nan'), float('nan')
-#            df['bp2_maj_cnv1'], df['bp2_min_cnv1'], df['bp2_frac1A'] = float('nan'), float('nan'), float('nan')
-#            df['bp2_maj_cnv2'], df['bp2_min_cnv2'], df['bp2_frac2A'] = float('nan'), float('nan'), float('nan')
-#            
-#            for idx,d in df.iterrows():
-#                df['bp1_maj_cnv1'][idx], df['bp1_min_cnv1'][idx], df['bp1_frac1A'][idx], \
-#                df['bp1_maj_cnv2'][idx], df['bp1_min_cnv2'][idx], df['bp1_frac2A'][idx] = \
-#                        find_cn_cols(d['bp1_chr'],d['bp1_pos'],cnv)
-#                df['bp2_maj_cnv1'][idx], df['bp2_min_cnv1'][idx], df['bp2_frac1A'][idx], \
-#                df['bp2_maj_cnv2'][idx], df['bp2_min_cnv2'][idx], df['bp2_frac2A'][idx] = \
-#                        find_cn_cols(d['bp2_chr'],d['bp2_pos'],cnv)
-#            #df = df[pd.notnull(df['bp1_frac1A'])]        
 
         df['norm_mean'] = map(np.mean,zip(df['norm1'].values,df['norm2'].values))
         df_flt = run_filter(df,rlen,insert,cnv,ploidy,neutral)
@@ -133,7 +146,7 @@ def run(samples,svs,gml,cnvs,rlens,inserts,pis,ploidies,out,n_runs,num_iters,bur
         with open('%s/purity_ploidy.txt'%out,'w') as outf:
             outf.write("sample\tpurity\tploidy\n")
             outf.write('%s\t%f\t%f\n'%(sample,pi,ploidy))
-        
-        print('Clustering with %d SVs'%len(df_flt))
-        build_phyl.infer_subclones(sample,df_flt,pi,rlen,insert,ploidy,out,n_runs,num_iters,burn,thin,beta)
+      
+        print('Clustering with %d SVs and %d SNVs'%(len(df_flt),len(snv_df)))
+        run_clus.infer_subclones(sample,df_flt,pi,rlen,insert,ploidy,out,n_runs,num_iters,burn,thin,beta,snv_df)
 

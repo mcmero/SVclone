@@ -7,17 +7,12 @@ The script obtains all information necessary from a bam file and a list of struc
 Ensure you have the following dependencies installed:
 
 * [Numpy](http://www.numpy.org/) - install for python 2
-* [PySam](http://pysam.readthedocs.org/en/latest/)
 * [Pandas](http://pandas.pydata.org/)
-* [Pandasql](https://pypi.python.org/pypi/pandasql)
-* [sqlite3](https://docs.python.org/2/library/sqlite3.html)
+* [PyMC](https://github.com/pymc-devs/pymc)
 * [ipdb](https://pypi.python.org/pypi/ipdb)
 * [ipython](https://pypi.python.org/pypi/ipython)
 * [matplotlib](http://matplotlib.org/)
-
-If you want to run unit tests:
-
-* [nose](https://nose.readthedocs.org/en/latest/)
+* [PyVCF](https://github.com/jamescasbon/PyVCF)
 
 Install like so:
 
@@ -27,7 +22,7 @@ Install like so:
 
 Run SV pre-processing on each sample BAM file like so:
 
-    python -m phylo_sv.preprocess.cmd -i <svs.txt> -b <indexed bamfile> -hd <header.cfg> -o <output name> -d <average coverage>
+    python -m SVClone.preprocess.cmd -i <svs.txt> -b <indexed bamfile> -hd <header.cfg> -o <output name> -d <average coverage>
 
 #### Required Parameters ####
 
@@ -79,7 +74,7 @@ The left fields are used by the program (do not change these), the right fields 
 
 Running the flat clustering approach on a single sample (the only currently supported method), can be done like so:
 ```
-python -m phylo_sv.cmd -s <sample name> -i <sv info> -c <battenberg subclones file> -o <output directory> \
+python -m SVClone.cmd -s <sample name> -i <sv info> -c <battenberg subclones file> -o <output directory> \
                        -p <tumour purity> -r <read length> -v <insert size>
 ```
 More info:
