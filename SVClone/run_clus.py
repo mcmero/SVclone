@@ -241,7 +241,7 @@ def run_clust(clus_out_dir,df,pi,rlen,insert,ploidy,num_iters,burn,thin,beta,are
     # merge clusters
     if len(clus_info)>1:        
         clus_merged = pd.DataFrame(columns=clus_info.columns,index=clus_info.index)
-        clus_merged, clus_members, merged_ids  = merge_clusters(clus_out_dir,df,clus_info,clus_merged,
+        clus_merged, clus_members, merged_ids  = merge_clusters(clus_out_dir,df,clus_info,clus_merged,\
                 clus_members,[],[pi,rlen,insert,ploidy],num_iters,burn,thin,are_snvs)
         
         if len(clus_merged)!=len(clus_info):
@@ -253,6 +253,9 @@ def run_clust(clus_out_dir,df,pi,rlen,insert,ploidy,num_iters,burn,thin,beta,are
     return clus_info,center_trace,z_trace,clus_members,df_probs,ccert
 
 def infer_subclones(sample,df,pi,rlen,insert,ploidy,out,n_runs,num_iters,burn,thin,beta,snv_df):
+    if len(df) < 5:
+        print("Less than 5 post-filtered SVs. Clustering not recommended for this sample. Exiting.")
+        return None
 
     clus_info,center_trace,ztrace,clus_members = None,None,None,None
     for i in range(n_runs):
@@ -282,5 +285,5 @@ def infer_subclones(sample,df,pi,rlen,insert,ploidy,out,n_runs,num_iters,burn,th
             #if (clus_info.phi.values[0]*2.)>(1+param.subclone_diff):
             #    warn_str = warn_str + "Warning! Largest VAF cluster exceeds 0.5.\n"
         
-        write_output.write_out_files(df,clus_info,clus_members,df_probs,clus_cert,clus_out_dir,sample,pi)
+        write_output.write_out_files(df,clus_info,clus_members,df_probs,clus_cert,clus_out_dir,sample,pi,rlen)
 

@@ -3,6 +3,7 @@ import numpy as np
 # PREPROCESSING PARAMETERS
 tr      = 5    # "wobble length" tolerance threshold which we allow breaks to be inexact
 window  = 500  # base-pairs considered to the left and right of the break
+gl_th   = 10   # SVs considered germline if matching by at least this many bp, when comparing set of breaks to germline
 
 # parameters extracted for each read from BAMs
 read_dtype = [('query_name', 'S150'), ('chrom', 'S50'), ('ref_start', int), ('ref_end', int), \
