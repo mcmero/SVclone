@@ -110,7 +110,7 @@ def merge_clusters(clus_out_dir,df,clus_info,clus_merged,clus_members,merged_ids
             #assignments = [int(ci.clus_id)]*len(new_members)
             #tmp_trace = np.zeros((len(trace),int(ci.clus_id)+1))
             #tmp_trace[:,int(ci.clus_id)] = trace[:,0]
-            #cluster.plot_clusters(tmp_trace,[int(ci.clus_id)],assignments,df.loc[new_members],cparams[3],cparams[0])
+            #plot_clusters(tmp_trace,[int(ci.clus_id)],assignments,df.loc[new_members],cparams[3],cparams[0])
 
             print('\n')
             if idx+2 < len(clus_info):
@@ -234,7 +234,7 @@ def run_clust(clus_out_dir,df,pi,rlen,insert,ploidy,num_iters,burn,thin,beta,are
 
     # cluster plotting
     if cmd.plot:
-        cluster.plot_clusters(center_trace,clus_idx,clus_max_prob,df,ploidy,pi)
+        plot_clusters(center_trace,clus_idx,clus_max_prob,df,ploidy,pi)
     write_output.dump_trace(clus_info,center_trace,'%s/premerge_phi_trace.txt'%clus_out_dir)
     write_output.dump_trace(clus_info,z_trace,'%s/premerge_z_trace.txt'%clus_out_dir)
     
@@ -248,7 +248,7 @@ def run_clust(clus_out_dir,df,pi,rlen,insert,ploidy,num_iters,burn,thin,beta,are
             clus_info = clus_merged
             df_probs, ccert = merge_results(clus_merged, merged_ids, df_probs, ccert)
             if cmd.plot:
-                cluster.plot_cluster_hist(clus_merged.clus_id.values,ccert.most_likely_assignment.values,df,ploidy,pi)
+                plot_cluster_hist(clus_merged.clus_id.values,ccert.most_likely_assignment.values,df,ploidy,pi)
     
     return clus_info,center_trace,z_trace,clus_members,df_probs,ccert
 
