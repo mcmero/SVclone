@@ -27,21 +27,22 @@ def gen_new_colours(N):
     RGB_tuples = map(lambda x: colorsys.hsv_to_rgb(*x), HSV_tuples)
     return RGB_tuples
 
-def plot_cluster_hist(clusters,assignments,df,pl,pi):
-    fig, axes = plt.subplots(2, 1, sharex=False, sharey=False, figsize=(12.5,8))
+def plot_cluster_hist(clusters,assignments,df,pl,pi,rlen):
+    fig, axes = plt.subplots(1, 1, sharex=False, sharey=False, figsize=(12.5,4))
     RGB_tuples = gen_new_colours(len(clusters))
+    sup,dep,cn_r,cn_v,mu_v,sides,Nvar = cluster.get_sv_vals(df,rlen)
 
     for idx,clus in enumerate(clusters):
-        t1 = df[np.array(assignments)==clus]
-        s1 = t1.support.values
-        n1 = map(np.mean,zip(t1.norm1.values,t1.norm2.values))
-        axes[0].set_title("Clusters post-cluster merge: Cell fractions (raw VAFs purity-ploidy-adjusted)")
-        axes[0].hist(((s1/(n1+s1)*pl)/pi),bins=np.array(range(0,100,2))/100.,alpha=0.75,color=RGB_tuples[idx])
-        axes[1].set_title("Raw VAFs")
-        axes[1].hist(s1/(n1+s1),bins=np.array(range(0,100,2))/100.,alpha=0.75,color=RGB_tuples[idx])
+        clus_idx = np.array(assignments)==clus
+        sup_clus = sup[clus_idx]
+        dep_clus = dep[clus_idx]
+        #axes[0].set_title("Clusters post-cluster merge: Cell fractions (raw VAFs purity-ploidy-adjusted)")
+        #axes[0].hist(((s1/(n1+s1)*pl)/pi),bins=np.array(range(0,100,2))/100.,alpha=0.75,color=RGB_tuples[idx])
+        axes.set_title("Raw VAFs")
+        axes.hist(sup_clus/dep_clus,bins=np.array(range(0,100,2))/100.,alpha=0.75,color=RGB_tuples[idx])
 
-def plot_clusters(center_trace,clusters,assignments,df,pl,pi):
-    fig, axes = plt.subplots(3, 1, sharex=False, sharey=False, figsize=(12.5,11))
+def plot_clusters(center_trace,clusters,assignments,df,pl,pi,rlen):
+    fig, axes = plt.subplots(2, 1, sharex=False, sharey=False, figsize=(12.5,8))
 
     RGB_tuples = gen_new_colours(len(clusters))
 
@@ -54,16 +55,15 @@ def plot_clusters(center_trace,clusters,assignments,df,pl,pi):
 
     leg = axes[0].legend(loc="upper right")
     leg.get_frame().set_alpha(0.7)
-
+    axes[1].set_title("Raw VAFs")
+    #axes[2].set_title("Unmerged clusters: Cell fractions (raw VAFs purity-ploidy-adjusted)")
+    sup,dep,cn_r,cn_v,mu_v,sides,Nvar = cluster.get_sv_vals(df,rlen)
     for idx,clus in enumerate(clusters):
-        t1 = df[np.array(assignments)==clus]
-        s1 = t1.support.values
-        n1 = map(np.mean,zip(t1.norm1.values,t1.norm2.values))
-        axes[1].set_title("Unmerged clusters: Cell fractions (raw VAFs purity-ploidy-adjusted)")
-        axes[1].hist(((s1/(n1+s1)*pl)/pi),bins=np.array(range(0,100,2))/100.,alpha=0.75,color=RGB_tuples[idx])
-        #print 'mean cluster VAF: %f' % (np.mean(s1/(n1+s1)/pi))
-        axes[2].set_title("Raw VAFs")
-        axes[2].hist(s1/(n1+s1),bins=np.array(range(0,100,2))/100.,alpha=0.75,color=RGB_tuples[idx])
+        clus_idx = np.array(assignments)==clus
+        sup_clus = sup[clus_idx]
+        dep_clus = dep[clus_idx]
+        axes[1].hist(sup_clus/dep_clus,bins=np.array(range(0,100,2))/100.,alpha=0.75,color=RGB_tuples[idx])
+        #axes[2].hist(((s1/(n1+s1)*pl)/pi),bins=np.array(range(0,100,2))/100.,alpha=0.75,color=RGB_tuples[idx])
 
 def index_max(values):
     return max(xrange(len(values)),key=values.__getitem__)
@@ -234,7 +234,7 @@ def run_clust(clus_out_dir,df,pi,rlen,insert,ploidy,num_iters,burn,thin,beta,are
 
     # cluster plotting
     if cmd.plot:
-        plot_clusters(center_trace,clus_idx,clus_max_prob,df,ploidy,pi)
+        plot_clusters(center_trace,clus_idx,clus_max_prob,df,ploidy,pi,rlen)
     write_output.dump_trace(clus_info,center_trace,'%s/premerge_phi_trace.txt'%clus_out_dir)
     write_output.dump_trace(clus_info,z_trace,'%s/premerge_z_trace.txt'%clus_out_dir)
     
@@ -248,7 +248,7 @@ def run_clust(clus_out_dir,df,pi,rlen,insert,ploidy,num_iters,burn,thin,beta,are
             clus_info = clus_merged
             df_probs, ccert = merge_results(clus_merged, merged_ids, df_probs, ccert)
             if cmd.plot:
-                plot_cluster_hist(clus_merged.clus_id.values,ccert.most_likely_assignment.values,df,ploidy,pi)
+                plot_cluster_hist(clus_merged.clus_id.values,ccert.most_likely_assignment.values,df,ploidy,pi,rlen)
     
     return clus_info,center_trace,z_trace,clus_members,df_probs,ccert
 
