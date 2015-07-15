@@ -27,7 +27,7 @@ def gen_new_colours(N):
     RGB_tuples = map(lambda x: colorsys.hsv_to_rgb(*x), HSV_tuples)
     return RGB_tuples
 
-def plot_cluster_hist(clusters,assignments,df,pl,pi,rlen):
+def plot_cluster_hist(clusters,assignments,df,pl,pi,rlen,clus_out_dir):
     fig, axes = plt.subplots(1, 1, sharex=False, sharey=False, figsize=(12.5,4))
     RGB_tuples = gen_new_colours(len(clusters))
     sup,dep,cn_r,cn_v,mu_v,sides,Nvar = cluster.get_sv_vals(df,rlen)
@@ -40,8 +40,11 @@ def plot_cluster_hist(clusters,assignments,df,pl,pi,rlen):
         #axes[0].hist(((s1/(n1+s1)*pl)/pi),bins=np.array(range(0,100,2))/100.,alpha=0.75,color=RGB_tuples[idx])
         axes.set_title("Raw VAFs")
         axes.hist(sup_clus/dep_clus,bins=np.array(range(0,100,2))/100.,alpha=0.75,color=RGB_tuples[idx])
+    
+    hist_plot = '%s/merged_cluster_hist'%clus_out_dir
+    plt.savefig(hist_plot)
 
-def plot_clusters(center_trace,clusters,assignments,df,pl,pi,rlen):
+def plot_clusters(center_trace,clusters,assignments,df,pl,pi,rlen,clus_out_dir):
     fig, axes = plt.subplots(2, 1, sharex=False, sharey=False, figsize=(12.5,8))
 
     RGB_tuples = gen_new_colours(len(clusters))
@@ -64,6 +67,8 @@ def plot_clusters(center_trace,clusters,assignments,df,pl,pi,rlen):
         dep_clus = dep[clus_idx]
         axes[1].hist(sup_clus/dep_clus,bins=np.array(range(0,100,2))/100.,alpha=0.75,color=RGB_tuples[idx])
         #axes[2].hist(((s1/(n1+s1)*pl)/pi),bins=np.array(range(0,100,2))/100.,alpha=0.75,color=RGB_tuples[idx])
+
+    plt.savefig('%s/cluster_trace_hist'%clus_out_dir)
 
 def index_max(values):
     return max(xrange(len(values)),key=values.__getitem__)
@@ -234,7 +239,7 @@ def run_clust(clus_out_dir,df,pi,rlen,insert,ploidy,num_iters,burn,thin,beta,are
 
     # cluster plotting
     if cmd.plot:
-        plot_clusters(center_trace,clus_idx,clus_max_prob,df,ploidy,pi,rlen)
+        plot_clusters(center_trace,clus_idx,clus_max_prob,df,ploidy,pi,rlen,clus_out_dir)
     write_output.dump_trace(clus_info,center_trace,'%s/premerge_phi_trace.txt'%clus_out_dir)
     write_output.dump_trace(clus_info,z_trace,'%s/premerge_z_trace.txt'%clus_out_dir)
     
@@ -248,7 +253,7 @@ def run_clust(clus_out_dir,df,pi,rlen,insert,ploidy,num_iters,burn,thin,beta,are
             clus_info = clus_merged
             df_probs, ccert = merge_results(clus_merged, merged_ids, df_probs, ccert)
             if cmd.plot:
-                plot_cluster_hist(clus_merged.clus_id.values,ccert.most_likely_assignment.values,df,ploidy,pi,rlen)
+                plot_cluster_hist(clus_merged.clus_id.values,ccert.most_likely_assignment.values,df,ploidy,pi,rlen,clus_out_dir)
     
     return clus_info,center_trace,z_trace,clus_members,df_probs,ccert
 
