@@ -107,13 +107,12 @@ def fit_and_sample(model, iters, burn, thin):
 def get_pv(phi,cn_r,cn_v,mu,pi):
     pn =  (1.0 - pi) * 2            #proportion of normal reads coming from normal cells
     pr =  pi * (1.0 - phi) * cn_r   #proportion of normal reads coming from other clusters
-    pv =  pi * phi * cn_v*mu           #proportion of variant + normal reads coming from this cluster
-    pvn =  pi * phi * cn_v*(1.0-mu)           #proportion of variant + normal reads coming from this cluster
+    pv =  pi * phi * cn_v           #proportion of variant + normal reads coming from this cluster
 
-    norm_const = pn + pr + pv +pvn
+    norm_const = pn + pr + pv
     pv = pv / norm_const
 
-    return pv
+    return pv * mu
 
 def get_most_likely_cn(cn_r,cn_v,mu_v,si,di,phi,pi):
     llik = []
