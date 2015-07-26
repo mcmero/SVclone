@@ -6,6 +6,28 @@ import ipdb
 from operator import methodcaller
 from . import parameters as param
 
+def get_weighted_cns(gtypes):
+    gtypes_split = [map(methodcaller("split",","),x) for x in map(methodcaller("split","|"),gtypes)]    
+    cn_vals = []
+    for gtype in gtypes_split:
+        cn_val = sum([int(g[0])+int(g[1])*float(g[2]) if g!=[''] else 0 for g in gtype])
+        cn_vals.append(cn_val)
+    return np.array(cn_vals)/2
+
+def normalise_wins_by_cn(df_flt):
+    bp1_win = df_flt.bp1_win_norm.values
+    bp2_win = df_flt.bp2_win_norm.values
+    
+    bp1_wcn = get_weighted_cns(df_flt.gtype1.values)
+    bp2_wcn = get_weighted_cns(df_flt.gtype2.values)
+
+    bp1_nonzero = np.logical_not(bp1_wcn==0)
+    bp2_nonzero = np.logical_not(bp2_wcn==0)
+    bp1_win[bp1_nonzero] = (bp1_win/bp1_wcn)[bp1_nonzero]
+    bp2_win[bp2_nonzero] = (bp2_win/bp2_wcn)[bp2_nonzero]
+    
+    return bp1_win,bp2_win
+
 def get_cn_mu_v(cn):
     cn_v = [0.,0.]
     mu_v = [0.,0.]
@@ -73,9 +95,17 @@ def get_sv_vals(df,rlen):
     sides = np.zeros(Nvar,dtype=int)
     sides[df.gtype1.values=='']=1 #no genotype for bp1, use bp2
 
-    # for sides with genotypes for both sides, pick the side where the norm count is closest to the mean coverage
     has_both_gts = np.logical_and(df.gtype1.values!='',df.gtype2.values!='')
-    dev_from_cov = np.array(zip(abs(n_bp1-av_cov),abs(n_bp2-av_cov)))
+    
+    bp1_win, bp2_win = normalise_wins_by_cn(df)
+    bp1_win, bp2_win = (bp2_win*rlen)/(param.window*2), (bp2_win*rlen)/(param.window*2) 
+    # for sides with gtypes for both sides, pick the side where the adjusted window count is closest to the average coverage
+    av_cov = np.mean([bp1_win,bp2_win])
+    dev_from_cov = np.array(zip(abs(bp1_win-av_cov),abs(bp2_win-av_cov)))
+
+    # ALT: pick the side where the norm count is closest to the mean coverage
+    #dev_from_cov = np.array(zip(abs(n_bp1-av_cov),abs(n_bp2-av_cov)))
+    
     sides[has_both_gts] = [np.where(x==min(x))[0][0] for x in dev_from_cov[has_both_gts]]        
 
     norm = [ni[si] for ni,si in zip(n,sides)]
@@ -87,14 +117,16 @@ def get_snv_vals(df):
     n = df['ref'].values
     b = df['var'].values
     cn_r,cn_v,mu_v = [],[],[]
-
+    df = df.fillna('')
+    df = df[df.chrom.values!='']
+    
     for idx,snv in df.iterrows():
         cn_tmp = snv.gtype.split('|')
         cnr,cnv,mu = get_allele_combos_tuple(cn_tmp)
         cn_r.append([cnr])
         cn_v.append([cnv])
         mu_v.append([mu])
-
+        
     return b,n,cn_r,cn_v,mu_v
 
 def fit_and_sample(model, iters, burn, thin):
@@ -148,8 +180,9 @@ def cluster(df,pi,rlen,insert,ploidy,iters,burn,thin,beta,are_snvs=False,Ndp=par
     Nvar = 0
     
     if are_snvs:        
-        sup,n,cn_r,cn_v,mu_v = get_snv_vals(df)
-        dep = sup + n
+        sup,dep,cn_r,cn_v,mu_v = get_snv_vals(df)
+#TODO: check def vs. ref for vcfs
+        #dep = sup + n
         av_cov = np.mean(dep)
         Nvar = len(sup)
         sides = np.zeros(Nvar,dtype=int)
@@ -157,13 +190,13 @@ def cluster(df,pi,rlen,insert,ploidy,iters,burn,thin,beta,are_snvs=False,Ndp=par
         sup,dep,cn_r,cn_v,mu_v,sides,Nvar = get_sv_vals(df,rlen)
 
     sens = 1.0 / ((pi/pl)*np.mean(dep))
-    beta = pm.Gamma('beta',0.9,1/0.9)
+    alpha = pm.Gamma('alpha',0.9,1/0.9,value=2)
     #beta = pm.Gamma('beta',param.beta_shape,param.beta_rate)
     #beta = pm.Gamma('beta',1,10**(-7))
     #beta = pm.Uniform('beta', 0.01, 1, value=0.1)
     #print("Beta value:%f"%beta)
-
-    h = pm.Beta('h', alpha=1, beta=beta, size=Ndp)
+    
+    h = pm.Beta('h', alpha=1, beta=alpha, size=Ndp)
     @pm.deterministic
     def p(h=h):
         value = [u*np.prod(1.0-h[:i]) for i,u in enumerate(h)]
@@ -172,11 +205,12 @@ def cluster(df,pi,rlen,insert,ploidy,iters,burn,thin,beta,are_snvs=False,Ndp=par
         return value
 
     z = pm.Categorical('z', p=p, size=Nvar, value=np.zeros(Nvar))
-    #phi_init = (np.mean((s+d)/(n+s+d))/pi)*2
+    #phi_init = (np.mean(sup/dep)/pi)*2
     phi_k = pm.Uniform('phi_k', lower=sens, upper=1, size=Ndp)#, value=[phi_init]*Ndp)
     
     @pm.deterministic
     def p_var(z=z,phi_k=phi_k):
+        #print phi_k
         ml_cn = [get_most_likely_cn(cn_ri[side],cn_vi[side],mu_vi[side],si,di,phi,pi) \
                 for cn_ri,cn_vi,mu_vi,si,di,phi,side in zip(cn_r,cn_v,mu_v,sup,dep,phi_k[z],sides)]
         cn_rn = [m[0] for m in ml_cn]
@@ -187,6 +221,6 @@ def cluster(df,pi,rlen,insert,ploidy,iters,burn,thin,beta,are_snvs=False,Ndp=par
 
     cbinom = pm.Binomial('cbinom', dep, p_var, observed=True, value=sup)
 
-    model = pm.Model([beta,h,p,phi_k,z,p_var,cbinom])
+    model = pm.Model([alpha,h,p,phi_k,z,p_var,cbinom])
     mcmc = fit_and_sample(model,iters,burn,thin)
     return mcmc

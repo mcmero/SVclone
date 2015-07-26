@@ -43,7 +43,7 @@ def plot_cluster_hist(clusters,assignments,df,pl,pi,rlen,clus_out_dir):
     
     hist_plot = '%s/merged_cluster_hist'%clus_out_dir
     plt.savefig(hist_plot)
-
+# TODO: broken for SNVs
 def plot_clusters(center_trace,clusters,assignments,df,pl,pi,rlen,clus_out_dir):
     fig, axes = plt.subplots(2, 1, sharex=False, sharey=False, figsize=(12.5,8))
 

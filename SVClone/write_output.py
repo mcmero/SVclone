@@ -1,6 +1,7 @@
 import numpy as np
 import pandas as pd
 import os
+import ipdb
 from operator import methodcaller
 
 from . import cluster
@@ -41,7 +42,7 @@ def write_out_files_snv(df,clus_info,clus_members,df_probs,clus_cert,clus_out_di
     sup,n,cn_r,cn_v,mu_v = cluster.get_snv_vals(clus_snvs)
     dep = sup + n
     phis = clus_cert.average_ccf.values
-
+    
     for idx,snv in clus_snvs.iterrows():
         gtype = snv['gtype'].split('|')
         gtype = map(methodcaller('split', ','), gtype)
@@ -90,7 +91,11 @@ def write_out_files(df,clus_info,clus_members,df_probs,clus_cert,clus_out_dir,sa
                  ('pos2_bb_CN','S50'),
                  ('most_likely_ref_copynumber',int),
                  ('most_likely_variant_copynumber',int),
-                 ('prop_chrs_bearing_mutation',float)]
+                 ('prop_chrs_bearing_mutation',float),
+                 ('support',int),
+                 ('depth',int),                
+                 ('pv',float),
+                 ('ploidy_fixed_pv',float)]
 
     cmem = np.hstack(clus_members)
     cn_vect = np.empty((0,len(cmem)),dtype=cn_dtype)
@@ -119,11 +124,13 @@ def write_out_files(df,clus_info,clus_members,df_probs,clus_cert,clus_out_dir,sa
         side = sides[idx]
         ref_cn, sc_cn, freq = cluster.get_most_likely_cn(cn_r[idx][side],cn_v[idx][side],\
                                                          mu_v[idx][side],sup[idx],dep[idx],phis[idx],pi) 
-        
+        pv = cluster.get_pv(phis[idx],ref_cn,sc_cn,freq,pi)
+        pv_pf = cluster.get_pv(phis[idx],2.1,2.1,1/2.1,pi)
+
         cn_new_row = np.array([(bp1_chr,bp1_pos,tot_cn1,int(sc_cn*freq),bp2_chr,bp2_pos,tot_cn2,int(sc_cn*freq))],dtype=cn_dtype)
         cn_vect = np.append(cn_vect,cn_new_row)
         
-        ml_new_row = np.array([(bp1_chr,bp1_pos,bp2_chr,bp2_pos,sv['gtype1'],sv['gtype2'],ref_cn,sc_cn,freq)],dtype=mlcn_dtype)
+        ml_new_row = np.array([(bp1_chr,bp1_pos,bp2_chr,bp2_pos,sv['gtype1'],sv['gtype2'],ref_cn,sc_cn,freq,sup[idx],dep[idx],pv,pv_pf)],dtype=mlcn_dtype)
         mlcn_vect = np.append(mlcn_vect,ml_new_row)
         
     pd.DataFrame(mlcn_vect).to_csv('%s/%s_most_likely_copynumbers.txt'%(clus_out_dir,sample),sep='\t',index=False)
