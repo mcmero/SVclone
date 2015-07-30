@@ -5,6 +5,7 @@ Commandline input for running SV
 '''
 
 import argparse
+import numpy as np
 
 parser = argparse.ArgumentParser(prefix_chars='--')
 parser.add_argument("-s","--samples",dest="samples",
@@ -46,6 +47,8 @@ parser.add_argument("--beta",dest="beta",default="8,1/0.05,0.1",type=str,
              "Dirichlet Processes' gamma function. Third value determines the starting value.")
 parser.add_argument("--snvs",dest="snvs",default="",type=str,
         help="SNVs in VCF format to (optionally) compare the clustering with SVs.")
+parser.add_argument("--vcf_format",dest="vcf_format",default="sanger",type=str,
+        help="Supplied SNV VCF is in the following input format: sanger (default), or mutect.")
 
 args = parser.parse_args()
 
@@ -66,6 +69,7 @@ beta    = args.beta
 plot    = args.plot
 neutral = args.neutral
 snvs    = args.snvs
+vcf_format = args.vcf_format
 
 def proc_arg(arg,n_args=1,of_type=str):
     arg = str.split(arg,',')
@@ -79,7 +83,7 @@ if __name__ == '__main__':
     from . import run
     if insert=="":
         print("Inserts not provided, assuming insert length equals read length")
-        insert=rlen
+        insert=rlen    
     samples = proc_arg(samples)
     n = len(samples)
     svs = proc_arg(svs)
@@ -94,4 +98,8 @@ if __name__ == '__main__':
         if p<0 or p>1:
             raise ValueError("Tumour purity value not between 0 and 1!")
     ploidy = proc_arg(ploidy,n,float)
-    run.run(samples,svs,gml,cnvs,rlen,insert,pi,ploidy,out,n_runs,n_iter,burn,thin,beta,neutral,snvs)
+    if snvs!="":
+        vcf_format = vcf_format.lower()
+        if not np.any(vcf_format==np.array(["sanger","mutect"])):
+            raise ValueError("Invalid VCF format specified")
+    run.run(samples,svs,gml,cnvs,rlen,insert,pi,ploidy,out,n_runs,n_iter,burn,thin,beta,neutral,snvs,vcf_format)

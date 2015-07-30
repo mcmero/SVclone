@@ -91,21 +91,25 @@ def get_sv_vals(df,rlen):
     win1 = (df.bp1_win_norm.values*rlen)/(param.window*2)
     win2 = (df.bp2_win_norm.values*rlen)/(param.window*2)
     av_cov = np.mean([win1,win2])
-            
+     
     sides = np.zeros(Nvar,dtype=int)
     sides[df.gtype1.values=='']=1 #no genotype for bp1, use bp2
 
     has_both_gts = np.logical_and(df.gtype1.values!='',df.gtype2.values!='')
     
     bp1_win, bp2_win = normalise_wins_by_cn(df)
-    bp1_win, bp2_win = (bp2_win*rlen)/(param.window*2), (bp2_win*rlen)/(param.window*2) 
+    bp1_win, bp2_win = (bp2_win*rlen)/(param.window*2), (bp2_win*rlen)/(param.window*2)
+
     # for sides with gtypes for both sides, pick the side where the adjusted window count is closest to the average coverage
     av_cov = np.mean([bp1_win,bp2_win])
     dev_from_cov = np.array(zip(abs(bp1_win-av_cov),abs(bp2_win-av_cov)))
 
     # ALT: pick the side where the norm count is closest to the mean coverage
     #dev_from_cov = np.array(zip(abs(n_bp1-av_cov),abs(n_bp2-av_cov)))
-    
+    # OR: prefer sides with subclonal genotype data
+    #gt1_sc = np.array(map(len,map(methodcaller("split","|"),df.gtype1.values)))>1
+    #gt2_sc = np.array(map(len,map(methodcaller("split","|"),df.gtype1.values)))>1
+
     sides[has_both_gts] = [np.where(x==min(x))[0][0] for x in dev_from_cov[has_both_gts]]        
 
     norm = [ni[si] for ni,si in zip(n,sides)]
@@ -180,22 +184,21 @@ def cluster(df,pi,rlen,insert,ploidy,iters,burn,thin,beta,are_snvs=False,Ndp=par
     Nvar = 0
     
     if are_snvs:        
-        sup,dep,cn_r,cn_v,mu_v = get_snv_vals(df)
-#TODO: check def vs. ref for vcfs
-        #dep = sup + n
+        sup,ref,cn_r,cn_v,mu_v = get_snv_vals(df)
+        dep = sup + ref
         av_cov = np.mean(dep)
         Nvar = len(sup)
         sides = np.zeros(Nvar,dtype=int)
     else:
         sup,dep,cn_r,cn_v,mu_v,sides,Nvar = get_sv_vals(df,rlen)
-
+    
     sens = 1.0 / ((pi/pl)*np.mean(dep))
     alpha = pm.Gamma('alpha',0.9,1/0.9,value=2)
     #beta = pm.Gamma('beta',param.beta_shape,param.beta_rate)
     #beta = pm.Gamma('beta',1,10**(-7))
     #beta = pm.Uniform('beta', 0.01, 1, value=0.1)
     #print("Beta value:%f"%beta)
-    
+
     h = pm.Beta('h', alpha=1, beta=alpha, size=Ndp)
     @pm.deterministic
     def p(h=h):
@@ -210,7 +213,6 @@ def cluster(df,pi,rlen,insert,ploidy,iters,burn,thin,beta,are_snvs=False,Ndp=par
     
     @pm.deterministic
     def p_var(z=z,phi_k=phi_k):
-        #print phi_k
         ml_cn = [get_most_likely_cn(cn_ri[side],cn_vi[side],mu_vi[side],si,di,phi,pi) \
                 for cn_ri,cn_vi,mu_vi,si,di,phi,side in zip(cn_r,cn_v,mu_v,sup,dep,phi_k[z],sides)]
         cn_rn = [m[0] for m in ml_cn]

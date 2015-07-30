@@ -27,10 +27,23 @@ def gen_new_colours(N):
     RGB_tuples = map(lambda x: colorsys.hsv_to_rgb(*x), HSV_tuples)
     return RGB_tuples
 
-def plot_cluster_hist(clusters,assignments,df,pl,pi,rlen,clus_out_dir):
+def plot_cluster_hist(clusters,assignments,df,pl,pi,rlen,clus_out_dir,are_snvs=False):
     fig, axes = plt.subplots(1, 1, sharex=False, sharey=False, figsize=(12.5,4))
     RGB_tuples = gen_new_colours(len(clusters))
-    sup,dep,cn_r,cn_v,mu_v,sides,Nvar = cluster.get_sv_vals(df,rlen)
+    
+    sup,dep,cn_r,cn_v,mu_v,sides = [],[],[],[],[],[]
+    Nvar = 0
+    if are_snvs:
+        clus_out_dir = '%s/snvs'%clus_out_dir
+        if not os.path.exists(clus_out_dir):
+            os.makedirs(clus_out_dir)
+        sup,ref,cn_r,cn_v,mu_v = cluster.get_snv_vals(df)
+        dep = sup + ref
+        av_cov = np.mean(dep)
+        Nvar = len(sup)
+        sides = np.zeros(Nvar,dtype=int)
+    else:
+        sup,dep,cn_r,cn_v,mu_v,sides,Nvar = cluster.get_sv_vals(df,rlen)
 
     for idx,clus in enumerate(clusters):
         clus_idx = np.array(assignments)==clus
@@ -43,8 +56,8 @@ def plot_cluster_hist(clusters,assignments,df,pl,pi,rlen,clus_out_dir):
     
     hist_plot = '%s/merged_cluster_hist'%clus_out_dir
     plt.savefig(hist_plot)
-# TODO: broken for SNVs
-def plot_clusters(center_trace,clusters,assignments,df,pl,pi,rlen,clus_out_dir):
+
+def plot_clusters(center_trace,clusters,assignments,df,pl,pi,rlen,clus_out_dir,are_snvs=False):
     fig, axes = plt.subplots(2, 1, sharex=False, sharey=False, figsize=(12.5,8))
 
     RGB_tuples = gen_new_colours(len(clusters))
@@ -60,7 +73,21 @@ def plot_clusters(center_trace,clusters,assignments,df,pl,pi,rlen,clus_out_dir):
     leg.get_frame().set_alpha(0.7)
     axes[1].set_title("Raw VAFs")
     #axes[2].set_title("Unmerged clusters: Cell fractions (raw VAFs purity-ploidy-adjusted)")
-    sup,dep,cn_r,cn_v,mu_v,sides,Nvar = cluster.get_sv_vals(df,rlen)
+    
+    sup,dep,cn_r,cn_v,mu_v,sides = [],[],[],[],[],[]
+    Nvar = 0
+    if are_snvs:
+        clus_out_dir = '%s/snvs'%clus_out_dir
+        if not os.path.exists(clus_out_dir):
+            os.makedirs(clus_out_dir)
+        sup,ref,cn_r,cn_v,mu_v = cluster.get_snv_vals(df)
+        dep = sup + ref
+        av_cov = np.mean(dep)
+        Nvar = len(sup)
+        sides = np.zeros(Nvar,dtype=int)
+    else:
+        sup,dep,cn_r,cn_v,mu_v,sides,Nvar = cluster.get_sv_vals(df,rlen)
+
     for idx,clus in enumerate(clusters):
         clus_idx = np.array(assignments)==clus
         sup_clus = sup[clus_idx]
@@ -203,19 +230,6 @@ def run_clust(clus_out_dir,df,pi,rlen,insert,ploidy,num_iters,burn,thin,beta,are
     clus_ids = clus_info.clus_id.values
     clus_members = np.array([np.where(np.array(clus_max_prob)==i)[0] for i in clus_ids])
 
-    # TODO: reimplement cluster filtering based on size/floor threshold
-    # cluster filtering
-    #clus_info = clus_info[clus_info['phi'].values>(param.subclone_threshold/2)]
-    #clus_info = clus_info[sum(clus_info['size'].values)*param.subclone_sv_prop<clus_info['size'].values]
-    #clus_counts = [np.array(c)[clus_ids] for c in clus_counts]
-    #clus_max_prob = np.array(clus_max_prob)[clus_ids]
-    
-    # probability of being in each cluster
-    #probs = [np.array(x)[clus_info.clus_id.values] for x in probs]
-    #clus_counts = [np.array(c)[clus_info.clus_id.values] for c in clus_counts]
-    #probs = [map(lambda x: round(x[0]/x[1],4),zip(x,[float(sum(x))]*len(x))) for x in clus_counts]
-    #df_probs = pd.DataFrame(probs).fillna(0)
-    
     col_names = map(lambda x: 'cluster'+str(x),clus_ids)
     df_probs = pd.DataFrame(clus_counts,dtype=float)[clus_ids].fillna(0)
     df_probs = df_probs.apply(lambda x: x/sum(x),axis=1)
@@ -233,13 +247,12 @@ def run_clust(clus_out_dir,df,pi,rlen,insert,ploidy,num_iters,burn,thin,beta,are
     phi_matrix = pd.DataFrame(phis[:],index=clus_ids,columns=phi_cols).loc[clus_max_prob]
     phi_matrix.index = range(len(phi_matrix))
     ccert = df[df_pos].join(clus_max_df).join(phi_matrix)
-
     clus_info.index = range(len(clus_info))
     print(clus_info)
 
     # cluster plotting
     if cmd.plot:
-        plot_clusters(center_trace,clus_idx,clus_max_prob,df,ploidy,pi,rlen,clus_out_dir)
+        plot_clusters(center_trace,clus_idx,clus_max_prob,df,ploidy,pi,rlen,clus_out_dir,are_snvs)
     write_output.dump_trace(clus_info,center_trace,'%s/premerge_phi_trace.txt'%clus_out_dir)
     write_output.dump_trace(clus_info,z_trace,'%s/premerge_z_trace.txt'%clus_out_dir)
     
@@ -253,7 +266,7 @@ def run_clust(clus_out_dir,df,pi,rlen,insert,ploidy,num_iters,burn,thin,beta,are
             clus_info = clus_merged
             df_probs, ccert = merge_results(clus_merged, merged_ids, df_probs, ccert)
             if cmd.plot:
-                plot_cluster_hist(clus_merged.clus_id.values,ccert.most_likely_assignment.values,df,ploidy,pi,rlen,clus_out_dir)
+                plot_cluster_hist(clus_merged.clus_id.values,ccert.most_likely_assignment.values,df,ploidy,pi,rlen,clus_out_dir,are_snvs)
     
     return clus_info,center_trace,z_trace,clus_members,df_probs,ccert
 

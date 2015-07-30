@@ -12,7 +12,6 @@ def dump_trace(clus_info,center_trace,outf):
     df_traces.to_csv(outf,sep='\t',index=False)
 
 def write_out_files_snv(df,clus_info,clus_members,df_probs,clus_cert,clus_out_dir,sample,pi):
-    
     clus_out_dir = '%s/snvs'%clus_out_dir
     if not os.path.exists(clus_out_dir):
         os.makedirs(clus_out_dir)
@@ -37,13 +36,15 @@ def write_out_files_snv(df,clus_info,clus_members,df_probs,clus_cert,clus_out_di
     cmem = np.hstack(clus_members)
     cn_vect = np.empty((0,len(cmem)),dtype=cn_dtype)
     mlcn_vect = np.empty((0,len(cmem)),dtype=mlcn_dtype)
-    clus_snvs = df.loc[cmem].copy()
-    
-    sup,n,cn_r,cn_v,mu_v = cluster.get_snv_vals(clus_snvs)
+    #clus_snvs = df.loc[cmem].copy()
+    df = df.fillna('')
+    df = df[df.chrom.values!='']
+
+    sup,n,cn_r,cn_v,mu_v = cluster.get_snv_vals(df)
     dep = sup + n
-    phis = clus_cert.average_ccf.values
-    
-    for idx,snv in clus_snvs.iterrows():
+    phis = clus_cert.average_ccf.values    
+
+    for idx,snv in df.iterrows():
         gtype = snv['gtype'].split('|')
         gtype = map(methodcaller('split', ','), gtype)
 
@@ -52,7 +53,6 @@ def write_out_files_snv(df,clus_info,clus_members,df_probs,clus_cert,clus_out_di
 
         chrom = str(snv['chrom'])
         pos = int(snv['pos'])
-        
         ref_cn, sc_cn, freq = cluster.get_most_likely_cn(cn_r[idx][0],cn_v[idx][0],\
                                                          mu_v[idx][0],sup[idx],dep[idx],phis[idx],pi) 
         
@@ -137,5 +137,4 @@ def write_out_files(df,clus_info,clus_members,df_probs,clus_cert,clus_out_dir,sa
     pd.DataFrame(cn_vect).to_csv('%s/%s_copynumber.txt'%(clus_out_dir,sample),sep='\t',index=False)
     df_probs.to_csv('%s/%s_assignment_probability_table.txt'%(clus_out_dir,sample),sep='\t',index=False)
     clus_cert.to_csv('%s/%s_cluster_certainty.txt'%(clus_out_dir,sample),sep='\t',index=False)
-
 

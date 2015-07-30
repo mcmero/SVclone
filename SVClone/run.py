@@ -42,10 +42,7 @@ def is_clonal_neutral(gtype):
         return (gt[0]==1 and gt[1]==1 and gt[2]==1)
     return False
 
-def filter_outlying_norm_wins(df_flt,cns=[]):
-    import matplotlib.pyplot as plt
-    fig, axes = plt.subplots(1, 1, sharex=False, sharey=False)
-    
+def filter_outlying_norm_wins(df_flt):
     bp1_win, bp2_win = cluster.normalise_wins_by_cn(df_flt)
     bp1_ranges = get_outlier_ranges(bp1_win)
     bp2_ranges = get_outlier_ranges(bp2_win)
@@ -53,29 +50,46 @@ def filter_outlying_norm_wins(df_flt,cns=[]):
     bp1_flt = np.logical_and(bp1_win>bp1_ranges[0],bp1_win<bp1_ranges[1])
     bp2_flt = np.logical_and(bp2_win>bp2_ranges[0],bp2_win<bp2_ranges[1])
     df_flt = df_flt[np.logical_and(bp1_flt,bp2_flt)]
-    #axes.hist(df_flt.bp1_win_norm.values);plt.savefig('test')
     
     return df_flt
 
-def run_cnv_filter(df_flt,cnv,neutral=False,perc=85):
+def run_cnv_filter(df_flt,cnv,neutral=False,are_snvs=False):
     '''
     filter based on either CNV neutral, or presence of CNV vals
     '''
     if len(cnv)>0 and neutral:
         # filter out copy-aberrant SVs and outying norm read counts (>1-percentile)
         # major and minor copy-numbers must be 1
-        gt1_is_neutral = map(is_clonal_neutral,df_flt.gtype1.values)
-        gt2_is_neutral = map(is_clonal_neutral,df_flt.gtype2.values)
-        is_neutral = np.logical_and(gt1_is_neutral,gt2_is_neutral)
-        #df_flt = df_flt[is_neutral & (df_flt.norm_mean<np.percentile(df_flt.norm_mean,perc))] 
-        df_flt = df_flt[is_neutral] 
-        df_flt = filter_outlying_norm_wins(df_flt)
+        is_neutral = []
+        if are_snvs:
+            is_neutral = map(is_clonal_neutral,df_flt.gtype.values)
+            df_flt = df_flt[is_neutral]
+            depths = df_flt['ref'].values+df_flt['var'].values
+            dep_ranges = get_outlier_ranges(depths)
+            df_flt = df_flt[np.logical_and(depths>dep_ranges[0],depths<dep_ranges[1])]
+        else: 
+            gt1_is_neutral = map(is_clonal_neutral,df_flt.gtype1.values)
+            gt2_is_neutral = map(is_clonal_neutral,df_flt.gtype2.values)
+            is_neutral = np.logical_and(gt1_is_neutral,gt2_is_neutral)
+            df_flt = df_flt[is_neutral] 
+            #df_flt = df_flt[is_neutral & (df_flt.norm_mean<np.percentile(df_flt.norm_mean,perc))] 
+            df_flt = filter_outlying_norm_wins(df_flt)
     elif len(cnv)>0:
-        df_flt = df_flt[np.logical_or(df_flt.gtype1.values!='',df_flt.gtype2.values!='')]
-        cns_bp1 = cluster.get_weighted_cns(df_flt.gtype1.values)
-        cns_bp2 = cluster.get_weighted_cns(df_flt.gtype2.values)
-        df_flt = filter_outlying_norm_wins(df_flt,[cns_bp1,cns_bp2])
-        #df_flt = df_flt[np.logical_and(df_flt.bp1_win_norm<600,df_flt.bp2_win_norm<600)]
+        if are_snvs:
+            df_flt = df_flt[df_flt.gtype.values!='']
+
+            # weight ranges by copy-numbers
+            depths = df_flt['ref'].values + df_flt['var'].values
+            cns = cluster.get_weighted_cns(df_flt.gtype.values)
+            cn_nonzero = np.logical_not(cns==0) 
+            depths[cn_nonzero] = (depths/cns)[cn_nonzero]
+
+            dep_ranges = get_outlier_ranges(depths)
+            df_flt = df_flt[np.logical_and(depths>dep_ranges[0],depths<dep_ranges[1])]
+        else:
+            df_flt = df_flt[np.logical_or(df_flt.gtype1.values!='',df_flt.gtype2.values!='')]
+            df_flt = filter_outlying_norm_wins(df_flt)
+            #df_flt = df_flt[np.logical_and(df_flt.bp1_win_norm<600,df_flt.bp2_win_norm<600)]
     return df_flt
 
 def cnv_overlaps(bp_pos,cnv_start,cnv_end):
@@ -106,33 +120,96 @@ def get_genotype(cnrow):
     g_str = ["%d,%d,%f"%(gt[0],gt[1],gt[2]) for gt in gtype]
     return '|'.join(g_str)
 
-def load_snvs(snvs,sample):
+def load_snvs_mutect(snvs,sample):
     vcf_reader = vcf.Reader(filename=snvs)
-    snv_dtype = [('chrom','S50'),('pos',int),('gtype','S50'),('ref',int),('var',int)]
+    snv_dtype = [('chrom','S50'),('pos',int),('gtype','S50'),('ref',float),('var',float)]
     snv_df = np.empty([0,5],dtype=snv_dtype)
-    
-    samples = vcf_reader.samples
-    vcf_sample = samples[0]
-    if len(samples)>1:
-        vcf_sample = np.array(samples)[pd.Series(samples).isin(['TUMOUR','TUMOR',sample]).values]
-        if len(vcf_sample)==0 or len(vcf_sample)>1: 
-            print("Unclear which sample to choose. Please label sample as 'TUMOUR'/'TUMOR' or sample name (as provided)")
-            return pd.DataFrame()
-        vcf_sample = vcf_sample[0]
-    
-    try:
-        for record in vcf_reader:
-            #ad = record.genotype(sample)['AD']
-            rc_name = '%sZ'%record.ALT[0]
-            rc_sum = int(record.genotype('TUMOUR')['F%s'%rc_name])
-            rc_sum = rc_sum + int(record.genotype('TUMOUR')['R%s'%rc_name])
-            if rc_sum!=0:
-                #tmp = np.array((record.CHROM,record.POS,'',ad[0],ad[1]),dtype=snv_dtype)
-                tmp = np.array((record.CHROM,record.POS,'',int(record.INFO['DP']),rc_sum),dtype=snv_dtype)
-                snv_df = np.append(snv_df,tmp)
-    except ValueError:
-        ipdb.set_trace()
 
+    samples = vcf_reader.samples
+    if not np.any(np.array(samples)==sample):
+        raise Exception('Could not find sample in VCF. Ensure a genotype column corresponding to %s exists.' % sample)
+
+    for record in vcf_reader:
+        if record.FILTER is not None:
+            if len(record.FILTER)>0:
+                continue
+        ad = record.genotype(sample)['AD']
+        ref_reads, variant_reads = float(ad[0]), float(ad[1])
+        total_reads = ref_reads + variant_reads
+        if variant_reads!=0:
+            tmp = np.array((record.CHROM,record.POS,'',ref_reads,variant_reads),dtype=snv_dtype)
+            snv_df = np.append(snv_df,tmp)
+
+    return pd.DataFrame(snv_df)
+
+def load_snvs_sanger(snvs):
+    vcf_reader = vcf.Reader(filename=snvs)
+    snv_dtype = [('chrom','S50'),('pos',int),('gtype','S50'),('ref',float),('var',float)]
+    snv_df = np.empty([0,5],dtype=snv_dtype)
+
+    #code adapted from: https://github.com/morrislab/phylowgs/blob/master/parser/create_phylowgs_inputs.py
+    samples = vcf_reader.samples
+    if samples[0]!='NORMAL' or samples[1]!='TUMOUR':
+        raise Exception('VCF SNV file is of invalid format. Expected "NORMAL" and "TUMOUR" samples.')
+
+    for record in vcf_reader:
+        # get most likely genotypes
+        genotypes = [record.INFO['TG'], record.INFO['SG']]        
+        if len(genotypes)==0:
+            continue
+        if record.FILTER is not None:
+            if len(record.FILTER)>0:
+                continue
+    
+        variant_set = set()
+        reference_nt = ''
+        while len(variant_set) == 0:
+            if len(genotypes) == 0:
+                break
+                #raise Exception('No more genotypes to find variant_nt in for %s' % variant)
+            gt = genotypes.pop(0)
+            normal_gt, tumour_gt = gt.split('/')
+            if normal_gt[0] == normal_gt[1]:
+                reference_nt = normal_gt[0]
+                variant_set = set(tumour_gt) - set(reference_nt)
+        variant_nt = variant_set.pop() if len(variant_set)!=0 else ''
+        
+        if variant_nt=='':
+            print('Warning: no valid genotypes for variant %s:%d; skipping.'%(record.CHROM,record.POS))
+            continue
+            
+        normal = record.genotype('NORMAL')
+        tumour = record.genotype('TUMOUR')
+
+        tumor_reads = {
+          'forward': {
+            'A': int(tumour['FAZ']),
+            'C': int(tumour['FCZ']),
+            'G': int(tumour['FGZ']),
+            'T': int(tumour['FTZ']),
+          },
+          'reverse': {
+            'A': int(tumour['RAZ']),
+            'C': int(tumour['RCZ']),
+            'G': int(tumour['RGZ']),
+            'T': int(tumour['RTZ']),
+          },
+        }
+
+        ref_reads = tumor_reads['forward'][reference_nt] + tumor_reads['reverse'][reference_nt]
+        variant_reads = tumor_reads['forward'][variant_nt] + tumor_reads['reverse'][variant_nt]
+        total_reads = ref_reads + variant_reads
+        
+        if variant_reads!=0:
+            tmp = np.array((record.CHROM,record.POS,'',ref_reads,variant_reads),dtype=snv_dtype)
+            snv_df = np.append(snv_df,tmp)
+
+    #import matplotlib.pyplot as plt
+    #fig, axes = plt.subplots(1, 1, sharex=False, sharey=False)
+    #dep = snv_df['ref']+snv_df['var']
+    #sup = map(float,snv_df['var'])
+    #axes.hist(sup/dep);plt.savefig('/home/mcmero/Desktop/test')
+    #ipdb.set_trace()
     return pd.DataFrame(snv_df)
 
 def is_same_sv(sv1,sv2):
@@ -144,7 +221,7 @@ def is_same_sv(sv1,sv2):
             return True
     return False
 
-def run(samples,svs,gml,cnvs,rlens,inserts,pis,ploidies,out,n_runs,num_iters,burn,thin,beta,neutral,snvs):
+def run(samples,svs,gml,cnvs,rlens,inserts,pis,ploidies,out,n_runs,num_iters,burn,thin,beta,neutral,snvs,vcf_format):
     if not os.path.exists(out):
         os.makedirs(out)
 
@@ -162,7 +239,10 @@ def run(samples,svs,gml,cnvs,rlens,inserts,pis,ploidies,out,n_runs,num_iters,bur
         snv_df = pd.DataFrame()
        
         if snvs!="":
-            snv_df = load_snvs(snvs,sample)
+            if vcf_format == 'sanger':
+                snv_df = load_snvs_sanger(snvs)
+            elif vcf_format == 'mutect':
+                snv_df = load_snvs_mutect(snvs,sample)
 
         filt_svs_file = '%s/%s_filtered_svs.tsv'%(out,sample)
 #        if os.path.isfile(filt_svs_file):
@@ -207,7 +287,8 @@ def run(samples,svs,gml,cnvs,rlens,inserts,pis,ploidies,out,n_runs,num_iters,bur
                 snv_df = snv_df[snv_df.chrom.values!='']
                 var = np.array(map(float,snv_df['var'].values))
                 ref = np.array(map(float,snv_df['ref'].values))
-                snv_df = snv_df[np.logical_and(var>0,var/(var+ref)>params.subclone_threshold)]
+                snv_df = run_cnv_filter(snv_df,cnv,neutral,are_snvs=True)
+                #snv_df = snv_df[np.logical_and(var>0,var/(var+ref)>params.subclone_threshold)]
 
             sv_df['gtype1'] = "" 
             sv_df['gtype2'] = "" 
@@ -224,6 +305,11 @@ def run(samples,svs,gml,cnvs,rlens,inserts,pis,ploidies,out,n_runs,num_iters,bur
             sv_df['gtype2'] = '1,1,1.000000'
             #sv_df = sv_df[(sv_df.norm_mean<np.percentile(sv_df.norm_mean,85))]                
             sv_df = filter_outlying_norm_bins(sv_df)
+
+        #reindex data frames
+        sv_df.index = range(len(sv_df))
+        if len(snv_df)>0: snv_df.index = range(len(snv_df))
+
         sv_df.index = range(len(sv_df))
         sv_df.to_csv('%s/%s_filtered_svs.tsv'%(out,sample),sep='\t',index=False,na_rep='')
         
