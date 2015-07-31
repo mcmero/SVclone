@@ -134,10 +134,10 @@ def get_snv_vals(df):
     return b,n,cn_r,cn_v,mu_v
 
 def fit_and_sample(model, iters, burn, thin):
-    # map_ = pm.MAP(model)
-    # map_.fit()
-    mcmc = pm.MCMC(model)
-    mcmc.sample(iters, burn=burn, thin=thin)
+    map_ = pm.MAP( model )
+    map_.fit( method = 'fmin_powell' )
+    mcmc = pm.MCMC( model )
+    mcmc.sample( iters, burn=burn, thin=thin )
     return mcmc
 
 def get_pv(phi,cn_r,cn_v,mu,pi):
@@ -176,7 +176,7 @@ def get_most_likely_cn(cn_r,cn_v,mu_v,si,di,phi,pi):
 
 def cluster(df,pi,rlen,insert,ploidy,iters,burn,thin,beta,are_snvs=False,Ndp=param.clus_limit):
     '''
-    inital clustering using Dirichlet Process
+    clustering model using Dirichlet Process
     '''
     pl = ploidy
     sup,dep,cn_r,cn_v,mu_v = [],[],[],[],[]
