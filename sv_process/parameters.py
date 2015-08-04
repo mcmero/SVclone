@@ -3,6 +3,9 @@ import numpy as np
 # PREPROCESSING PARAMETERS
 tr              = 5    # "wobble length" tolerance threshold which we allow breaks to be inexact
 window          = 500  # base-pairs considered to the left and right of the break
+min_mapq        = 20   # minimum average mapq for socrates input only
+valid_chroms    = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '10', '11', '12', \
+                   '13', '14', '15', '16', '17', '18', '19', '20', '21', '22', 'X', 'Y']
 
 # parameters extracted for each read from BAMs
 read_dtype      = [('query_name',       'S150'), 
@@ -29,13 +32,17 @@ sv_vcf_dtype    = [('CHROM',             'S50'),
                    ('TUMOUR',            'S200')]
 
 sv_dtype        = [('bp1_chr',          'S20'),
-                   ('bp1_pos',          int),
-                   ('bp2_chr',          'S20'), 
-                   ('bp2_pos',          int),
-                   ('classification',   'S100')]     
+                   ('bp1_pos',            int),
+#                   ('bp1_dir',           'S1'),
+                   ('bp2_chr',          'S20'),
+                   ('bp2_pos',            int)]
+#                  ('bp2_dir',           'S1')] 
+#                   ('classification',   'S100')]     
 
 # dtypes for SV output file
-sv_out_dtype    = [('bp1_split_norm',   int), 
+sv_out_dtype    = [('bp1_dir',          'S1'),
+                   ('bp2_dir',          'S1'),
+                   ('bp1_split_norm',   int), 
                    ('bp1_span_norm',    int),
                    ('bp1_win_norm',     int), 
                    ('bp1_split',        int), 

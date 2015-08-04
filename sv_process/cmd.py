@@ -33,6 +33,8 @@ parser.add_argument("--insert_std",dest="insert_std",default=-1.,type=float,
         help="Standard deviation of insert length. If not specified, will be inferred")
 parser.add_argument("--simple",dest="simple_svs",action="store_true",
         help="Whether sv input is in a simple format (see README), otherwise VCF format is assumed.")
+parser.add_argument("--socrates",dest="socrates",action="store_true",
+        help="Whether sv input is 'Socrates' SV caller input.")
 args = parser.parse_args()
 
 svin    = args.svin
@@ -45,7 +47,8 @@ rlen    = int(args.rlen)
 ins_mn  = float(args.insert_mean)
 ins_sd  = float(args.insert_std)
 simple  = args.simple_svs
+soc     = args.socrates
 
 if __name__ == '__main__':
-    process.proc_svs(simple,svin,bam,out,mean_dp,sc_len,max_cn,rlen,ins_mn,ins_sd)
+    process.proc_svs(simple,soc,svin,bam,out,mean_dp,sc_len,max_cn,rlen,ins_mn,ins_sd)
 
