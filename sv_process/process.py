@@ -10,6 +10,10 @@ from collections import OrderedDict
 from operator import methodcaller
 from . import parameters as params
 from . import bamtools
+from . import svDetectFuncs as svd
+
+#TODO: remove after testing
+import ipdb
 
 def read_to_array(x,bamf):
     chrom = bamf.getrname(x.reference_id)
@@ -193,26 +197,25 @@ def get_loc_counts(loc_reads,pos,rc,reproc,split,norm,max_ins,sc_len,bp_num=1):
     return rc, reproc, split, norm
 
 def get_dir_split(split,sc_len):
-    try:
-        align_mean =  np.mean(split['align_start'])
-        assign_dir = '+' if align_mean < sc_len else '-'
-        return assign_dir
-    except TypeError:
-        ipdb.set_trace()
+    align_mean =  np.mean(split['align_start'])
+    assign_dir = '+' if align_mean < sc_len else '-'
+    return assign_dir
 
 def get_dir_span(span):
     is_rev = np.sum(span['is_reverse'])
     assign_dir = '+' if is_rev <= len(span)/2 else '-'
     return assign_dir
 
-def get_dir(split,span,loc_reads,pos,sc_len):
+def get_dir(split,span,loc_reads,pos,sc_len):    
+    # split read direction tends to be more reliable
     if len(split)>0 and len(split)>=len(span):
-        # split read direction tends to be more reliable
         dir_split = get_dir_split(split,sc_len)
         return dir_split
+        
     elif len(span)>0:
         dir_span = get_dir_span(span)
         return dir_span 
+        
     else:
         split_reads = np.where([is_supporting_split_read_lenient(x,pos) for x in loc_reads])[0]
         split_all = loc_reads[split_reads]
@@ -222,7 +225,7 @@ def get_dir(split,span,loc_reads,pos,sc_len):
         else:
             return '?'
 
-def get_sv_read_counts(bp1,bp2,bam,inserts,max_dp,max_ins,sc_len):
+def get_sv_read_counts(bp1,bp2,bam,inserts,max_dp,max_ins,sc_len,use_dir):
     bamf = pysam.AlignmentFile(bam, "rb")
     pos1 = (bp1['start'] + bp1['end']) / 2
     pos2 = (bp2['start'] + bp2['end']) / 2
@@ -269,31 +272,14 @@ def get_sv_read_counts(bp1,bp2,bam,inserts,max_dp,max_ins,sc_len):
             span_bp1 = np.append(span_bp1,r1)
             span_bp2 = np.append(span_bp2,r2)
             rc['spanning'] = rc['spanning']+1
-   
-    rc['bp1_dir'] = get_dir(split_bp1,span_bp1,loc1_reads,pos1,sc_len)
-    rc['bp2_dir'] = get_dir(split_bp2,span_bp2,loc2_reads,pos2,sc_len)
-    #dir1 = rc['bp1_dir'][0]
-    #dir2 = rc['bp2_dir'][0]
-    #socdir1 = bp1['dir']    
-    #socdir2 = bp2['dir']
-    # if (dir1!='?' and dir1!=socdir1):
-        # split_reads1 = np.where([is_supporting_split_read_lenient(x,pos1) for x in loc1_reads])[0]
-        # split1 = loc1_reads[split_reads1]        
-        # if len(split1)>0:
-            # split1_mean = np.mean(split1['align_start'])
-            # with open('assign.txt','a') as outp:
-                # outp.write('%s:%s\t%s\t%s\t%f\t%d\t%f\t%d\n'%\
-                    # (bp1['chrom'],pos1,dir1,socdir1,np.mean(split_bp1['align_start']),\
-                        # len(split_bp1),split1_mean,len(split1)))
-    # elif (dir2!='?' and dir2!=socdir2):
-        # split_reads2 = np.where([is_supporting_split_read_lenient(x,pos2) for x in loc2_reads])[0]
-        # split2 = loc2_reads[split_reads2]
-        # if len(split2)>0:
-            # split2_mean = np.mean(split2['align_start'])
-            # with open('assign.txt','a') as outp:
-                # outp.write('%s:%s\t%s\t%s\t%f\t%d\t%f\t%d\n'%\
-                    # (bp2['chrom'],pos2,dir2,socdir2,np.mean(split_bp2['align_start']),\
-                        # len(split_bp2),split2_mean,len(split2)))
+  
+    if use_dir:
+        rc['bp1_dir'] = bp1['dir']
+        rc['bp2_dir'] = bp2['dir']
+    else:
+        # estimate SV directionality
+        rc['bp1_dir'] = get_dir(split_bp1,span_bp1,loc1_reads,pos1,sc_len)
+        rc['bp2_dir'] = get_dir(split_bp2,span_bp2,loc2_reads,pos2,sc_len)
 
     print('processed %d reads at loc1; %d reads at loc2' % (len(loc1_reads),len(loc2_reads)))
     return rc
@@ -316,40 +302,67 @@ def get_params(bam,mean_dp,max_cn,rlen,insert_mean,insert_std,out):
 
     return rlen, inserts, max_dp, max_ins
 
-def remove_duplicates(svs):
+def remove_duplicates(svs,use_dir):
     for idx,row in enumerate(svs):
         #reorder breakpoints based on position or chromosomes
-        #bp1_chr, bp1_pos, bp1_dir, bp2_chr, bp2_pos, bp2_dir = row
-        bp1_chr, bp1_pos, bp2_chr, bp2_pos = row
-        if (bp1_chr!=bp2_chr and bp1_chr>bp2_chr) or (bp1_chr==bp2_chr and bp1_pos > bp2_pos):
-            #svs[idx] = (bp2_chr,bp2_pos,bp2_dir,bp1_chr,bp1_pos,bp1_dir)
-            svs[idx] = (bp2_chr,bp2_pos,bp1_chr,bp1_pos)
+        if use_dir:
+            bp1_chr, bp1_pos, bp1_dir, bp2_chr, bp2_pos, bp2_dir = row
+            if (bp1_chr!=bp2_chr and bp1_chr>bp2_chr) or (bp1_chr==bp2_chr and bp1_pos > bp2_pos):
+                svs[idx] = (bp2_chr,bp2_pos,bp2_dir,bp1_chr,bp1_pos,bp1_dir)
+        else:
+            bp1_chr, bp1_pos, bp2_chr, bp2_pos = row
+            if (bp1_chr!=bp2_chr and bp1_chr>bp2_chr) or (bp1_chr==bp2_chr and bp1_pos > bp2_pos):
+                svs[idx] = (bp2_chr,bp2_pos,bp1_chr,bp1_pos)
     return np.unique(svs)
 
-def load_input(svin,simple,socrates,rlen):
+def load_input(svin,simple,socrates,rlen,use_dir):
+    sv_dtype = list(params.sv_dtype)
+    if not use_dir:
+        del sv_dtype[5]
+        del sv_dtype[2]
     if simple:
-        svs = np.genfromtxt(svin,dtype=params.sv_dtype,delimiter='\t',skip_header=1)
-        return remove_duplicates(svs)
+        sv_tmp = np.genfromtxt(svin,delimiter='\t',names=True,dtype=None)
+        svs = np.empty(0,dtype=sv_dtype)
+        for row in sv_tmp:
+            bp1_chr = str(row['bp1_chr'])
+            bp1_pos = int(row['bp1_pos'])
+            bp2_chr = str(row['bp2_chr'])
+            bp2_pos = int(row['bp2_pos'])
+            add_sv = np.empty(0)
+            if use_dir:
+                bp1_dir = str(row['bp1_dir'])
+                bp2_dir = str(row['bp2_dir'])
+                add_sv = np.array([(bp1_chr,bp1_pos,bp1_dir,bp2_chr,bp2_pos,bp2_dir)],dtype=sv_dtype)
+            else:
+                add_sv = np.array([(bp1_chr,bp1_pos,bp2_chr,bp2_pos)],dtype=sv_dtype)
+            svs = np.append(svs,add_sv)
+        return remove_duplicates(svs,use_dir)
     elif socrates:
         soc_in = np.genfromtxt(svin,delimiter='\t',names=True,dtype=None)
-        svs = np.empty(0,dtype=params.sv_dtype)
+        svs = np.empty(0,dtype=sv_dtype)
 
         for row in soc_in:
             bp1 = row['C1_anchor'].split(':')
             bp2 = row['C1_realign'].split(':')
-            bp1_chr, bp1_pos = bp1[0], int(bp1[1])#, row['C1_anchor_dir']
-            bp2_chr, bp2_pos = bp2[0], int(bp2[1])#, row['C1_realign_dir']
+            bp1_chr, bp1_pos = bp1[0], int(bp1[1]) 
+            bp2_chr, bp2_pos = bp2[0], int(bp2[1])
+            #classification = row['classification']
             if not bp1_chr in params.valid_chroms or not bp2_chr in params.valid_chroms:
                 continue
             if (bp1_chr==bp2_chr and abs(bp1_pos-bp2_pos)<(rlen*2)):
                 continue
             if row['C1_avg_realign_mapq']<params.min_mapq or row['C2_avg_realign_mapq']<params.min_mapq:
                 continue
-            #add_sv = np.array([(bp1_chr,bp1_pos,bp1_dir,bp2_chr,bp2_pos,bp2_dir)],dtype=params.sv_dtype)
-            add_sv = np.array([(bp1_chr,bp1_pos,bp2_chr,bp2_pos)],dtype=params.sv_dtype)
+            add_sv = np.empty(0)
+            if use_dir:
+                bp1_dir = row['C1_anchor_dir']
+                bp2_dir = row['C1_realign_dir']
+                add_sv = np.array([(bp1_chr,bp1_pos,bp1_dir,bp2_chr,bp2_pos,bp2_dir)],dtype=sv_dtype)
+            else:
+                add_sv = np.array([(bp1_chr,bp1_pos,bp2_chr,bp2_pos)],dtype=sv_dtype)
             svs = np.append(svs,add_sv)
 
-        return remove_duplicates(svs)
+        return remove_duplicates(svs,use_dir)
 
     svs = OrderedDict()
     svs = np.genfromtxt(svin,dtype=params.sv_vcf_dtype,delimiter='\t',comments="#")
@@ -387,7 +400,6 @@ def load_input(svin,simple,socrates,rlen):
             bp1_pos = sv['POS']
             bp2_chr = mate['CHROM']
             bp2_pos = mate['POS']
-            #classification = sv['INFO']['SVTYPE']
             
             procd = np.append(procd,[sv_id,mate_id])
             new_sv = np.array([(bp1_chr,bp1_pos,bp2_chr,bp2_pos)],dtype=params.sv_dtype)        
@@ -398,7 +410,21 @@ def load_input(svin,simple,socrates,rlen):
 
     return sv_array
 
-def proc_svs(simple,socrates,svin,bam,out,mean_dp,sc_len,max_cn,rlen,insert_mean,insert_std):
+def proc_svs(args):
+
+    svin         = args.svin
+    bam          = args.bam
+    out          = args.out
+    mean_dp      = float(args.mean_dp)
+    sc_len       = int(args.sc_len)
+    max_cn       = int(args.max_cn)
+    rlen         = int(args.rlen)
+    insert_mean  = float(args.insert_mean)
+    insert_std   = float(args.insert_std)
+    simple       = args.simple_svs
+    socrates     = args.socrates
+    use_dir      = args.use_dir
+    
     db_out = '%s_svinfo.db'%out
     outf = '%s_svinfo.txt'%out
     
@@ -406,32 +432,42 @@ def proc_svs(simple,socrates,svin,bam,out,mean_dp,sc_len,max_cn,rlen,insert_mean
     if dirname!='' and not os.path.exists(dirname):
         os.makedirs(dirname)
 
-    rlen, inserts, max_dp, max_ins = get_params(bam, mean_dp, max_cn, rlen, insert_mean,insert_std, out)
+    rlen, inserts, max_dp, max_ins = get_params(bam, mean_dp, max_cn, rlen, insert_mean, insert_std, out)
 
     # write header output
     header_out = [h[0] for h in params.sv_dtype]
     header_out.extend([h[0] for h in params.sv_out_dtype])
+    header_out.append('ID')
+    if use_dir:
+        del header_out[5]
+        del header_out[2]
     with open('%s_svinfo.txt'%out,'w') as outf:        
         writer = csv.writer(outf,delimiter='\t',quoting=csv.QUOTE_NONE)
         writer.writerow(header_out)
 
-    #bp1_chr,bp1_pos,bp1_dir,bp2_chr,bp2_pos,bp2_dir = [h[0] for h in params.sv_dtype] 
-    bp1_chr,bp1_pos,bp2_chr,bp2_pos = [h[0] for h in params.sv_dtype] 
-    #bp_dtype = [('chrom','S20'),('start', int), ('end', int), ('dir', 'S1')]
-    bp_dtype = [('chrom','S20'),('start', int), ('end', int)]
+    bp_dtype = [('chrom','S20'),('start', int), ('end', int), ('dir', 'S1')] if use_dir else [('chrom','S20'),('start', int), ('end', int)]
+    sv_dtype = params.sv_dtype
+    bp1_chr,bp1_pos,bp1_dir,bp2_chr,bp2_pos,bp2_dir = [h[0] for h in sv_dtype]
     
-    svs = load_input(svin,simple,socrates,rlen)
-    
-    for row in svs:
+    svs = load_input(svin,simple,socrates,rlen,use_dir)
+    print("Extracting data from %d SVs"%len(svs))
+
+    svd_prevResult, prevSV = None, None
+    id = 0
+    for row in svs:        
         sv_prop = row[bp1_chr],row[bp1_pos],row[bp2_chr],row[bp2_pos]
         sv_str = '%s:%d|%s:%d'%sv_prop
 
         print('processing %s'%sv_str)
-        #bp1 = np.array((row[bp1_chr],row[bp1_pos]-params.window,row[bp1_pos]+params.window,row[bp1_dir]),dtype=bp_dtype)
-        #bp2 = np.array((row[bp2_chr],row[bp2_pos]-params.window,row[bp2_pos]+params.window,row[bp2_dir]),dtype=bp_dtype)
-        bp1 = np.array((row[bp1_chr],row[bp1_pos]-params.window,row[bp1_pos]+params.window),dtype=bp_dtype)
-        bp2 = np.array((row[bp2_chr],row[bp2_pos]-params.window,row[bp2_pos]+params.window),dtype=bp_dtype)
-        sv_rc  = get_sv_read_counts(bp1,bp2,bam,inserts,max_dp,max_ins,sc_len)
+        sv_rc = np.empty(0)
+        if use_dir:
+            bp1 = np.array((row[bp1_chr],row[bp1_pos]-params.window,row[bp1_pos]+params.window,row[bp1_dir]),dtype=bp_dtype)
+            bp2 = np.array((row[bp2_chr],row[bp2_pos]-params.window,row[bp2_pos]+params.window,row[bp2_dir]),dtype=bp_dtype)
+            sv_rc  = get_sv_read_counts(bp1,bp2,bam,inserts,max_dp,max_ins,sc_len,use_dir)
+        else:
+            bp1 = np.array((row[bp1_chr],row[bp1_pos]-params.window,row[bp1_pos]+params.window),dtype=bp_dtype)
+            bp2 = np.array((row[bp2_chr],row[bp2_pos]-params.window,row[bp2_pos]+params.window),dtype=bp_dtype)
+            sv_rc  = get_sv_read_counts(bp1,bp2,bam,inserts,max_dp,max_ins,sc_len,use_dir)
         
         if len(sv_rc) > 0:
             norm1 = int(sv_rc['bp1_split_norm']+sv_rc['bp1_span_norm'])
@@ -443,9 +479,23 @@ def proc_svs(simple,socrates,svin,bam,out,mean_dp,sc_len,max_cn,rlen,insert_mean
             sv_rc['support'] = support
             sv_rc['vaf1'] = support / (support + norm1) if support!=0 else 0
             sv_rc['vaf2'] = support / (support + norm2) if support!=0 else 0
-            sv_out = [r for r in row]          
+           
+            #classify event
+            sv = (row['bp1_chr'],row['bp1_pos'],sv_rc['bp1_dir'][0],row['bp2_chr'],row['bp2_pos'],sv_rc['bp2_dir'][0])
+            svd_result = svd.detect(prevSV,svd_prevResult,sv)
+            svd_prevResult,prevSV = svd_result,sv
+            sv_rc['classification'] = svd.getResultString(svd_result)
+            id = id if svd.getResultString(svd_result)=="INTINS" else id+1
+#            if row['classification']!=sv_rc['classification']:
+#                with open('assign.txt','a') as outp:
+#                    outp.write('%s:%d %s %s:%d %s'%sv + ' soc_class = %s; integrated = %s\n' % (row['classification'],sv_rc['classification']))
+            sv_out = [r for r in row]
+            if use_dir:
+                del sv_out[5]
+                del sv_out[2]
             sv_out.extend([rc for rc in sv_rc[0]])
-            
+            sv_out.append(id)
+
             with open('%s_svinfo.txt'%out,'a') as outf:
                 writer = csv.writer(outf,delimiter='\t',quoting=csv.QUOTE_NONE)
                 writer.writerow(sv_out)

@@ -33,11 +33,11 @@ sv_vcf_dtype    = [('CHROM',             'S50'),
 
 sv_dtype        = [('bp1_chr',          'S20'),
                    ('bp1_pos',            int),
-#                   ('bp1_dir',           'S1'),
+                   ('bp1_dir',           'S1'),
                    ('bp2_chr',          'S20'),
-                   ('bp2_pos',            int)]
-#                  ('bp2_dir',           'S1')] 
-#                   ('classification',   'S100')]     
+                   ('bp2_pos',            int),
+                   ('bp2_dir',           'S1')]
+#                   ('classification',    'S100')] 
 
 # dtypes for SV output file
 sv_out_dtype    = [('bp1_dir',          'S1'),
@@ -57,4 +57,5 @@ sv_out_dtype    = [('bp1_dir',          'S1'),
                    ('norm2',            int), 
                    ('support',          int),
                    ('vaf1',             float),
-                   ('vaf2',             float)]
+                   ('vaf2',             float),
+                   ('classification',   'S20')]
