@@ -365,10 +365,10 @@ def load_input(svin,simple,socrates,rlen,use_dir):
         return remove_duplicates(svs,use_dir)
 
     svs = OrderedDict()
-    svs = np.genfromtxt(svin,dtype=params.sv_vcf_dtype,delimiter='\t',comments="#")
+    sv_vcf = np.genfromtxt(svin,dtype=params.sv_vcf_dtype,delimiter='\t',comments="#")
     keys = [key[0] for key in params.sv_vcf_dtype]
     
-    for sv in svs:
+    for sv in sv_vcf:
         sv_id = sv['ID']
         svs[sv_id] = OrderedDict()
         for key,sv_data in zip(keys,sv):
@@ -435,19 +435,17 @@ def proc_svs(args):
     rlen, inserts, max_dp, max_ins = get_params(bam, mean_dp, max_cn, rlen, insert_mean, insert_std, out)
 
     # write header output
-    header_out = [h[0] for h in params.sv_dtype]
+    header_out = ['ID'] + [h[0] for idx,h in enumerate(params.sv_dtype) if idx not in [2,5]] #don't include dir fields
     header_out.extend([h[0] for h in params.sv_out_dtype])
-    header_out.append('ID')
-    if use_dir:
-        del header_out[5]
-        del header_out[2]
+    
     with open('%s_svinfo.txt'%out,'w') as outf:        
         writer = csv.writer(outf,delimiter='\t',quoting=csv.QUOTE_NONE)
         writer.writerow(header_out)
 
-    bp_dtype = [('chrom','S20'),('start', int), ('end', int), ('dir', 'S1')] if use_dir else [('chrom','S20'),('start', int), ('end', int)]
+    bp_dtype = [('chrom','S20'),('start', int), ('end', int), ('dir', 'S1')] if use_dir \
+                 else [('chrom','S20'),('start', int), ('end', int)]
     sv_dtype = params.sv_dtype
-    bp1_chr,bp1_pos,bp1_dir,bp2_chr,bp2_pos,bp2_dir = [h[0] for h in sv_dtype]
+    bp1_chr, bp1_pos, bp1_dir, bp2_chr, bp2_pos, bp2_dir = [h[0] for h in sv_dtype]
     
     svs = load_input(svin,simple,socrates,rlen,use_dir)
     print("Extracting data from %d SVs"%len(svs))
@@ -484,19 +482,31 @@ def proc_svs(args):
             sv = (row['bp1_chr'],row['bp1_pos'],sv_rc['bp1_dir'][0],row['bp2_chr'],row['bp2_pos'],sv_rc['bp2_dir'][0])
             svd_result = svd.detect(prevSV,svd_prevResult,sv)
             svd_prevResult,prevSV = svd_result,sv
-            sv_rc['classification'] = svd.getResultString(svd_result)
-            id = id if svd.getResultString(svd_result)=="INTINS" else id+1
+            sv_rc['classification'] = svd.getResultType(svd_result)
+            id = id if svd_result==svd.SVtypes.interspersedInsertion else id+1
 #            if row['classification']!=sv_rc['classification']:
 #                with open('assign.txt','a') as outp:
 #                    outp.write('%s:%d %s %s:%d %s'%sv + ' soc_class = %s; integrated = %s\n' % (row['classification'],sv_rc['classification']))
-            sv_out = [r for r in row]
-            if use_dir:
-                del sv_out[5]
-                del sv_out[2]
+            sv_out = [id] + [r for idx,r in enumerate(row) if idx not in [2,5]]
             sv_out.extend([rc for rc in sv_rc[0]])
-            sv_out.append(id)
 
             with open('%s_svinfo.txt'%out,'a') as outf:
                 writer = csv.writer(outf,delimiter='\t',quoting=csv.QUOTE_NONE)
                 writer.writerow(sv_out)
-
+    
+    #post-process: look for translocations
+    sv_info = np.genfromtxt('%s_svinfo.txt'%out,delimiter='\t',names=True,dtype=None)
+    trx_label = svd.getResultType([svd.SVtypes.translocation])
+    intins_label = svd.getResultType([svd.SVtypes.interspersedInsertion])
+    rewrite=False
+    for idx,sv in enumerate(sv_info):
+        if sv['classification']==intins_label:
+            rewrite=True
+            translocs = svd.detectTransloc(idx,sv_info)
+            if len(translocs)>0:
+                for tloc,classif in translocs:
+                    sv_info[i]['classification'] = trx_label
+            else:
+                sv_info[idx-1]['classification'] = intins_label
+    if rewrite:
+        np.savetxt('%s_svinfo.txt'%out,sv_info,delimiter='\t')

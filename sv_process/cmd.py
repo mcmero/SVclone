@@ -22,7 +22,7 @@ parser.add_argument("-sc","--softclip_bp",dest="sc_len",default=25,type=int,
         help="Optional: minimum number of basepairs by which reads spanning the break are considered support " + \
              "the breakpoint. Also affects number of base-pairs a normal read must overlap the break to be " + \
              "counted. Default = 25")
-parser.add_argument("-cn","--max_cn",dest="max_cn",default=15,type=int,
+parser.add_argument("-cn","--max_cn",dest="max_cn",default=10,type=int,
         help="Optional: maximum expected copy-number. Will skip the processing of any areas where" + \
              "# reads > average coverage * max_cn")
 parser.add_argument("-r","--read_len",dest="rlen",default=-1,type=int,

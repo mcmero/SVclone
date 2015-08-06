@@ -23,34 +23,52 @@ class SVtypes:
     novelInsertion=16
     interchromosomal=32
 
-def getResultString(result):
-    string=""
-    bpstr=""
-    r=result[0]
-    if r==-1: # deleted by merging two lines
-        return
-    if r==-2:
-        return
-        string="deleted for translocation"
-    if r==SVtypes.tandem:
-        string="DUP"
-    if r==SVtypes.deletion:
-        string="DEL"
-    if r==SVtypes.inversion:
-        string="INV"
-    if r==SVtypes.interspersedInsertion:
-        string="INTINS"
-    if r==SVtypes.translocation:
-        string="TRX"
-    if r==SVtypes.novelInsertion:
-        string="INS"
-    if r==SVtypes.error:
-        string="Unknown"
-    if r==SVtypes.interchromosomal:
-        string="INTRX"
-#    for breakpoint in result[1]:
-#        bpstr+=delimeter+breakpoint
-    return string#+bpstr
+def getTypeFromSting(classification):
+    if classification=="DUP":
+        return SVtypes.tandem
+    elif classification=="DEL":
+        return SVtypes.deletion
+    elif classification=="INV":
+        return SVtypes.inversion
+    elif classification=="INTINS":
+        return SVtypes.interspersedInsertion
+    elif classification=="TRX":
+        return SVtypes.translocation
+    elif classification=="INS":
+        return SVtypes.novelInsertion
+    elif classification=="INTRX":
+        return SVtypes.interchromosomal
+    else:
+        return SVtypes.error
+    
+# def getResultString(result):
+    # string=""
+    # bpstr=""
+    # r=result[0]
+    # if r==-1: # deleted by merging two lines
+        # return
+    # if r==-2:
+        # return
+        # string="deleted for translocation"
+    # if r==SVtypes.tandem:
+        # string="DUP"
+    # if r==SVtypes.deletion:
+        # string="DEL"
+    # if r==SVtypes.inversion:
+        # string="INV"
+    # if r==SVtypes.interspersedInsertion:
+        # string="INTINS"
+    # if r==SVtypes.translocation:
+        # string="TRX"
+    # if r==SVtypes.novelInsertion:
+        # string="INS"
+    # if r==SVtypes.error:
+        # string="Unknown"
+    # if r==SVtypes.interchromosomal:
+        # string="INTRX"
+# #    for breakpoint in result[1]:
+# #        bpstr+=delimeter+breakpoint
+    # return string#+bpstr
     
 def getResultType(result):
     string=""
@@ -100,7 +118,7 @@ def printResultWithLine(result,content):
     print string+bpstr
 #     print string+":"+content[l].split("\t")[0].split(":")[1]
 
-def detect (prevLine,prevResult,sv):
+def detect (prevSV,prevResult,sv):
     if prevResult:
         prevResult=prevResult[0]
     result=-1
@@ -158,8 +176,8 @@ def detect (prevLine,prevResult,sv):
             result=SVtypes.error
         
         #if two lines, interspersed insertion = del + tandem
-        if prevLine:
-            panchor_chrom,pc1_anchor,pc1_anchor_dir,prealign_chrom,pc1_realign,pc1_realign_dir = prevLine
+        if prevSV:
+            panchor_chrom,pc1_anchor,pc1_anchor_dir,prealign_chrom,pc1_realign,pc1_realign_dir = prevSV
             distance1 = pc1_realign-int(c1_realign)
             distance2 = pc1_anchor-int(c1_anchor)
             if abs(distance1)<blurbp2 or abs(distance2)<blurbp2:#if this two events are nearby.
@@ -181,27 +199,28 @@ def detect (prevLine,prevResult,sv):
 #        result=SVtypes.novelInsertion
     return [result,[startPoint,endPoint]]
 
-def detectTransloc(i,resultList):
+def detectTransloc(idx,sv_info):
     tolerance=5 #tolerance for blunt.
     #find the mobile part. r:[interInserType,[p1,p2,p3,p4]]
-    r=resultList[i]
-    p1=int(r[1][0])
-    p2=int(r[1][1])
-    p3=int(r[1][2])
-    p4=int(r[1][3])
+    if idx-1 < 0:
+        return []
+    sv1 = sv_info[idx-1]
+    sv2 = sv_info[idx]
+    p1 = int(sv1['bp1_pos'])
+    p2 = int(sv1['bp2_pos'])
+    p3 = int(sv2['bp1_pos'])
+    p4 = int(sv2['bp2_pos'])
     mobilePart=[p1,p2] if abs(int(p1)-int(p2))>tolerance else [p3,p4]
     # try to find if the mobile part is deleted. If so, it is translocation.
-    ind=0
-    for rr in resultList:
-        if rr[0]==SVtypes.deletion:
-            p1=int(rr[1][0])
-            p2=int(rr[1][1])
+    translocs = []    
+    for i,rr in enumerate(sv_info):
+        if rr['classification']==getResultType(SVtypes.deletion):
+            p1 = int(rr['bp1_pos'])
+            p2 = int(rr['bp2_pos'])
             if abs(mobilePart[0]-p1)<tolerance and abs(mobilePart[1]-p2)<tolerance:
-                #is translocation
-                #resultList[ind][0]=-2
-                resultList[i][0]=SVtypes.translocation
-        ind+=1
-            
+                translocs.append([i,getResultType(SVtypes.translocation)])
+    translocs = [idx]+[idx-1]+[translocs] if len(translocs)>0 else []
+    return translocs
     
 def realignLoci(line):
     return int(line.strip().split(delimeter)[0].split(":")[1])
@@ -290,53 +309,3 @@ def writeComapreResultToHTML(myResult,stand,compareResult,recal,precision):
     html=htmlHead+htmlBody+htmlFoot
     open("index.html",'w').write(html)
 #     print "unused bk amount:", unusedbk
-    
-# def writeComapreResultToHTML(myResult,stand,compareResult):
-#     myResult=myResult.strip().split("\n")
-#     stand=stand.strip().split("\n")
-#     checkroll=[]
-#     for x in compareResult:
-#         for y in x:
-#             checkroll.append(y)
-#     
-#     htmlHead=open("head.html").read();
-#     htmlFoot=open("foot.html").read();
-#     htmlBody="";
-#     htmlCol1="";
-#     htmlCol2="";
-#     
-#     i=0;
-#     lastStandPoint=0;
-#     for cr in compareResult:
-#         
-#         if cr==[]: #my result has extra line
-# #             htmlBody+=wrapColor(wrapDIV(myResult[i]), "other2")
-#             htmlCol1+=wrapColor(wrapDIV(myResult[i]), "other2")
-#             htmlCol2+=wrapColor(wrapDIV("None source in breakpoint file"), "other2")
-#         else:
-#             jump=cr[0]-lastStandPoint
-#             if jump>1: #stand has extra line, which may be a del in translo, or missed by Socrates.
-#                 for x in range(1,jump):
-#                     if lastStandPoint+x not in checkroll:
-# #                         htmlBody+=wrapColor(wrapDIV(stand[lastStandPoint+x]), "other");
-#                         htmlCol2+=wrapColor(wrapDIV(stand[lastStandPoint+x]), "other");
-#                         htmlCol1+=wrapColor(wrapDIV("Cannot be detected"), "other");
-#                 lastStandPoint+=jump
-#             if len(cr)>0:
-#                 col2Str=""
-#                 col1Str=""
-#                 col1Str=wrapDIV(myResult[i])
-#                 for x in cr:
-#                     col2Str+=wrapDIV(stand[x])
-# #                 htmlBody+=wrapColor(lineStr, "right");
-#                 htmlCol1+=wrapColor(col1Str, "right");
-#                 htmlCol2+=wrapColor(col2Str, "right");
-#                 lastStandPoint=cr[-1]
-#         i+=1
-#     
-#     htmlrow='<div class="col-md-5">'
-#     htmlrowx='<div class="col-md-2">'
-# #     html=htmlHead+htmlBody+htmlFoot
-#     html=htmlHead+htmlrow+htmlCol1+htmlEndDiv+htmlrow+htmlCol2+htmlEndDiv+htmlrowx+htmlEndDiv+htmlFoot
-#     open("index.html",'w').write(html)
-    
