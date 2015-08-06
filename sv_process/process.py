@@ -483,17 +483,17 @@ def proc_svs(args):
             svd_result = svd.detect(prevSV,svd_prevResult,sv)
             svd_prevResult,prevSV = svd_result,sv
             sv_rc['classification'] = svd.getResultType(svd_result)
-            id = id if svd_result==svd.SVtypes.interspersedInsertion else id+1
+            id = id if svd_result[0]==svd.SVtypes.interspersedInsertion else id+1
 #            if row['classification']!=sv_rc['classification']:
 #                with open('assign.txt','a') as outp:
 #                    outp.write('%s:%d %s %s:%d %s'%sv + ' soc_class = %s; integrated = %s\n' % (row['classification'],sv_rc['classification']))
-            sv_out = [id] + [r for idx,r in enumerate(row) if idx not in [2,5]]
+            sv_out = [id] + [r for idx,r in enumerate(row)]
             sv_out.extend([rc for rc in sv_rc[0]])
 
             with open('%s_svinfo.txt'%out,'a') as outf:
                 writer = csv.writer(outf,delimiter='\t',quoting=csv.QUOTE_NONE)
                 writer.writerow(sv_out)
-    
+
     #post-process: look for translocations
     sv_info = np.genfromtxt('%s_svinfo.txt'%out,delimiter='\t',names=True,dtype=None)
     trx_label = svd.getResultType([svd.SVtypes.translocation])
