@@ -486,8 +486,9 @@ def proc_svs(args):
             id = id if svd_result[0]==svd.SVtypes.interspersedInsertion else id+1
 #            if row['classification']!=sv_rc['classification']:
 #                with open('assign.txt','a') as outp:
-#                    outp.write('%s:%d %s %s:%d %s'%sv + ' soc_class = %s; integrated = %s\n' % (row['classification'],sv_rc['classification']))
-            sv_out = [id] + [r for idx,r in enumerate(row)]
+#                    outp.write('%s:%d %s %s:%d %s'%sv + ' soc_class = %s; integrated = %s\n' % (row['classification'],sv_rc['classification']))            
+            sv_out = [id] + [r for idx,r in enumerate(row) if idx not in [2,5]] if use_dir else \
+                     [id] + [r for idx,r in enumerate(row)]
             sv_out.extend([rc for rc in sv_rc[0]])
 
             with open('%s_svinfo.txt'%out,'a') as outf:
