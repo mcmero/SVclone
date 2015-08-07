@@ -213,13 +213,13 @@ def detectTransloc(idx,sv_info):
     mobilePart=[p1,p2] if abs(int(p1)-int(p2))>tolerance else [p3,p4]
     # try to find if the mobile part is deleted. If so, it is translocation.
     translocs = []    
-    for i,rr in enumerate(sv_info):
-        if rr['classification']==getResultType(SVtypes.deletion):
-            p1 = int(rr['bp1_pos'])
-            p2 = int(rr['bp2_pos'])
+    for i,sv in enumerate(sv_info):
+        if sv['classification']==getResultType([SVtypes.deletion]):
+            p1 = int(sv['bp1_pos'])
+            p2 = int(sv['bp2_pos'])
             if abs(mobilePart[0]-p1)<tolerance and abs(mobilePart[1]-p2)<tolerance:
-                translocs.append([i,getResultType(SVtypes.translocation)])
-    translocs = [idx]+[idx-1]+[translocs] if len(translocs)>0 else []
+                translocs.append(i)
+    translocs = [idx-1]+[idx]+[translocs] if len(translocs)>0 else []
     return translocs
     
 def realignLoci(line):

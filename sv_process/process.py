@@ -8,6 +8,7 @@ import pysam
 import csv
 from collections import OrderedDict
 from operator import methodcaller
+import vcf
 from . import parameters as params
 from . import bamtools
 from . import svDetectFuncs as svd
@@ -315,83 +316,47 @@ def remove_duplicates(svs,use_dir):
                 svs[idx] = (bp2_chr,bp2_pos,bp1_chr,bp1_pos)
     return np.unique(svs)
 
-def load_input(svin,simple,socrates,rlen,use_dir):
-    sv_dtype = list(params.sv_dtype)
-    if not use_dir:
-        del sv_dtype[5]
-        del sv_dtype[2]
-    if simple:
-        sv_tmp = np.genfromtxt(svin,delimiter='\t',names=True,dtype=None)
-        svs = np.empty(0,dtype=sv_dtype)
-        for row in sv_tmp:
-            bp1_chr = str(row['bp1_chr'])
-            bp1_pos = int(row['bp1_pos'])
-            bp2_chr = str(row['bp2_chr'])
-            bp2_pos = int(row['bp2_pos'])
-            add_sv = np.empty(0)
-            if use_dir:
-                bp1_dir = str(row['bp1_dir'])
-                bp2_dir = str(row['bp2_dir'])
-                add_sv = np.array([(bp1_chr,bp1_pos,bp1_dir,bp2_chr,bp2_pos,bp2_dir)],dtype=sv_dtype)
-            else:
-                add_sv = np.array([(bp1_chr,bp1_pos,bp2_chr,bp2_pos)],dtype=sv_dtype)
-            svs = np.append(svs,add_sv)
-        return remove_duplicates(svs,use_dir)
-    elif socrates:
-        soc_in = np.genfromtxt(svin,delimiter='\t',names=True,dtype=None)
-        svs = np.empty(0,dtype=sv_dtype)
-
-        for row in soc_in:
-            bp1 = row['C1_anchor'].split(':')
-            bp2 = row['C1_realign'].split(':')
-            bp1_chr, bp1_pos = bp1[0], int(bp1[1]) 
-            bp2_chr, bp2_pos = bp2[0], int(bp2[1])
-            #classification = row['classification']
-            if not bp1_chr in params.valid_chroms or not bp2_chr in params.valid_chroms:
-                continue
-            if (bp1_chr==bp2_chr and abs(bp1_pos-bp2_pos)<(rlen*2)):
-                continue
-            if row['C1_avg_realign_mapq']<params.min_mapq or row['C2_avg_realign_mapq']<params.min_mapq:
-                continue
-            add_sv = np.empty(0)
-            if use_dir:
-                bp1_dir = row['C1_anchor_dir']
-                bp2_dir = row['C1_realign_dir']
-                add_sv = np.array([(bp1_chr,bp1_pos,bp1_dir,bp2_chr,bp2_pos,bp2_dir)],dtype=sv_dtype)
-            else:
-                add_sv = np.array([(bp1_chr,bp1_pos,bp2_chr,bp2_pos)],dtype=sv_dtype)
-            svs = np.append(svs,add_sv)
-
-        return remove_duplicates(svs,use_dir)
-
-    svs = OrderedDict()
-    sv_vcf = np.genfromtxt(svin,dtype=params.sv_vcf_dtype,delimiter='\t',comments="#")
-    keys = [key[0] for key in params.sv_vcf_dtype]
+def load_input_vcf(svin):
+    sv_dtype = [s for i,s in enumerate(params.sv_dtype) if i not in [2,5]]
     
+    sv_vcf = vcf.Reader(filename=svin)
+    sv_dict = OrderedDict()
     for sv in sv_vcf:
-        sv_id = sv['ID']
-        svs[sv_id] = OrderedDict()
-        for key,sv_data in zip(keys,sv):
-            if key=='INFO' or key=='ID': continue
-            svs[sv_id][key] = sv_data
-         
-        info = map(methodcaller('split','='),sv['INFO'].split(';'))
-        svs[sv_id]['INFO'] = OrderedDict()
         
-        for i in info:
-            if len(i)<2: continue
-            name = i[0]
-            data = i[1]
-            svs[sv_id]['INFO'][name] = data
+        if sv.FILTER is not None:
+            if len(sv.FILTER)>0:
+                continue
+        
+        sv_dict[sv.ID] = {'CHROM': sv.CHROM, 'POS': sv.POS, 'INFO': sv.INFO}
+
+#    svs = OrderedDict()
+#    sv_vcf = np.genfromtxt(svin,dtype=params.sv_vcf_dtype,delimiter='\t',comments="#")
+#    keys = [key[0] for key in params.sv_vcf_dtype]
+#    
+#    for sv in sv_vcf:
+#        sv_id = sv['ID']
+#        svs[sv_id] = OrderedDict()
+#        for key,sv_data in zip(keys,sv):
+#            if key=='INFO' or key=='ID': continue
+#            svs[sv_id][key] = sv_data
+#         
+#        info = map(methodcaller('split','='),sv['INFO'].split(';'))
+#        svs[sv_id]['INFO'] = OrderedDict()
+#        
+#        for i in info:
+#            if len(i)<2: continue
+#            name = i[0]
+#            data = i[1]
+#            svs[sv_id]['INFO'][name] = data
     
-    sv_array = np.empty(0,params.sv_dtype)
+    svs = np.empty(0,sv_dtype)
     procd = np.empty(0,dtype='S50')
 
-    for sv_id in svs:
+    for sv_id in sv_dict:
         try:
-            sv = svs[sv_id]
+            sv = sv_dict[sv_id]
             mate_id = sv['INFO']['MATEID']
-            mate = svs[mate_id]
+            mate = sv_dict[mate_id]
             
             if (sv_id in procd) or (mate_id in procd): 
                 continue
@@ -402,13 +367,62 @@ def load_input(svin,simple,socrates,rlen,use_dir):
             bp2_pos = mate['POS']
             
             procd = np.append(procd,[sv_id,mate_id])
-            new_sv = np.array([(bp1_chr,bp1_pos,bp2_chr,bp2_pos)],dtype=params.sv_dtype)        
-            sv_array = np.append(sv_array,new_sv)
+            new_sv = np.array([(bp1_chr,bp1_pos,bp2_chr,bp2_pos)],dtype=sv_dtype)        
+            svs = np.append(svs,new_sv)
         except KeyError:
             print("SV %s improperly paired or missing attributes"%sv_id)
             continue
+    
+    return svs
 
-    return sv_array
+def load_input_socrates(svin,rlen,use_dir):
+    sv_dtype =  [s for s in params.sv_dtype] if use_dir else [s for i,s in enumerate(params.sv_dtype) if i not in [2,5]]
+
+    soc_in = np.genfromtxt(svin,delimiter='\t',names=True,dtype=None)
+    svs = np.empty(0,dtype=sv_dtype)
+
+    for row in soc_in:
+        bp1 = row['C1_anchor'].split(':')
+        bp2 = row['C1_realign'].split(':')
+        bp1_chr, bp1_pos = bp1[0], int(bp1[1]) 
+        bp2_chr, bp2_pos = bp2[0], int(bp2[1])
+        #classification = row['classification']
+        if not bp1_chr in params.valid_chroms or not bp2_chr in params.valid_chroms:
+            continue
+        if (bp1_chr==bp2_chr and abs(bp1_pos-bp2_pos)<(rlen*2)):
+            continue
+        if row['C1_avg_realign_mapq']<params.min_mapq or row['C2_avg_realign_mapq']<params.min_mapq:
+            continue
+        add_sv = np.empty(0)
+        if use_dir:
+            bp1_dir = row['C1_anchor_dir']
+            bp2_dir = row['C1_realign_dir']
+            add_sv = np.array([(bp1_chr,bp1_pos,bp1_dir,bp2_chr,bp2_pos,bp2_dir)],dtype=sv_dtype)
+        else:
+            add_sv = np.array([(bp1_chr,bp1_pos,bp2_chr,bp2_pos)],dtype=sv_dtype)
+        svs = np.append(svs,add_sv)
+
+    return remove_duplicates(svs,use_dir)
+
+def load_input_simple(svin,use_dir):
+    sv_dtype =  [s for s in params.sv_dtype] if use_dir else [s for i,s in enumerate(params.sv_dtype) if i not in [2,5]]
+
+    sv_tmp = np.genfromtxt(svin,delimiter='\t',names=True,dtype=None)
+    svs = np.empty(0,dtype=sv_dtype)
+    for row in sv_tmp:
+        bp1_chr = str(row['bp1_chr'])
+        bp1_pos = int(row['bp1_pos'])
+        bp2_chr = str(row['bp2_chr'])
+        bp2_pos = int(row['bp2_pos'])
+        add_sv = np.empty(0)
+        if use_dir:
+            bp1_dir = str(row['bp1_dir'])
+            bp2_dir = str(row['bp2_dir'])
+            add_sv = np.array([(bp1_chr,bp1_pos,bp1_dir,bp2_chr,bp2_pos,bp2_dir)],dtype=sv_dtype)
+        else:
+            add_sv = np.array([(bp1_chr,bp1_pos,bp2_chr,bp2_pos)],dtype=sv_dtype)
+        svs = np.append(svs,add_sv)
+    return remove_duplicates(svs,use_dir)
 
 def proc_svs(args):
 
@@ -424,7 +438,9 @@ def proc_svs(args):
     simple       = args.simple_svs
     socrates     = args.socrates
     use_dir      = args.use_dir
-    
+   
+    if not (simple or socrates): use_dir = False #vcfs don't have dirs
+
     db_out = '%s_svinfo.db'%out
     outf = '%s_svinfo.txt'%out
     
@@ -444,10 +460,15 @@ def proc_svs(args):
 
     bp_dtype = [('chrom','S20'),('start', int), ('end', int), ('dir', 'S1')] if use_dir \
                  else [('chrom','S20'),('start', int), ('end', int)]
-    sv_dtype = params.sv_dtype
-    bp1_chr, bp1_pos, bp1_dir, bp2_chr, bp2_pos, bp2_dir = [h[0] for h in sv_dtype]
-    
-    svs = load_input(svin,simple,socrates,rlen,use_dir)
+    bp1_chr, bp1_pos, bp1_dir, bp2_chr, bp2_pos, bp2_dir = [h[0] for h in params.sv_dtype]
+             
+    svs = np.empty(0)
+    if simple:
+        svs = load_input_simple(svin,use_dir)
+    elif socrates:
+        svs = load_input_socrates(svin,rlen,use_dir)
+    else:
+        svs = load_input_vcf(svin)
     print("Extracting data from %d SVs"%len(svs))
 
     svd_prevResult, prevSV = None, None
@@ -494,20 +515,21 @@ def proc_svs(args):
             with open('%s_svinfo.txt'%out,'a') as outf:
                 writer = csv.writer(outf,delimiter='\t',quoting=csv.QUOTE_NONE)
                 writer.writerow(sv_out)
-
     #post-process: look for translocations
     sv_info = np.genfromtxt('%s_svinfo.txt'%out,delimiter='\t',names=True,dtype=None)
-    trx_label = svd.getResultType([svd.SVtypes.translocation])
+    trx_label    = svd.getResultType([svd.SVtypes.translocation])
     intins_label = svd.getResultType([svd.SVtypes.interspersedInsertion])
     rewrite=False
     for idx,sv in enumerate(sv_info):
         if sv['classification']==intins_label:
             rewrite=True
+            sv_info[idx-1]['classification'] = intins_label
             translocs = svd.detectTransloc(idx,sv_info)
             if len(translocs)>0:
-                for tloc,classif in translocs:
-                    sv_info[i]['classification'] = trx_label
-            else:
-                sv_info[idx-1]['classification'] = intins_label
+                for i in translocs: sv_info[i]['classification'] = trx_label
     if rewrite:
-        np.savetxt('%s_svinfo.txt'%out,sv_info,delimiter='\t')
+        with open('%s_svinfo.txt'%out,'w') as outf:
+            writer = csv.writer(outf,delimiter='\t',quoting=csv.QUOTE_NONE)
+            writer.writerow(header_out)
+            for sv_out in sv_info:
+                writer.writerow(sv_out)
