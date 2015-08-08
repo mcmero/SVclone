@@ -8,6 +8,7 @@ Ensure you have the following dependencies installed:
 
 * [Numpy](http://www.numpy.org/) - install for python 2
 * [PySam](http://pysam.readthedocs.org/en/latest/)
+* [PyVCF](https://pyvcf.readthedocs.org/en/latest/)
 
 Install like so:
 

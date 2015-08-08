@@ -377,8 +377,9 @@ def load_input_vcf(svin):
 
 def load_input_socrates(svin,rlen,use_dir):
     sv_dtype =  [s for s in params.sv_dtype] if use_dir else [s for i,s in enumerate(params.sv_dtype) if i not in [2,5]]
-
-    soc_in = np.genfromtxt(svin,delimiter='\t',names=True,dtype=None)
+    
+    #TODO: make parsing of socrates input more robust
+    soc_in = np.genfromtxt(svin,delimiter='\t',names=True,dtype=None,invalid_raise=False)
     svs = np.empty(0,dtype=sv_dtype)
 
     for row in soc_in:
@@ -407,7 +408,7 @@ def load_input_socrates(svin,rlen,use_dir):
 def load_input_simple(svin,use_dir):
     sv_dtype =  [s for s in params.sv_dtype] if use_dir else [s for i,s in enumerate(params.sv_dtype) if i not in [2,5]]
 
-    sv_tmp = np.genfromtxt(svin,delimiter='\t',names=True,dtype=None)
+    sv_tmp = np.genfromtxt(svin,delimiter='\t',names=True,dtype=None,invalid_raise=False)
     svs = np.empty(0,dtype=sv_dtype)
     for row in sv_tmp:
         bp1_chr = str(row['bp1_chr'])
