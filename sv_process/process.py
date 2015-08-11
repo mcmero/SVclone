@@ -375,7 +375,7 @@ def load_input_vcf(svin):
     
     return svs
 
-def load_input_socrates(svin,rlen,use_dir):
+def load_input_socrates(svin,rlen,use_dir,filt_repeats):
     sv_dtype =  [s for s in params.sv_dtype] if use_dir else [s for i,s in enumerate(params.sv_dtype) if i not in [2,5]]
     
     #TODO: make parsing of socrates input more robust
@@ -394,6 +394,9 @@ def load_input_socrates(svin,rlen,use_dir):
             continue
         if row['C1_avg_realign_mapq']<params.min_mapq or row['C2_avg_realign_mapq']<params.min_mapq:
             continue
+        if filt_repeats!='' and filt_repeats!=None:       
+            if row['Repeat1'] in filt_repeats and row['Repeat2'] in filt_repeats:
+                continue
         add_sv = np.empty(0)
         if use_dir:
             bp1_dir = row['C1_anchor_dir']
@@ -401,6 +404,7 @@ def load_input_socrates(svin,rlen,use_dir):
             add_sv = np.array([(bp1_chr,bp1_pos,bp1_dir,bp2_chr,bp2_pos,bp2_dir)],dtype=sv_dtype)
         else:
             add_sv = np.array([(bp1_chr,bp1_pos,bp2_chr,bp2_pos)],dtype=sv_dtype)
+        
         svs = np.append(svs,add_sv)
 
     return remove_duplicates(svs,use_dir)
@@ -439,6 +443,10 @@ def proc_svs(args):
     simple       = args.simple_svs
     socrates     = args.socrates
     use_dir      = args.use_dir
+    filt_repeats = args.filt_repeats
+
+    filt_repeats = filt_repeats.split(',') if filt_repeats != '' else filt_repeats
+    filt_repeats = [rep for rep in filt_repeats if rep!='']    
    
     if not (simple or socrates): use_dir = False #vcfs don't have dirs
 
@@ -467,7 +475,7 @@ def proc_svs(args):
     if simple:
         svs = load_input_simple(svin,use_dir)
     elif socrates:
-        svs = load_input_socrates(svin,rlen,use_dir)
+        svs = load_input_socrates(svin,rlen,use_dir,filt_repeats)
     else:
         svs = load_input_vcf(svin)
     print("Extracting data from %d SVs"%len(svs))

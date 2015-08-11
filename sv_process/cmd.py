@@ -37,6 +37,8 @@ parser.add_argument("--socrates",dest="socrates",action="store_true",
         help="Whether sv input is 'Socrates' SV caller input.")
 parser.add_argument("--use-dir",dest="use_dir",action="store_true",
         help="Whether to use breakpoint direction in input file (must be supplied).")
+parser.add_argument("--filter-repeats",dest="filt_repeats",default="",
+        help="Comma-separated repeat types to filter, if found at both sides of the breakpoint). SOCRATES INPUT ONLY.")
 args = parser.parse_args()
 
 if __name__ == '__main__':
