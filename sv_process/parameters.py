@@ -59,3 +59,13 @@ sv_out_dtype    = [('bp1_dir',          'S1'),
                    ('vaf1',             float),
                    ('vaf2',             float),
                    ('classification',   'S20')]
+
+# Socrates fields
+bp1_pos         = 'C1_anchor'
+bp1_dir         = 'C1_anchor_dir'
+bp2_pos         = 'C1_realign'
+bp2_dir         = 'C1_realign_dir'
+avg_mapq1       = 'C1_avg_realign_mapq'
+avg_mapq2       = 'C2_avg_realign_mapq'
+repeat1         = 'repeat1'
+repeat2         = 'repeat2'

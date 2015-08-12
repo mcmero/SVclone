@@ -383,8 +383,8 @@ def load_input_socrates(svin,rlen,use_dir,filt_repeats):
     svs = np.empty(0,dtype=sv_dtype)
 
     for row in soc_in:
-        bp1 = row['C1_anchor'].split(':')
-        bp2 = row['C1_realign'].split(':')
+        bp1 = row[params.bp1_pos].split(':')
+        bp2 = row[params.bp2_pos].split(':')
         bp1_chr, bp1_pos = bp1[0], int(bp1[1]) 
         bp2_chr, bp2_pos = bp2[0], int(bp2[1])
         #classification = row['classification']
@@ -392,15 +392,15 @@ def load_input_socrates(svin,rlen,use_dir,filt_repeats):
             continue
         if (bp1_chr==bp2_chr and abs(bp1_pos-bp2_pos)<(rlen*2)):
             continue
-        if row['C1_avg_realign_mapq']<params.min_mapq or row['C2_avg_realign_mapq']<params.min_mapq:
+        if row[params.avg_mapq1]<params.min_mapq or row[params.avg_mapq2]<params.min_mapq:
             continue
         if filt_repeats!='' and filt_repeats!=None:       
-            if row['Repeat1'] in filt_repeats and row['Repeat2'] in filt_repeats:
+            if row[params.repeat1] in filt_repeats and row[params.repeat2] in filt_repeats:
                 continue
         add_sv = np.empty(0)
         if use_dir:
-            bp1_dir = row['C1_anchor_dir']
-            bp2_dir = row['C1_realign_dir']
+            bp1_dir = row[params.bp1_dir]
+            bp2_dir = row[params.bp2_dir]
             add_sv = np.array([(bp1_chr,bp1_pos,bp1_dir,bp2_chr,bp2_pos,bp2_dir)],dtype=sv_dtype)
         else:
             add_sv = np.array([(bp1_chr,bp1_pos,bp2_chr,bp2_pos)],dtype=sv_dtype)
