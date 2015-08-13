@@ -49,6 +49,8 @@ parser.add_argument("--snvs",dest="snvs",default="",type=str,
         help="SNVs in VCF format to (optionally) compare the clustering with SVs.")
 parser.add_argument("--vcf_format",dest="vcf_format",default="sanger",type=str,
         help="Supplied SNV VCF is in the following input format: sanger (default), or mutect.")
+parser.add_argument("--merge-clusts",dest="merge_clusts",action="store_true",
+        help="Set to merge clusters.")
 
 args = parser.parse_args()
 
@@ -69,7 +71,8 @@ beta    = args.beta
 plot    = args.plot
 neutral = args.neutral
 snvs    = args.snvs
-vcf_format = args.vcf_format
+vcf_format      = args.vcf_format
+merge_clusts    = args.merge_clusts
 
 def proc_arg(arg,n_args=1,of_type=str):
     arg = str.split(arg,',')
@@ -102,4 +105,4 @@ if __name__ == '__main__':
         vcf_format = vcf_format.lower()
         if not np.any(vcf_format==np.array(["sanger","mutect"])):
             raise ValueError("Invalid VCF format specified")
-    run.run(samples,svs,gml,cnvs,rlen,insert,pi,ploidy,out,n_runs,n_iter,burn,thin,beta,neutral,snvs,vcf_format)
+    run.run(samples,svs,gml,cnvs,rlen,insert,pi,ploidy,out,n_runs,n_iter,burn,thin,beta,neutral,snvs,vcf_format,merge_clusts)

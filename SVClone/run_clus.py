@@ -202,7 +202,7 @@ def merge_results(clus_merged, merged_ids, df_probs, ccert):
     return df_probs_new,ccert_new
 
 
-def run_clust(clus_out_dir,df,pi,rlen,insert,ploidy,num_iters,burn,thin,beta,are_snvs=False):
+def run_clust(clus_out_dir,df,pi,rlen,insert,ploidy,num_iters,burn,thin,beta,merge_clusts,are_snvs=False):
     mcmc = cluster.cluster(df,pi,rlen,insert,ploidy,num_iters,burn,thin,beta,are_snvs)
     npoints = len(df.spanning.values) if not are_snvs else len(df['var'].values)
 
@@ -257,7 +257,7 @@ def run_clust(clus_out_dir,df,pi,rlen,insert,ploidy,num_iters,burn,thin,beta,are
     write_output.dump_trace(clus_info,z_trace,'%s/premerge_z_trace.txt'%clus_out_dir)
     
     # merge clusters
-    if len(clus_info)>1:        
+    if len(clus_info)>1 and merge_clusts:        
         clus_merged = pd.DataFrame(columns=clus_info.columns,index=clus_info.index)
         clus_merged, clus_members, merged_ids  = merge_clusters(clus_out_dir,df,clus_info,clus_merged,\
                 clus_members,[],[pi,rlen,insert,ploidy],num_iters,burn,thin,are_snvs)
@@ -270,7 +270,7 @@ def run_clust(clus_out_dir,df,pi,rlen,insert,ploidy,num_iters,burn,thin,beta,are
     
     return clus_info,center_trace,z_trace,clus_members,df_probs,ccert
 
-def infer_subclones(sample,df,pi,rlen,insert,ploidy,out,n_runs,num_iters,burn,thin,beta,snv_df):
+def infer_subclones(sample,df,pi,rlen,insert,ploidy,out,n_runs,num_iters,burn,thin,beta,snv_df,merge_clusts):
     if len(df) < 5:
         print("Less than 5 post-filtered SVs. Clustering not recommended for this sample. Exiting.")
         return None
@@ -286,12 +286,12 @@ def infer_subclones(sample,df,pi,rlen,insert,ploidy,out,n_runs,num_iters,burn,th
         if len(snv_df)>0:
             print("Clustering SNVs...")
             clus_info,center_trace,z_trace,clus_members,df_probs,clus_cert = \
-                run_clust(clus_out_dir,snv_df,pi,rlen,insert,ploidy,num_iters,burn,thin,beta,are_snvs=True)
+                run_clust(clus_out_dir,snv_df,pi,rlen,insert,ploidy,num_iters,burn,thin,beta,merge_clusts,are_snvs=True)
             write_output.write_out_files_snv(snv_df,clus_info,clus_members,df_probs,clus_cert,clus_out_dir,sample,pi)
 
         print("Clustering SVs...")
         clus_info,center_trace,z_trace,clus_members,df_probs,clus_cert = \
-                run_clust(clus_out_dir,df,pi,rlen,insert,ploidy,num_iters,burn,thin,beta)
+                run_clust(clus_out_dir,df,pi,rlen,insert,ploidy,num_iters,burn,thin,beta,merge_clusts)
         
         sv_loss = 1-(sum(clus_info['size'])/float(len(df)))
 
