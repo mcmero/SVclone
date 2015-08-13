@@ -1,7 +1,7 @@
 '''
 Using characterised SVs, count normal and supporting reads at SV locations
 '''
-
+import warnings
 import os
 import numpy as np
 import pysam
@@ -23,8 +23,9 @@ def read_to_array(x,bamf):
                          x.query_alignment_end,x.query_length,x.tlen,np.bool(x.is_reverse)),dtype=params.read_dtype)
         return read
     except TypeError:
-        print 'Warning: record %s contains invalid attributes' % x.query_name
-        return np.empty(len(params.read_dtype),dtype=params.read_dtype)
+        print 'Warning: record %s contains invalid attributes, skipping' % x.query_name
+        #return np.empty(len(params.read_dtype),dtype=params.read_dtype)
+        return np.empty(0)
 
 def is_soft_clipped(r):
     return r['align_start'] != 0 or (r['len'] + r['ref_start'] != r['ref_end'])
@@ -113,11 +114,11 @@ def get_loc_reads(bp,bamf,max_dp):
         iter_loc = bamf.fetch(region=loc,until_eof=True)
         for x in iter_loc:
             read = read_to_array(x,bamf) 
-            loc_reads = np.append(loc_reads,read)
+            if len(np.atleast_1d(read))>0:
+                loc_reads = np.append(loc_reads,read)
             if len(loc_reads) > max_dp:
                 print('Read depth too high at %s' % loc)
                 return np.empty(0)
-
         loc_reads = np.sort(loc_reads,axis=0,order=['query_name','ref_start'])
         loc_reads = np.unique(loc_reads) #remove duplicates
         return loc_reads
@@ -430,7 +431,7 @@ def load_input_simple(svin,use_dir):
     return remove_duplicates(svs,use_dir)
 
 def proc_svs(args):
-
+    
     svin         = args.svin
     bam          = args.bam
     out          = args.out

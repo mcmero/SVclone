@@ -10,17 +10,17 @@ valid_chroms    = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '10', '11', '12'
 # parameters extracted for each read from BAMs
 read_dtype      = [('query_name',       'S150'), 
                    ('chrom',            'S50'), 
-                   ('ref_start',        int), 
-                   ('ref_end',          int), 
-                   ('align_start',      int), 
-                   ('align_end',        int), 
-                   ('len',              int), 
-                   ('ins_len',          int), 
+                   ('ref_start',        'int64'), 
+                   ('ref_end',          'int64'), 
+                   ('align_start',      'int64'), 
+                   ('align_end',        'int64'), 
+                   ('len',              'int64'), 
+                   ('ins_len',          'int64'), 
                    ('is_reverse',       np.bool)]
 
 # dtypes for SV input file
 #sv_vcf_dtype    = [('CHROM',             'S50'),
-#                   ('POS',               int),
+#                   ('POS',               'int64'),
 #                   ('ID',                'S50'),
 #                   ('REF',               'S50'),
 #                   ('ALT',               'S500'),
@@ -32,30 +32,30 @@ read_dtype      = [('query_name',       'S150'),
 #                   ('TUMOUR',            'S200')]
 
 sv_dtype        = [('bp1_chr',          'S20'),
-                   ('bp1_pos',            int),
+                   ('bp1_pos',            'int64'),
                    ('bp1_dir',           'S1'),
                    ('bp2_chr',          'S20'),
-                   ('bp2_pos',            int),
+                   ('bp2_pos',            'int64'),
                    ('bp2_dir',           'S1')]
 #                   ('classification',    'S100')] 
 
 # dtypes for SV output file
 sv_out_dtype    = [('bp1_dir',          'S1'),
                    ('bp2_dir',          'S1'),
-                   ('bp1_split_norm',   int), 
-                   ('bp1_span_norm',    int),
-                   ('bp1_win_norm',     int), 
-                   ('bp1_split',        int), 
-                   ('bp1_sc_bases',     int), 
-                   ('bp2_split_norm',   int), 
-                   ('bp2_span_norm',    int), 
-                   ('bp2_win_norm',     int), 
-                   ('bp2_split',        int), 
-                   ('bp2_sc_bases',     int), 
-                   ('spanning',         int),
-                   ('norm1',            int),
-                   ('norm2',            int), 
-                   ('support',          int),
+                   ('bp1_split_norm',   'int64'), 
+                   ('bp1_span_norm',    'int64'),
+                   ('bp1_win_norm',     'int64'), 
+                   ('bp1_split',        'int64'), 
+                   ('bp1_sc_bases',     'int64'), 
+                   ('bp2_split_norm',   'int64'), 
+                   ('bp2_span_norm',    'int64'), 
+                   ('bp2_win_norm',     'int64'), 
+                   ('bp2_split',        'int64'), 
+                   ('bp2_sc_bases',     'int64'), 
+                   ('spanning',         'int64'),
+                   ('norm1',            'int64'),
+                   ('norm2',            'int64'), 
+                   ('support',          'int64'),
                    ('vaf1',             float),
                    ('vaf2',             float),
                    ('classification',   'S20')]
@@ -67,5 +67,5 @@ bp2_pos         = 'C1_realign'
 bp2_dir         = 'C1_realign_dir'
 avg_mapq1       = 'C1_avg_realign_mapq'
 avg_mapq2       = 'C2_avg_realign_mapq'
-repeat1         = 'repeat1'
-repeat2         = 'repeat2'
+repeat1         = 'Repeat1'
+repeat2         = 'Repeat2'
