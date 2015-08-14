@@ -223,7 +223,6 @@ def cluster(df,pi,rlen,insert,ploidy,iters,burn,thin,beta,are_snvs=False,Ndp=par
     
     @pm.deterministic
     def p_var(z=z,phi_k=phi_k):
-        ipdb.set_trace()
         ml_cn = [get_most_likely_cn(cn_ri[side],cn_vi[side],mu_vi[side],si,di,phi,pi) \
                 for cn_ri,cn_vi,mu_vi,si,di,phi,side in zip(cn_r,cn_v,mu_v,sup,dep,phi_k[z],sides)]
         cn_rn = [m[0] for m in ml_cn]
