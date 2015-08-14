@@ -23,8 +23,8 @@ def normalise_wins_by_cn(df_flt):
 
     bp1_nonzero = np.logical_not(bp1_wcn==0)
     bp2_nonzero = np.logical_not(bp2_wcn==0)
-    bp1_win[bp1_nonzero] = (bp1_win/bp1_wcn)[bp1_nonzero]
-    bp2_win[bp2_nonzero] = (bp2_win/bp2_wcn)[bp2_nonzero]
+    bp1_win[bp1_nonzero] = (bp1_win[bp1_nonzero]/bp1_wcn[bp1_nonzero])
+    bp2_win[bp2_nonzero] = (bp2_win[bp2_nonzero]/bp2_wcn[bp2_nonzero])
     
     return bp1_win,bp2_win
 
@@ -151,8 +151,10 @@ def fit_and_sample(model, iters, burn, thin):
     return mcmc
 
 def get_pv(phi,cn_r,cn_v,mu,pi):
+    rem = 1.0 - phi
+    rem = rem.clip(min=0)
     pn =  (1.0 - pi) * 2            #proportion of normal reads coming from normal cells
-    pr =  pi * (1.0 - phi) * cn_r   #proportion of normal reads coming from other clusters
+    pr =  pi * rem * cn_r   #proportion of normal reads coming from other clusters
     pv =  pi * phi * cn_v           #proportion of variant + normal reads coming from this cluster
 
     norm_const = pn + pr + pv

@@ -7,6 +7,8 @@ import os
 import pandas as pd
 import scipy as sp
 import scipy.stats
+import matplotlib
+matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 import colorsys
 import IPython
@@ -62,7 +64,7 @@ def plot_clusters(center_trace,clusters,assignments,df,pl,pi,rlen,clus_out_dir,a
 
     RGB_tuples = gen_new_colours(len(clusters))
 
-    axes[0].set_ylim([0,1])
+    axes[0].set_ylim([0,2])
     axes[0].set_title("Trace of $\phi_k$")
 
     for idx,clus in enumerate(clusters):
