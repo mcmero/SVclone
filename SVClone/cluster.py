@@ -69,19 +69,29 @@ def get_allele_combos_tuple(c):
 
     return tuple(cn_r),tuple(cn_v),tuple(mu_v)
 
+def get_sv_allele_combos(sv):
+    cn_tmp = tuple([tuple(sv.gtype1.split('|')),tuple(sv.gtype2.split('|'))])
+    cnr_bp1,cnv_bp1,mu_bp1 = get_allele_combos_tuple(cn_tmp[0])
+    cnr_bp2,cnv_bp2,mu_bp2 = get_allele_combos_tuple(cn_tmp[1])
+
+    return pd.Series([tuple([cnr_bp1,cnr_bp2]),tuple([cnv_bp1,cnv_bp2]),tuple([mu_bp1,mu_bp2])])
+
 def get_sv_vals(df,rlen):
     n = zip(np.array(df.norm1.values),np.array(df.norm2.values))
     s = np.array(df.bp1_split.values+df.bp2_split.values)
     d = np.array(df.spanning.values)
-    cn_r,cn_v,mu_v = [],[],[]
+    #cn_r,cn_v,mu_v = [],[],[]
+    
+    combos = df.apply(get_sv_allele_combos,axis=1)
+    cn_r,cn_v,mu_v = combos[0],combos[1],combos[2]
 
-    for idx,sv in df.iterrows():
-        cn_tmp = tuple([tuple(sv.gtype1.split('|')),tuple(sv.gtype2.split('|'))])
-        cnr_bp1,cnv_bp1,mu_bp1 = get_allele_combos_tuple(cn_tmp[0])
-        cnr_bp2,cnv_bp2,mu_bp2 = get_allele_combos_tuple(cn_tmp[1])
-        cn_r.append(tuple([cnr_bp1,cnr_bp2]))
-        cn_v.append(tuple([cnv_bp1,cnv_bp2]))
-        mu_v.append(tuple([mu_bp1,mu_bp2]))
+#    for idx,sv in df.iterrows():
+#        cn_tmp = tuple([tuple(sv.gtype1.split('|')),tuple(sv.gtype2.split('|'))])
+#        cnr_bp1,cnv_bp1,mu_bp1 = get_allele_combos_tuple(cn_tmp[0])
+#        cnr_bp2,cnv_bp2,mu_bp2 = get_allele_combos_tuple(cn_tmp[1])
+#        cn_r.append(tuple([cnr_bp1,cnr_bp2]))
+#        cn_v.append(tuple([cnv_bp1,cnv_bp2]))
+#        mu_v.append(tuple([mu_bp1,mu_bp2]))
 
     sup = np.array(d+s,dtype=float)
     n_bp1,n_bp2 = [ni[0] for ni in n],[ni[1] for ni in n]
