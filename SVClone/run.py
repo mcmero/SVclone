@@ -92,8 +92,8 @@ def run_cnv_filter(df_flt,cnv,neutral=False,are_snvs=False):
             #df_flt = df_flt[np.logical_and(df_flt.bp1_win_norm<600,df_flt.bp2_win_norm<600)]
     return df_flt
 
-def cnv_overlaps(bp_pos,cnv_start,cnv_end):
-    return (bp_pos >= cnv_start and bp_pos <= cnv_end)
+#def cnv_overlaps(bp_pos,cnv_start,cnv_end):
+#    return (bp_pos >= cnv_start and bp_pos <= cnv_end)
 
 #def find_cn_cols(bp_chr,bp_pos,cnv,cols=['nMaj1_A','nMin1_A','frac1_A','nMaj2_A','nMin2_A','frac2_A']):
 #    for idx,c in cnv.iterrows():
@@ -101,38 +101,86 @@ def cnv_overlaps(bp_pos,cnv_start,cnv_end):
 #            return c[cols[0]],c[cols[1]],c[cols[2]],c[cols[3]],c[cols[4]],c[cols[5]]
 #    return float('nan'),float('nan'),float('nan'),float('nan'),float('nan'),float('nan')
 
-def find_cn_col(bp_chr,bp_pos,cnv):
-    for idx,c in cnv.iterrows():
-        if str(bp_chr)==c['chr'] and cnv_overlaps(bp_pos,c['startpos'],c['endpos']):
-            return c
-    return pd.Series()
+#def find_cn_col(bp_chr,bp_pos,cnv):
+#    for idx,c in cnv.iterrows():
+#        if str(bp_chr)==c['chr'] and cnv_overlaps(bp_pos,c['startpos'],c['endpos']):
+#            return c
+#    return pd.Series()
+#
+#def get_genotype(cnrow):
+##    for col in cnrow.iteritems():
+##        mj = re.search("n(Maj)(?P<fraction>\d_\w)",col[0])
+##        if len(gtype)==2: break
+##        if mj:
+##            if np.isnan(col[1]) or col[1]==0: break
+##            nmin = 'nMin' + mj.group("fraction") #corresponding minor allele
+##            frac = 'frac' + mj.group("fraction") #allele fraction
+##            gtype.append([col[1],cnrow[nmin],cnrow[frac]])
+##    g_str = ["%d,%d,%f"%(gt[0],gt[1],gt[2]) for gt in gtype]
+#    #print('get genotype for %s:%d' % (cnrow['chr'],cnrow['startpos'])) 
+#    gtype = []
+#    bb_fields = ['nMaj1_A','nMin1_A','frac1_A','nMaj2_A','nMin2_A','frac2_A']
+#    maj1A, min1A, frac1A = cnrow[bb_fields[:3]].values 
+#    
+#    if np.nan in [maj1A, min1A, frac1A]:
+#        raise('Standard battenberg fields not found. Please check your copy-number input.')
+#
+#    g_str = '%d,%d,%f' % (maj1A, min1A, frac1A)
+#    if frac1A!=1:
+#        maj2A, min2A, frac2A = cnrow[bb_fields[3:]].values
+#        g_str += '|%d,%d,%f' % (maj2A, min2A, frac2A)
+#
+#    return g_str
 
-def get_genotype(cnrow):
-#    for col in cnrow.iteritems():
-#        mj = re.search("n(Maj)(?P<fraction>\d_\w)",col[0])
-#        if len(gtype)==2: break
-#        if mj:
-#            if np.isnan(col[1]) or col[1]==0: break
-#            nmin = 'nMin' + mj.group("fraction") #corresponding minor allele
-#            frac = 'frac' + mj.group("fraction") #allele fraction
-#            gtype.append([col[1],cnrow[nmin],cnrow[frac]])
-#    g_str = ["%d,%d,%f"%(gt[0],gt[1],gt[2]) for gt in gtype]
-    #print('get genotype for %s:%d' % (cnrow['chr'],cnrow['startpos'])) 
-    gtype = []
-    bb_fields = ['nMaj1_A','nMin1_A','frac1_A','nMaj2_A','nMin2_A','frac2_A']
-    maj1A, min1A, frac1A = cnrow[bb_fields[:3]].values 
+def load_cnvs(cnv):
+    cnv = pd.read_csv(cnv,delimiter='\t',dtype=None)
+    cnv_df = pd.DataFrame(cnv)
+    cnv_df['chr'] = map(str,cnv_df['chr'])
     
-    if np.nan in [maj1A, min1A, frac1A]:
-        raise('Standard battenberg fields not found. Please check your copy-number input.')
+    try:
+        gtypes = cnv_df['nMaj1_A'].map(str) + ',' + \
+                 cnv_df['nMin1_A'].map(str) + ',' + \
+                 cnv_df['frac1_A'].map(str)
 
-    g_str = '%d,%d,%f' % (maj1A, min1A, frac1A)
-    if frac1A!=1:
-        maj2A, min2A, frac2A = cnrow[bb_fields[3:]].values
-        g_str += '|%d,%d,%f' % (maj2A, min2A, frac2A)
-
-    return g_str
+        # join subclonal genotypes
+        subclonal = cnv_df['frac1_A']!=1
+        cnv_sc    = cnv_df[subclonal]
+        gtypes[subclonal] = gtypes[subclonal] + '|' + \
+                            cnv_sc['nMaj2_A'].map(str) + ',' + \
+                            cnv_sc['nMin2_A'].map(str) + ',' + \
+                            cnv_sc['frac2_A'].map(str)
+        
+#        cnv_arr = np.array(zip(cnv_df['chr'].values,
+#                               cnv_df['startpos'].values,
+#                               cnv_df['endpos'].values,gtypes),
+#                           dtype=[('chr','S50'),('startpos',int),('endpos',int),('gtype','S100')])
+        cnv_df['gtype'] = gtypes
+        select_cols = ['chr','startpos','endpos','gtype']
+        return cnv_df[select_cols]
+    except KeyError:
+        raise Exception('CNV file column names not recognised. Is the input a Battenberg output file?')
 
 def match_copy_numbers(sv_df, cnv_df, bp_fields=['bp1_chr','bp1_pos'], gtype_field='gtype1'):
+    
+#    sv_df['gtype1'] = ''
+#    sv_df['gtype2'] = ''
+#    sv_arr = np.array(zip(sv_df.index.values,
+#                          sv_df['bp1_chr'].values,
+#                          sv_df['bp1_pos'].values,
+#                          sv_df['bp2_chr'].values,
+#                          sv_df['bp2_pos'].values),
+#                     dtype=[('idx',int),('bp1_chr','S50'),\
+#                            ('bp1_pos',int),('bp2_chr','S50'),('bp2_pos',int)])
+#
+#    for sv in sv_arr:
+#        idx = sv['idx']
+#        for cnv in cnv_arr:
+#            if sv['bp1_chr'] == cnv['chr'] and cnv_overlaps(sv['bp1_pos'],cnv['startpos'],cnv['endpos']):
+#               sv_df.loc[idx,'gtype1'] = cnv['gtype']
+#            if sv['bp2_chr'] == cnv['chr'] and cnv_overlaps(sv['bp2_pos'],cnv['startpos'],cnv['endpos']):
+#               sv_df.loc[idx,'gtype2'] = cnv['gtype']
+#
+#    return sv_df 
     sv_df[gtype_field] = ''
     chrom_field, pos_field = bp_fields
     sv_df[chrom_field] = map(str,sv_df[chrom_field].values)
@@ -141,7 +189,7 @@ def match_copy_numbers(sv_df, cnv_df, bp_fields=['bp1_chr','bp1_pos'], gtype_fie
                         if item[0].isdigit() else float('inf'), item))
     
     for bchr in bp_chroms:
-        print('Matching copy-numbers for chrom %s'%bchr)
+        #print('Matching copy-numbers for chrom %s'%bchr)
         gtypes = []
         current_chr = sv_df[chrom_field].values==bchr
         sv_tmp = sv_df[current_chr]
@@ -154,7 +202,8 @@ def match_copy_numbers(sv_df, cnv_df, bp_fields=['bp1_chr','bp1_pos'], gtype_fie
             #print("Checking overlaps for pos %d\n" %pos)
             overlaps = np.logical_and(pos >= cnv_tmp.startpos.values, pos <= cnv_tmp.endpos.values)
             match = cnv_tmp[overlaps]
-            gtype = get_genotype(match.loc[match.index[0]]) if len(match)>0 else ''
+            #gtype = get_genotype(match.loc[match.index[0]]) if len(match)>0 else ''
+            gtype = match.loc[match.index[0]].gtype if len(match)>0 else '' 
             gtypes.append(gtype)
         
         sv_indexes = sv_df[current_chr].index.values
@@ -296,7 +345,7 @@ def run(samples,svs,gml,cnvs,rlens,inserts,pis,ploidies,out,n_runs,num_iters,bur
 #        else:
         dat = pd.read_csv(sv,delimiter='\t',dtype=None, low_memory=False)
         df = pd.DataFrame(dat)
-#        df['norm_mean'] = map(np.mean,zip(df['norm1'].values,df['norm2'].values))
+        df['norm_mean'] = map(np.mean,zip(df['norm1'].values,df['norm2'].values))
         sv_df = run_simple_filter(df,rlen,insert)
 
         if gml!="":
@@ -315,10 +364,10 @@ def run(samples,svs,gml,cnvs,rlens,inserts,pis,ploidies,out,n_runs,num_iters,bur
             sv_df = sv_df.drop(germline,axis=0)
 
         if cnv!="":
-            cnv = pd.read_csv(cnv,delimiter='\t',dtype=None)
-            cnv_df = pd.DataFrame(cnv)
-            cnv_df['chr'] = map(str,cnv_df['chr'])
-           
+            cnv_df = load_cnvs(cnv)
+            sv_df = match_copy_numbers(sv_df,cnv_df) 
+            sv_df = match_copy_numbers(sv_df,cnv_df,['bp2_chr','bp2_pos'],'gtype2') 
+            
             if len(snv_df)>0:
                 #for idx,snv in snv_df.iterrows():
                 #    cn = find_cn_col(snv.chrom,snv.pos,cnv)
@@ -331,19 +380,6 @@ def run(samples,svs,gml,cnvs,rlens,inserts,pis,ploidies,out,n_runs,num_iters,bur
                 ref = np.array(map(float,snv_df['ref'].values))
                 snv_df = run_cnv_filter(snv_df,cnv,neutral,are_snvs=True)
                 #snv_df = snv_df[np.logical_and(var>0,var/(var+ref)>params.subclone_threshold)]
-
-            print('Matching copy-numbers for bp1')
-            sv_df = match_copy_numbers(sv_df,cnv_df) 
-            print('Matching copy-numbers for bp2')
-            sv_df = match_copy_numbers(sv_df,cnv_df,['bp2_chr','bp2_pos'],'gtype2')
-            
-            #sv_df['gtype1'] = gtype1
-            #sv_df['gtype2'] = gtype2
-            #for idx,d in sv_df.iterrows():
-            #    cn1 = find_cn_col(d.bp1_chr,d.bp1_pos,cnv)
-            #    cn2 = find_cn_col(d.bp2_chr,d.bp2_pos,cnv)
-            #    sv_df.loc[idx,'gtype1'] = get_genotype(cn1)
-            #    sv_df.loc[idx,'gtype2'] = get_genotype(cn2)
 
             sv_df = run_cnv_filter(sv_df,cnv,neutral)
         else:

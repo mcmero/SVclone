@@ -10,7 +10,7 @@ def get_weighted_cns(gtypes):
     gtypes_split = [map(methodcaller("split",","),x) for x in map(methodcaller("split","|"),gtypes)]    
     cn_vals = []
     for gtype in gtypes_split:
-        cn_val = sum([int(g[0])+int(g[1])*float(g[2]) if g!=[''] else 0 for g in gtype])
+        cn_val = sum([int(eval(g[0]))+int(eval(g[1]))*float(eval(g[2])) if g!=[''] else 0 for g in gtype])
         cn_vals.append(cn_val)
     return np.array(cn_vals)/2
 
