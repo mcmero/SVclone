@@ -15,7 +15,7 @@ from . import parameters as params
 def get_outlier_ranges(vals):
     q1 = np.percentile(vals,25)
     q3 = np.percentile(vals,75)
-    iqr = q3 - q1
+    iqr = max(q3 - q1, 1)
     lower = q1 - 1.5*iqr
     upper = q3 + 1.5*iqr
     return [lower,upper]
@@ -90,6 +90,9 @@ def run_cnv_filter(df_flt,cnv,neutral=False,are_snvs=False):
             df_flt = df_flt[np.logical_or(df_flt.gtype1.values!='',df_flt.gtype2.values!='')]
             df_flt = filter_outlying_norm_wins(df_flt)
             #df_flt = df_flt[np.logical_and(df_flt.bp1_win_norm<600,df_flt.bp2_win_norm<600)]
+    if are_snvs:
+        df_flt = df_flt.fillna('')
+        df_flt = df_flt[np.logical_and(df_flt.gtype.values!='',df_flt.chrom.values!='')]
     return df_flt
 
 #def cnv_overlaps(bp_pos,cnv_start,cnv_end):
@@ -150,10 +153,6 @@ def load_cnvs(cnv):
                             cnv_sc['nMin2_A'].map(str) + ',' + \
                             cnv_sc['frac2_A'].map(str)
         
-#        cnv_arr = np.array(zip(cnv_df['chr'].values,
-#                               cnv_df['startpos'].values,
-#                               cnv_df['endpos'].values,gtypes),
-#                           dtype=[('chr','S50'),('startpos',int),('endpos',int),('gtype','S100')])
         cnv_df['gtype'] = gtypes
         select_cols = ['chr','startpos','endpos','gtype']
         return cnv_df[select_cols]
@@ -189,7 +188,7 @@ def match_copy_numbers(sv_df, cnv_df, bp_fields=['bp1_chr','bp1_pos'], gtype_fie
                         if item[0].isdigit() else float('inf'), item))
     
     for bchr in bp_chroms:
-        #print('Matching copy-numbers for chrom %s'%bchr)
+        print('Matching copy-numbers for chrom %s'%bchr)
         gtypes = []
         current_chr = sv_df[chrom_field].values==bchr
         sv_tmp = sv_df[current_chr]
@@ -202,13 +201,18 @@ def match_copy_numbers(sv_df, cnv_df, bp_fields=['bp1_chr','bp1_pos'], gtype_fie
             #print("Checking overlaps for pos %d\n" %pos)
             overlaps = np.logical_and(pos >= cnv_tmp.startpos.values, pos <= cnv_tmp.endpos.values)
             match = cnv_tmp[overlaps]
-            #gtype = get_genotype(match.loc[match.index[0]]) if len(match)>0 else ''
             gtype = match.loc[match.index[0]].gtype if len(match)>0 else '' 
             gtypes.append(gtype)
         
         sv_indexes = sv_df[current_chr].index.values
         sv_df.loc[sv_indexes,gtype_field] = gtypes
     return sv_df
+
+def load_svs(sv_file, rlen, insert):
+    dat = pd.read_csv(sv_file,delimiter='\t',dtype=None, low_memory=False)
+    sv_df = pd.DataFrame(dat)
+    sv_df['norm_mean'] = map(np.mean,zip(sv_df['norm1'].values,sv_df['norm2'].values))
+    return run_simple_filter(sv_df,rlen,insert)
 
 def load_snvs_mutect(snvs,sample):
     vcf_reader = vcf.Reader(filename=snvs)
@@ -311,6 +315,21 @@ def is_same_sv(sv1,sv2):
             return True
     return False
 
+def filter_germline(gml_file,sv_df):
+    df_gml = pd.DataFrame(pd.read_csv(gml_file,delimiter='\t',dtype=None,low_memory=False))
+    df_gml = run_simple_filter(df_gml,rlen,insert)
+    germline = []
+    for idx_sv,sv in sv_df.iterrows():
+        sv_loc = [str(sv.bp1_chr),int(sv.bp1_pos),str(sv.bp2_chr),int(sv.bp2_pos)]
+        same_chrs = np.logical_and(df_gml.bp1_chr.values==sv_loc[0],df_gml.bp2_chr.values==sv_loc[2])
+        df_gml_tmp = df_gml[same_chrs]
+        for idx_gml,sv_gml in df_gml_tmp.iterrows():
+            sv_loc_gml = [str(sv_gml.bp1_chr),int(sv_gml.bp1_pos),str(sv_gml.bp2_chr),int(sv_gml.bp2_pos)]
+            if sv_gml.support>0 and is_same_sv(sv_loc,sv_loc_gml):
+                germline.append(idx_sv)
+                break
+    return sv_df.drop(germline,axis=0)
+
 def run(samples,svs,gml,cnvs,rlens,inserts,pis,ploidies,out,n_runs,num_iters,burn,thin,beta,neutral,snvs,vcf_format,merge_clusts):
     if not os.path.exists(out):
         os.makedirs(out)
@@ -335,6 +354,7 @@ def run(samples,svs,gml,cnvs,rlens,inserts,pis,ploidies,out,n_runs,num_iters,bur
                 snv_df = load_snvs_mutect(snvs,sample)
 
         filt_svs_file = '%s/%s_filtered_svs.tsv'%(out,sample)
+        sv_df = load_svs(sv,rlen,insert)
 #        if os.path.isfile(filt_svs_file):
 #            print('Found filtered SVs file, running clustering on these variants')
 #            sv_df = pd.read_csv(filt_svs_file,delimiter='\t',na_values='')
@@ -342,46 +362,19 @@ def run(samples,svs,gml,cnvs,rlens,inserts,pis,ploidies,out,n_runs,num_iters,bur
 #            print('Clustering with %d SVs and %d SNVs'%(len(sv_df),len(snv_df)))
 #            run_clus.infer_subclones(sample,sv_df,pi,rlen,insert,ploidy,out,n_runs,num_iters,burn,thin,beta,snv_df)
 #            return None
-#        else:
-        dat = pd.read_csv(sv,delimiter='\t',dtype=None, low_memory=False)
-        df = pd.DataFrame(dat)
-        df['norm_mean'] = map(np.mean,zip(df['norm1'].values,df['norm2'].values))
-        sv_df = run_simple_filter(df,rlen,insert)
 
         if gml!="":
-            df_gml = pd.DataFrame(pd.read_csv(gml,delimiter='\t',dtype=None,low_memory=False))
-            df_gml = run_simple_filter(df_gml,rlen,insert)
-            germline = []
-            for idx_sv,sv in sv_df.iterrows():
-                sv_loc = [str(sv.bp1_chr),int(sv.bp1_pos),str(sv.bp2_chr),int(sv.bp2_pos)]
-                same_chrs = np.logical_and(df_gml.bp1_chr.values==sv_loc[0],df_gml.bp2_chr.values==sv_loc[2])
-                df_gml_tmp = df_gml[same_chrs]
-                for idx_gml,sv_gml in df_gml_tmp.iterrows():
-                    sv_loc_gml = [str(sv_gml.bp1_chr),int(sv_gml.bp1_pos),str(sv_gml.bp2_chr),int(sv_gml.bp2_pos)]
-                    if sv_gml.support>0 and is_same_sv(sv_loc,sv_loc_gml):
-                        germline.append(idx_sv)
-                        break
-            sv_df = sv_df.drop(germline,axis=0)
-
+            sv_df = filter_germline(gml,sv_df)
+        
         if cnv!="":
             cnv_df = load_cnvs(cnv)
             sv_df = match_copy_numbers(sv_df,cnv_df) 
             sv_df = match_copy_numbers(sv_df,cnv_df,['bp2_chr','bp2_pos'],'gtype2') 
+            sv_df = run_cnv_filter(sv_df,cnv,neutral)
             
             if len(snv_df)>0:
-                #for idx,snv in snv_df.iterrows():
-                #    cn = find_cn_col(snv.chrom,snv.pos,cnv)
-                #    snv_df.loc[idx,'gtype'] = get_genotype(cn)
                 snv_df = match_copy_numbers(snv_df,cnv_df,['chrom','pos'],'gtype')
-                snv_df = snv_df[snv_df.gtype.values!='']
-                snv_df = snv_df.fillna('')
-                snv_df = snv_df[snv_df.chrom.values!='']
-                var = np.array(map(float,snv_df['var'].values))
-                ref = np.array(map(float,snv_df['ref'].values))
                 snv_df = run_cnv_filter(snv_df,cnv,neutral,are_snvs=True)
-                #snv_df = snv_df[np.logical_and(var>0,var/(var+ref)>params.subclone_threshold)]
-
-            sv_df = run_cnv_filter(sv_df,cnv,neutral)
         else:
             print('No Battenberg input defined, assuming all loci are copy-number neutral')
             sv_df['gtype1'] = '1,1,1.000000'
@@ -400,6 +393,9 @@ def run(samples,svs,gml,cnvs,rlens,inserts,pis,ploidies,out,n_runs,num_iters,bur
             outf.write("sample\tpurity\tploidy\n")
             outf.write('%s\t%f\t%f\n'%(sample,pi,ploidy))
       
-        print('Clustering with %d SVs and %d SNVs'%(len(sv_df),len(snv_df)))        
-        run_clus.infer_subclones(sample,sv_df,pi,rlen,insert,ploidy,out,n_runs,num_iters,burn,thin,beta,snv_df,merge_clusts)
+        if len(sv_df) < 5:
+            print("Less than 5 post-filtered SVs. Clustering not recommended for this sample. Exiting.")
+        else:
+            print('Clustering with %d SVs and %d SNVs'%(len(sv_df),len(snv_df)))        
+            run_clus.infer_subclones(sample,sv_df,pi,rlen,insert,ploidy,out,n_runs,num_iters,burn,thin,beta,snv_df,merge_clusts)
 

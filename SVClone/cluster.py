@@ -154,7 +154,7 @@ def get_pv(phi,cn_r,cn_v,mu,pi):
     rem = 1.0 - phi
     rem = rem.clip(min=0)
     pn =  (1.0 - pi) * 2            #proportion of normal reads coming from normal cells
-    pr =  pi * rem * cn_r   #proportion of normal reads coming from other clusters
+    pr =  pi * rem * cn_r           #proportion of normal reads coming from other clusters
     pv =  pi * phi * cn_v           #proportion of variant + normal reads coming from this cluster
 
     norm_const = pn + pr + pv
@@ -186,6 +186,30 @@ def get_most_likely_cn(cn_r,cn_v,mu_v,si,di,phi,pi):
     else:
         return vals[idx[0]]
 
+def filter_cns(cn_states):
+    cn_str = [','.join(map(str,cn)) for cn in cn_states if cn[2]!=0 and cn[1]!=0]
+    cn_str = np.unique(np.array(cn_str))
+    return [map(float,cn) for cn in map(methodcaller('split',','),cn_str)]
+
+def get_cn_states(cn_r,cn_v,mu_v,sides):
+    # get all unique allele state combos per SV
+    cnr = [cn[side] for cn,side in zip(cn_r,sides)]
+    cnv = [cn[side] for cn,side in zip(cn_v,sides)]
+    muv = [mu[side] for mu,side in zip(mu_v,sides)]
+    cn_states = [[[cr_i[0][0],cv_i[0][0],mv_i[0][0]],[cr_i[0][1],cv_i[0][1],mv_i[0][1]], \
+                  [cr_i[1][0],cv_i[1][0],mv_i[1][0]],[cr_i[1][1],cv_i[1][1],mv_i[1][1]]] for cr_i,cv_i,mv_i in zip(cnr,cnv,muv)]    
+    return [filter_cns(state) for state in cn_states]
+
+def calc_lik(combo,si,di,phi_i,pi):
+    pvs = [ get_pv(phi_i,c[0],c[1],c[2],pi) for c in combo ]
+    lls = [ pm.binomial_like(si,di,pvs[i]) for i,c in enumerate(combo)]
+    return (pvs, lls)
+
+def get_most_likely_pv(cn_states,s,d,phi,pi):
+    cn_ll = [ calc_lik(cn_states[i],s[i],d[i],phi[i],pi)  for i in range(len(cn_states)) ]
+    most_likely_pv = [ cn_lik[0][np.where(np.nanmax(cn_lik[1])==cn_lik[1])[0][0]] for i,cn_lik in enumerate(cn_ll)]
+    return most_likely_pv
+
 def cluster(df,pi,rlen,insert,ploidy,iters,burn,thin,beta,are_snvs=False,Ndp=param.clus_limit):
     '''
     clustering model using Dirichlet Process
@@ -193,6 +217,7 @@ def cluster(df,pi,rlen,insert,ploidy,iters,burn,thin,beta,are_snvs=False,Ndp=par
     pl = ploidy
     sup,dep,cn_r,cn_v,mu_v = [],[],[],[],[]
     sides = [] #only relevant for SVs
+    cn_states = []
     Nvar = 0
     
     if are_snvs:        
@@ -203,6 +228,7 @@ def cluster(df,pi,rlen,insert,ploidy,iters,burn,thin,beta,are_snvs=False,Ndp=par
         sides = np.zeros(Nvar,dtype=int)
     else:
         sup,dep,cn_r,cn_v,mu_v,sides,Nvar = get_sv_vals(df,rlen)
+        cn_states = get_cn_states(cn_r,cn_v,mu_v,sides)
     
     sens = 1.0 / ((pi/pl)*np.mean(dep))
     alpha = pm.Gamma('alpha',0.9,1/0.9,value=2)
@@ -225,14 +251,15 @@ def cluster(df,pi,rlen,insert,ploidy,iters,burn,thin,beta,are_snvs=False,Ndp=par
     
     @pm.deterministic
     def p_var(z=z,phi_k=phi_k):
-        ml_cn = [get_most_likely_cn(cn_ri[side],cn_vi[side],mu_vi[side],si,di,phi,pi) \
-                for cn_ri,cn_vi,mu_vi,si,di,phi,side in zip(cn_r,cn_v,mu_v,sup,dep,phi_k[z],sides)]
-        cn_rn = [m[0] for m in ml_cn]
-        cn_vn = [m[1] for m in ml_cn]
-        mu_vn = [m[2] for m in ml_cn]
-        
-        return get_pv(phi_k[z],cn_rn,cn_vn,mu_vn,pi)
-
+#        ml_cn = [get_most_likely_cn(cn_ri[side],cn_vi[side],mu_vi[side],si,di,phi,pi) \
+#                for cn_ri,cn_vi,mu_vi,si,di,phi,side in zip(cn_r,cn_v,mu_v,sup,dep,phi_k[z],sides)]
+#        cn_rn = [m[0] for m in ml_cn]
+#        cn_vn = [m[1] for m in ml_cn]
+#        mu_vn = [m[2] for m in ml_cn]
+#
+#        return  get_pv(phi_k[z],cn_rn,cn_vn,mu_vn,pi)
+        return get_most_likely_pv(cn_states,sup,dep,phi_k[z],pi)
+    
     cbinom = pm.Binomial('cbinom', dep, p_var, observed=True, value=sup)
 
     model = pm.Model([alpha,h,p,phi_k,z,p_var,cbinom])

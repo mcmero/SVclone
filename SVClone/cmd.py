@@ -30,7 +30,7 @@ parser.add_argument("-y","--ploidy",dest="ploidy",default="2.0",
     help="Tumour ploidy; default = 2 (diploid).")
 parser.add_argument("-o","--outdir",dest="outdir",default=".",
         help="Output directory. Default: current directory")
-parser.add_argument("-n","--n_runs",dest="n_runs",default=10,type=int,
+parser.add_argument("-n","--n_runs",dest="n_runs",default=1,type=int,
         help="Number of times to run whole rounds of sampling.")
 parser.add_argument("-t","--n_iter",dest="n_iter",default=10000,type=int,
         help="Number of MCMC iterations.")

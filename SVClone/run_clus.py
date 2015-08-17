@@ -273,10 +273,6 @@ def run_clust(clus_out_dir,df,pi,rlen,insert,ploidy,num_iters,burn,thin,beta,mer
     return clus_info,center_trace,z_trace,clus_members,df_probs,ccert
 
 def infer_subclones(sample,df,pi,rlen,insert,ploidy,out,n_runs,num_iters,burn,thin,beta,snv_df,merge_clusts):
-    if len(df) < 5:
-        print("Less than 5 post-filtered SVs. Clustering not recommended for this sample. Exiting.")
-        return None
-
     clus_info,center_trace,ztrace,clus_members = None,None,None,None
     for i in range(n_runs):
         print("Cluster run: %d"%i)
@@ -294,7 +290,7 @@ def infer_subclones(sample,df,pi,rlen,insert,ploidy,out,n_runs,num_iters,burn,th
         print("Clustering SVs...")
         clus_info,center_trace,z_trace,clus_members,df_probs,clus_cert = \
                 run_clust(clus_out_dir,df,pi,rlen,insert,ploidy,num_iters,burn,thin,beta,merge_clusts)
-        
+         
         sv_loss = 1-(sum(clus_info['size'])/float(len(df)))
 
         if len(clus_info) < 1:
