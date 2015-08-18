@@ -69,10 +69,39 @@ def get_allele_combos_tuple(c):
 
     return tuple(cn_r),tuple(cn_v),tuple(mu_v)
 
+def get_allele_combos(c):
+    combos = []
+
+    if len(c) == 0 or c[0]=='':
+        return combos
+
+    cn1_v,mu1_v = get_cn_mu_v(c[0])
+    cn1 = map(float,c[0].split(',')) if len(c[0])>1 else c[0]
+    cn1_ref_total  = sum(cn1[:2])
+    cn1_r = tuple([cn1_ref_total, cn1_ref_total])
+    combos.extend(zip(cn1_r,cn1_v,mu1_v))
+
+    if len(c) > 1:
+        cn2_v,mu2_v = get_cn_mu_v(c[1])
+        cn2_tmp = map(float,c[1].split(','))
+        cn2_ref_total = cn2_tmp[0]+cn2_tmp[1]
+        cn2_r = tuple([cn2_ref_total, cn2_ref_total])
+        combos[0],combos[1] = zip(cn2_r,cn1_v,mu1_v)
+        combos.extend(zip(cn1_r,cn2_v,mu2_v))
+    
+    return filter_cns(combos)
+
 def get_sv_allele_combos(sv):
     cn_tmp = tuple([tuple(sv.gtype1.split('|')),tuple(sv.gtype2.split('|'))])
-    cnr_bp1,cnv_bp1,mu_bp1 = get_allele_combos_tuple(cn_tmp[0])
-    cnr_bp2,cnv_bp2,mu_bp2 = get_allele_combos_tuple(cn_tmp[1])
+    combos1 = get_allele_combos(cn_tmp[0])
+    combos2 = get_allele_combos(cn_tmp[1])
+
+    return tuple([combos1,combos2])
+
+def get_sv_allele_combos_tuple(sv):
+    cn_tmp = tuple([tuple(sv.gtype1.split('|')),tuple(sv.gtype2.split('|'))])
+    cnr_bp1,cnv_bp1,mu_bp1 = get_allele_combos(cn_tmp[0])
+    cnr_bp2,cnv_bp2,mu_bp2 = get_allele_combos(cn_tmp[1])
 
     return pd.Series([tuple([cnr_bp1,cnr_bp2]),tuple([cnv_bp1,cnv_bp2]),tuple([mu_bp1,mu_bp2])])
 
@@ -83,7 +112,7 @@ def get_sv_vals(df,rlen):
     #cn_r,cn_v,mu_v = [],[],[]
     
     combos = df.apply(get_sv_allele_combos,axis=1)
-    cn_r,cn_v,mu_v = combos[0],combos[1],combos[2]
+    #cn_r,cn_v,mu_v = combos[0],combos[1],combos[2]
 
 #    for idx,sv in df.iterrows():
 #        cn_tmp = tuple([tuple(sv.gtype1.split('|')),tuple(sv.gtype2.split('|'))])
@@ -125,7 +154,8 @@ def get_sv_vals(df,rlen):
     norm = [ni[si] for ni,si in zip(n,sides)]
     dep = np.array(norm+sup,dtype=float)
 
-    return sup,dep,cn_r,cn_v,mu_v,sides,Nvar
+    #return sup,dep,cn_r,cn_v,mu_v,sides,Nvar
+    return sup,dep,combos,sides,Nvar
 
 def get_snv_vals(df):
     n = df['ref'].values
@@ -227,8 +257,10 @@ def cluster(df,pi,rlen,insert,ploidy,iters,burn,thin,beta,are_snvs=False,Ndp=par
         Nvar = len(sup)
         sides = np.zeros(Nvar,dtype=int)
     else:
-        sup,dep,cn_r,cn_v,mu_v,sides,Nvar = get_sv_vals(df,rlen)
-        cn_states = get_cn_states(cn_r,cn_v,mu_v,sides)
+        #sup,dep,cn_r,cn_v,mu_v,sides,Nvar = get_sv_vals(df,rlen)
+        #cn_states = get_cn_states(cn_r,cn_v,mu_v,sides)
+        sup,dep,combos,sides,Nvar = get_sv_vals(df,rlen)
+        cn_states = [cn[side] for cn,side in zip(combos,sides)]
     
     sens = 1.0 / ((pi/pl)*np.mean(dep))
     alpha = pm.Gamma('alpha',0.9,1/0.9,value=2)
@@ -263,5 +295,6 @@ def cluster(df,pi,rlen,insert,ploidy,iters,burn,thin,beta,are_snvs=False,Ndp=par
     cbinom = pm.Binomial('cbinom', dep, p_var, observed=True, value=sup)
 
     model = pm.Model([alpha,h,p,phi_k,z,p_var,cbinom])
+    ipdb.set_trace()
     mcmc = fit_and_sample(model,iters,burn,thin)
     return mcmc
