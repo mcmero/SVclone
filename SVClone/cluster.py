@@ -295,6 +295,5 @@ def cluster(df,pi,rlen,insert,ploidy,iters,burn,thin,beta,are_snvs=False,Ndp=par
     cbinom = pm.Binomial('cbinom', dep, p_var, observed=True, value=sup)
 
     model = pm.Model([alpha,h,p,phi_k,z,p_var,cbinom])
-    ipdb.set_trace()
     mcmc = fit_and_sample(model,iters,burn,thin)
     return mcmc
