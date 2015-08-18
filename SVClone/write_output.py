@@ -40,32 +40,32 @@ def write_out_files_snv(df,clus_info,clus_members,df_probs,clus_cert,clus_out_di
     df = df.fillna('')
     df = df[df.chrom.values!='']
 
-#    sup,n,cn_r,cn_v,mu_v = cluster.get_snv_vals(df)
-#    dep = sup + n
-#    phis = clus_cert.average_ccf.values    
-#
-#    for idx,snv in df.iterrows():
-#        gtype = snv['gtype'].split('|')
-#        gtype = map(methodcaller('split', ','), gtype)
-#
-#        maj_cn,min_cn = map(float,gtype[0])[:2] if gtype[0][0]!='' else [0.,0.]
-#        tot_cn = maj_cn+min_cn
-#
-#        chrom = str(snv['chrom'])
-#        pos = int(snv['pos'])
-#        ref_cn, sc_cn, freq = cluster.get_most_likely_cn(cn_r[idx][0],cn_v[idx][0],\
-#                                                         mu_v[idx][0],sup[idx],dep[idx],phis[idx],pi) 
-#        
-#        cn_new_row = np.array([(chrom,pos,tot_cn,int(sc_cn*freq))],dtype=cn_dtype)
-#        cn_vect = np.append(cn_vect,cn_new_row)
-#        
-#        ml_new_row = np.array([(chrom,pos,snv['gtype'],ref_cn,sc_cn,freq)],dtype=mlcn_dtype)
-#        mlcn_vect = np.append(mlcn_vect,ml_new_row)
-#        
-#    pd.DataFrame(mlcn_vect).to_csv('%s/%s_most_likely_copynumbers.txt'%(clus_out_dir,sample),sep='\t',index=False)
-#    pd.DataFrame(cn_vect).to_csv('%s/%s_copynumber.txt'%(clus_out_dir,sample),sep='\t',index=False)
-#    df_probs.to_csv('%s/%s_assignment_probability_table.txt'%(clus_out_dir,sample),sep='\t',index=False)
-#    clus_cert.to_csv('%s/%s_cluster_certainty.txt'%(clus_out_dir,sample),sep='\t',index=False)
+    sup,n,cn_r,cn_v,mu_v = cluster.get_snv_vals(df)
+    dep = sup + n
+    phis = clus_cert.average_ccf.values    
+
+    for idx,snv in df.iterrows():
+        gtype = snv['gtype'].split('|')
+        gtype = map(methodcaller('split', ','), gtype)
+
+        maj_cn,min_cn = map(float,gtype[0])[:2] if gtype[0][0]!='' else [0.,0.]
+        tot_cn = maj_cn+min_cn
+
+        chrom = str(snv['chrom'])
+        pos = int(snv['pos'])
+        ref_cn, sc_cn, freq = cluster.get_most_likely_cn(cn_r[idx][0],cn_v[idx][0],\
+                                                         mu_v[idx][0],sup[idx],dep[idx],phis[idx],pi) 
+        
+        cn_new_row = np.array([(chrom,pos,tot_cn,int(sc_cn*freq))],dtype=cn_dtype)
+        cn_vect = np.append(cn_vect,cn_new_row)
+        
+        ml_new_row = np.array([(chrom,pos,snv['gtype'],ref_cn,sc_cn,freq)],dtype=mlcn_dtype)
+        mlcn_vect = np.append(mlcn_vect,ml_new_row)
+        
+    pd.DataFrame(mlcn_vect).to_csv('%s/%s_most_likely_copynumbers.txt'%(clus_out_dir,sample),sep='\t',index=False)
+    pd.DataFrame(cn_vect).to_csv('%s/%s_copynumber.txt'%(clus_out_dir,sample),sep='\t',index=False)
+    df_probs.to_csv('%s/%s_assignment_probability_table.txt'%(clus_out_dir,sample),sep='\t',index=False)
+    clus_cert.to_csv('%s/%s_cluster_certainty.txt'%(clus_out_dir,sample),sep='\t',index=False)
 
 def write_out_files(df,clus_info,clus_members,df_probs,clus_cert,clus_out_dir,sample,pi,rlen):
     
@@ -94,8 +94,8 @@ def write_out_files(df,clus_info,clus_members,df_probs,clus_cert,clus_out_dir,sa
                  ('prop_chrs_bearing_mutation',float),
                  ('support',int),
                  ('depth',int),                
-                 ('pv',float),
-                 ('ploidy_fixed_pv',float)]
+                 ('pv',float)]
+                 #('ploidy_fixed_pv',float)]
 
     cmem = np.hstack(clus_members)
     cn_vect = np.empty((0,len(cmem)),dtype=cn_dtype)
@@ -104,7 +104,10 @@ def write_out_files(df,clus_info,clus_members,df_probs,clus_cert,clus_out_dir,sa
     
     #sup,dep,cn_r,cn_v,mu_v,sides,av_cov = cluster.get_sv_vals(df,rlen)
     sup,dep,combos,sides,Nvar = cluster.get_sv_vals(df,rlen)
+    cn_states = [cn[side] for cn,side in zip(combos,sides)]
     phis = clus_cert.average_ccf.values
+    pvs = cluster.get_most_likely_pv(cn_states,sup,dep,phis,pi)
+    cns = cluster.get_most_likely_cn_states(cn_states,sup,dep,phis,pi)
 
     for idx,sv in clus_svs.iterrows():
         gtype1,gtype2 = sv['gtype1'].split('|'),sv['gtype2'].split('|')
@@ -122,16 +125,18 @@ def write_out_files(df,clus_info,clus_members,df_probs,clus_cert,clus_out_dir,sa
         bp2_chr = str(sv['bp2_chr'])
         bp2_pos = int(sv['bp2_pos'])
        
-        side = sides[idx]
-        ref_cn, sc_cn, freq = cluster.get_most_likely_cn(cn_r[idx][side],cn_v[idx][side],\
-                                                         mu_v[idx][side],sup[idx],dep[idx],phis[idx],pi) 
-        pv = cluster.get_pv(phis[idx],ref_cn,sc_cn,freq,pi)
-        pv_pf = cluster.get_pv(phis[idx],2.1,2.1,1/2.1,pi)
+        #side = sides[idx]
+        #ref_cn, sc_cn, freq = cluster.get_most_likely_cn(cn_r[idx][side],cn_v[idx][side],\
+        #                                                 mu_v[idx][side],sup[idx],dep[idx],phis[idx],pi) 
+        #pv = cluster.get_pv(phis[idx],ref_cn,sc_cn,freq,pi)
+        #pv_pf = cluster.get_pv(phis[idx],2.1,2.1,1/2.1,pi)
+        ref_cn, sc_cn, freq = cns[idx]
+        pv = pvs[idx]
 
         cn_new_row = np.array([(bp1_chr,bp1_pos,tot_cn1,int(sc_cn*freq),bp2_chr,bp2_pos,tot_cn2,int(sc_cn*freq))],dtype=cn_dtype)
         cn_vect = np.append(cn_vect,cn_new_row)
         
-        ml_new_row = np.array([(bp1_chr,bp1_pos,bp2_chr,bp2_pos,sv['gtype1'],sv['gtype2'],ref_cn,sc_cn,freq,sup[idx],dep[idx],pv,pv_pf)],dtype=mlcn_dtype)
+        ml_new_row = np.array([(bp1_chr,bp1_pos,bp2_chr,bp2_pos,sv['gtype1'],sv['gtype2'],ref_cn,sc_cn,freq,sup[idx],dep[idx],pv)],dtype=mlcn_dtype)
         mlcn_vect = np.append(mlcn_vect,ml_new_row)
         
     pd.DataFrame(mlcn_vect).to_csv('%s/%s_most_likely_copynumbers.txt'%(clus_out_dir,sample),sep='\t',index=False)

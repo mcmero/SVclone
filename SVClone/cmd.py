@@ -51,6 +51,8 @@ parser.add_argument("--vcf_format",dest="vcf_format",default="sanger",type=str,
         help="Supplied SNV VCF is in the following input format: sanger (default), or mutect.")
 parser.add_argument("--merge-clusts",dest="merge_clusts",action="store_true",
         help="Set to merge clusters.")
+parser.add_argument("--map",dest="use_map",action="store_true",
+        help="Use maximum a-posteriori fitting (may significantly increase runtime).")
 
 args = parser.parse_args()
 
@@ -71,6 +73,7 @@ beta    = args.beta
 plot    = args.plot
 neutral = args.neutral
 snvs    = args.snvs
+use_map = args.use_map
 vcf_format      = args.vcf_format
 merge_clusts    = args.merge_clusts
 
@@ -105,4 +108,4 @@ if __name__ == '__main__':
         vcf_format = vcf_format.lower()
         if not np.any(vcf_format==np.array(["sanger","mutect"])):
             raise ValueError("Invalid VCF format specified")
-    run.run(samples,svs,gml,cnvs,rlen,insert,pi,ploidy,out,n_runs,n_iter,burn,thin,beta,neutral,snvs,vcf_format,merge_clusts)
+    run.run(samples,svs,gml,cnvs,rlen,insert,pi,ploidy,out,n_runs,n_iter,burn,thin,beta,neutral,snvs,vcf_format,merge_clusts,use_map)

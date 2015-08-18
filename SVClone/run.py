@@ -7,6 +7,7 @@ import ipdb
 import re
 import pandas as pd
 import vcf
+import cProfile, pstats, StringIO 
 from operator import methodcaller
 from . import run_clus
 from . import cluster
@@ -315,7 +316,7 @@ def is_same_sv(sv1,sv2):
             return True
     return False
 
-def filter_germline(gml_file,sv_df):
+def filter_germline(gml_file,sv_df,rlen,insert):
     df_gml = pd.DataFrame(pd.read_csv(gml_file,delimiter='\t',dtype=None,low_memory=False))
     df_gml = run_simple_filter(df_gml,rlen,insert)
     germline = []
@@ -330,7 +331,11 @@ def filter_germline(gml_file,sv_df):
                 break
     return sv_df.drop(germline,axis=0)
 
-def run(samples,svs,gml,cnvs,rlens,inserts,pis,ploidies,out,n_runs,num_iters,burn,thin,beta,neutral,snvs,vcf_format,merge_clusts):
+def run(samples,svs,gml,cnvs,rlens,inserts,pis,ploidies,out,n_runs,num_iters,burn,thin,beta,neutral,snvs,vcf_format,merge_clusts,use_map):
+
+    pr = cProfile.Profile()
+    pr.enable()
+    
     if not os.path.exists(out):
         os.makedirs(out)
 
@@ -364,7 +369,7 @@ def run(samples,svs,gml,cnvs,rlens,inserts,pis,ploidies,out,n_runs,num_iters,bur
 #            return None
 
         if gml!="":
-            sv_df = filter_germline(gml,sv_df)
+            sv_df = filter_germline(gml,sv_df,rlen,insert)
         
         if cnv!="":
             cnv_df = load_cnvs(cnv)
@@ -397,5 +402,12 @@ def run(samples,svs,gml,cnvs,rlens,inserts,pis,ploidies,out,n_runs,num_iters,bur
             print("Less than 5 post-filtered SVs. Clustering not recommended for this sample. Exiting.")
         else:
             print('Clustering with %d SVs and %d SNVs'%(len(sv_df),len(snv_df)))        
-            run_clus.infer_subclones(sample,sv_df,pi,rlen,insert,ploidy,out,n_runs,num_iters,burn,thin,beta,snv_df,merge_clusts)
+            run_clus.infer_subclones(sample,sv_df,pi,rlen,insert,ploidy,out,n_runs,num_iters,burn,thin,beta,snv_df,merge_clusts,use_map)
+
+        pr.disable()
+        s = StringIO.StringIO()
+        sortby = 'cumulative'
+        ps = pstats.Stats(pr, stream=s).sort_stats(sortby)
+        ps.print_stats()
+        print s.getvalue()
 

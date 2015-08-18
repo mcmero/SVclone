@@ -272,7 +272,7 @@ def run_clust(clus_out_dir,df,pi,rlen,insert,ploidy,num_iters,burn,thin,beta,mer
     
     return clus_info,center_trace,z_trace,clus_members,df_probs,ccert
 
-def infer_subclones(sample,df,pi,rlen,insert,ploidy,out,n_runs,num_iters,burn,thin,beta,snv_df,merge_clusts):
+def infer_subclones(sample,df,pi,rlen,insert,ploidy,out,n_runs,num_iters,burn,thin,beta,snv_df,merge_clusts,use_map):
     clus_info,center_trace,ztrace,clus_members = None,None,None,None
     for i in range(n_runs):
         print("Cluster run: %d"%i)
@@ -284,12 +284,12 @@ def infer_subclones(sample,df,pi,rlen,insert,ploidy,out,n_runs,num_iters,burn,th
         if len(snv_df)>0:
             print("Clustering SNVs...")
             clus_info,center_trace,z_trace,clus_members,df_probs,clus_cert = \
-                run_clust(clus_out_dir,snv_df,pi,rlen,insert,ploidy,num_iters,burn,thin,beta,merge_clusts,are_snvs=True)
+                run_clust(clus_out_dir,snv_df,pi,rlen,insert,ploidy,num_iters,burn,thin,beta,merge_clusts,use_map,are_snvs=True)
             write_output.write_out_files_snv(snv_df,clus_info,clus_members,df_probs,clus_cert,clus_out_dir,sample,pi)
 
         print("Clustering SVs...")
         clus_info,center_trace,z_trace,clus_members,df_probs,clus_cert = \
-                run_clust(clus_out_dir,df,pi,rlen,insert,ploidy,num_iters,burn,thin,beta,merge_clusts)
+                run_clust(clus_out_dir,df,pi,rlen,insert,ploidy,num_iters,burn,thin,beta,use_map,merge_clusts)
          
         sv_loss = 1-(sum(clus_info['size'])/float(len(df)))
 

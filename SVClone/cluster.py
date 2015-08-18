@@ -173,9 +173,11 @@ def get_snv_vals(df):
         
     return b,n,cn_r,cn_v,mu_v
 
-def fit_and_sample(model, iters, burn, thin):
-    map_ = pm.MAP( model )
-    map_.fit( method = 'fmin_powell' )
+def fit_and_sample(model, iters, burn, thin, use_map):
+    #TODO: suppress warning about using fmin method
+    if use_map:
+        map_ = pm.MAP( model )
+        map_.fit( method = 'fmin_powell' )
     mcmc = pm.MCMC( model )
     mcmc.sample( iters, burn=burn, thin=thin )
     return mcmc
@@ -240,7 +242,12 @@ def get_most_likely_pv(cn_states,s,d,phi,pi):
     most_likely_pv = [ cn_lik[0][np.where(np.nanmax(cn_lik[1])==cn_lik[1])[0][0]] for i,cn_lik in enumerate(cn_ll)]
     return most_likely_pv
 
-def cluster(df,pi,rlen,insert,ploidy,iters,burn,thin,beta,are_snvs=False,Ndp=param.clus_limit):
+def get_most_likely_cn_states(cn_states,s,d,phi,pi):
+    cn_ll = [ calc_lik(cn_states[i],s[i],d[i],phi[i],pi)  for i in range(len(cn_states)) ]
+    most_likely_cn = [ cn_states[i][np.where(np.nanmax(cn_lik[1])==cn_lik[1])[0][0]] for i,cn_lik in enumerate(cn_ll)]
+    return most_likely_cn
+
+def cluster(df,pi,rlen,insert,ploidy,iters,burn,thin,beta,use_map,are_snvs=False,Ndp=param.clus_limit):
     '''
     clustering model using Dirichlet Process
     '''
@@ -295,5 +302,5 @@ def cluster(df,pi,rlen,insert,ploidy,iters,burn,thin,beta,are_snvs=False,Ndp=par
     cbinom = pm.Binomial('cbinom', dep, p_var, observed=True, value=sup)
 
     model = pm.Model([alpha,h,p,phi_k,z,p_var,cbinom])
-    mcmc = fit_and_sample(model,iters,burn,thin)
+    mcmc = fit_and_sample(model,iters,burn,thin,use_map)
     return mcmc
