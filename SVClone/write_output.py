@@ -40,9 +40,12 @@ def write_out_files_snv(df,clus_info,clus_members,df_probs,clus_cert,clus_out_di
     df = df.fillna('')
     df = df[df.chrom.values!='']
 
-    sup,n,cn_r,cn_v,mu_v = cluster.get_snv_vals(df)
+    #sup,n,cn_r,cn_v,mu_v = cluster.get_snv_vals(df)
+    sup,dep,combos,sides,Nvar = cluster.get_snv_vals(df)
+    cn_states = [cn[side] for cn,side in zip(combos,sides)]
     dep = sup + n
-    phis = clus_cert.average_ccf.values    
+    phis = clus_cert.average_ccf.values
+    cns, pvs = cluster.get_most_likely_cn_states(cn_states,sup,dep,phis,pi)
 
     for idx,snv in df.iterrows():
         gtype = snv['gtype'].split('|')
@@ -53,8 +56,10 @@ def write_out_files_snv(df,clus_info,clus_members,df_probs,clus_cert,clus_out_di
 
         chrom = str(snv['chrom'])
         pos = int(snv['pos'])
-        ref_cn, sc_cn, freq = cluster.get_most_likely_cn(cn_r[idx][0],cn_v[idx][0],\
-                                                         mu_v[idx][0],sup[idx],dep[idx],phis[idx],pi) 
+        #ref_cn, sc_cn, freq = cluster.get_most_likely_cn(cn_r[idx][0],cn_v[idx][0],\
+        #                                                 mu_v[idx][0],sup[idx],dep[idx],phis[idx],pi) 
+        ref_cn, sc_cn, freq = cns[idx]
+        pv = pvs[idx]
         
         cn_new_row = np.array([(chrom,pos,tot_cn,int(sc_cn*freq))],dtype=cn_dtype)
         cn_vect = np.append(cn_vect,cn_new_row)
@@ -106,8 +111,7 @@ def write_out_files(df,clus_info,clus_members,df_probs,clus_cert,clus_out_dir,sa
     sup,dep,combos,sides,Nvar = cluster.get_sv_vals(df,rlen)
     cn_states = [cn[side] for cn,side in zip(combos,sides)]
     phis = clus_cert.average_ccf.values
-    pvs = cluster.get_most_likely_pv(cn_states,sup,dep,phis,pi)
-    cns = cluster.get_most_likely_cn_states(cn_states,sup,dep,phis,pi)
+    cns,pvs = cluster.get_most_likely_cn_states(cn_states,sup,dep,phis,pi)
 
     for idx,sv in clus_svs.iterrows():
         gtype1,gtype2 = sv['gtype1'].split('|'),sv['gtype2'].split('|')

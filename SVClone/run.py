@@ -216,13 +216,17 @@ def load_svs(sv_file, rlen, insert):
     return run_simple_filter(sv_df,rlen,insert)
 
 def load_snvs_mutect(snvs,sample):
+    #TODO: remove sample
     vcf_reader = vcf.Reader(filename=snvs)
     snv_dtype = [('chrom','S50'),('pos',int),('gtype','S50'),('ref',float),('var',float)]
     snv_df = np.empty([0,5],dtype=snv_dtype)
 
     samples = vcf_reader.samples
-    if not np.any(np.array(samples)==sample):
-        raise Exception('Could not find sample in VCF. Ensure a genotype column corresponding to %s exists.' % sample)
+    if len(samples)==0:
+        raise Exception('No samples found in VCF!')
+    elif not np.any(np.array(samples)==sample):
+        print('Warning, sample not found in VCF, selecting first sample')
+        sample = samples[0]
 
     for record in vcf_reader:
         if record.FILTER is not None:
@@ -317,6 +321,7 @@ def is_same_sv(sv1,sv2):
     return False
 
 def filter_germline(gml_file,sv_df,rlen,insert):
+    #TODO: optimise (avoid using iterrows)
     df_gml = pd.DataFrame(pd.read_csv(gml_file,delimiter='\t',dtype=None,low_memory=False))
     df_gml = run_simple_filter(df_gml,rlen,insert)
     germline = []

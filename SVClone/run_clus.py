@@ -204,8 +204,8 @@ def merge_results(clus_merged, merged_ids, df_probs, ccert):
     return df_probs_new,ccert_new
 
 
-def run_clust(clus_out_dir,df,pi,rlen,insert,ploidy,num_iters,burn,thin,beta,merge_clusts,are_snvs=False):
-    mcmc = cluster.cluster(df,pi,rlen,insert,ploidy,num_iters,burn,thin,beta,are_snvs)
+def run_clust(clus_out_dir,df,pi,rlen,insert,ploidy,num_iters,burn,thin,beta,merge_clusts,use_map,are_snvs=False):
+    mcmc = cluster.cluster(df,pi,rlen,insert,ploidy,num_iters,burn,thin,beta,use_map,are_snvs)
     npoints = len(df.spanning.values) if not are_snvs else len(df['var'].values)
 
     # assign points to highest probabiliy cluster

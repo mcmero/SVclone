@@ -1,6 +1,7 @@
 import numpy as np
 import pandas as pd
 import pymc as pm
+import warnings
 import ipdb
 
 from operator import methodcaller
@@ -47,27 +48,27 @@ def get_cn_mu_v(cn):
 
     return tuple(cn_v),tuple(mu_v)
 
-def get_allele_combos_tuple(c):
-    cn_r = [tuple([0.,0.]),tuple([0.,0.])]
-    cn_v = [tuple([0.,0.]),tuple([0.,0.])]
-    mu_v = [tuple([0.,0.]),tuple([0.,0.])]
-
-    if len(c) == 0 or c[0]=='':
-        return cn_r,cn_v,mu_v
-
-    cn_v[0],mu_v[0] = get_cn_mu_v(c[0])
-    cn1_tmp = map(float,c[0].split(',')) if len(c[0])>1 else c[0]
-    cnr1_tmp = cn1_tmp[0]+cn1_tmp[1]
-
-    if len(c) > 1:
-        cn_v[1],mu_v[1] = get_cn_mu_v(c[1])
-        cn2_tmp = map(float,c[1].split(','))
-        cnr2_tmp = cn2_tmp[0]+cn2_tmp[1]
-        cn_r[1],cn_r[0] = tuple([cnr1_tmp,cnr1_tmp]),tuple([cnr2_tmp,cnr2_tmp])
-    else:
-        cn_r[0],cn_r[1] = tuple([cnr1_tmp,cnr1_tmp]),tuple([cnr1_tmp,cnr1_tmp])
-
-    return tuple(cn_r),tuple(cn_v),tuple(mu_v)
+#def get_allele_combos_tuple(c):
+#    cn_r = [tuple([0.,0.]),tuple([0.,0.])]
+#    cn_v = [tuple([0.,0.]),tuple([0.,0.])]
+#    mu_v = [tuple([0.,0.]),tuple([0.,0.])]
+#
+#    if len(c) == 0 or c[0]=='':
+#        return cn_r,cn_v,mu_v
+#
+#    cn_v[0],mu_v[0] = get_cn_mu_v(c[0])
+#    cn1_tmp = map(float,c[0].split(',')) if len(c[0])>1 else c[0]
+#    cnr1_tmp = cn1_tmp[0]+cn1_tmp[1]
+#
+#    if len(c) > 1:
+#        cn_v[1],mu_v[1] = get_cn_mu_v(c[1])
+#        cn2_tmp = map(float,c[1].split(','))
+#        cnr2_tmp = cn2_tmp[0]+cn2_tmp[1]
+#        cn_r[1],cn_r[0] = tuple([cnr1_tmp,cnr1_tmp]),tuple([cnr2_tmp,cnr2_tmp])
+#    else:
+#        cn_r[0],cn_r[1] = tuple([cnr1_tmp,cnr1_tmp]),tuple([cnr1_tmp,cnr1_tmp])
+#
+#    return tuple(cn_r),tuple(cn_v),tuple(mu_v)
 
 def get_allele_combos(c):
     combos = []
@@ -93,17 +94,17 @@ def get_allele_combos(c):
 
 def get_sv_allele_combos(sv):
     cn_tmp = tuple([tuple(sv.gtype1.split('|')),tuple(sv.gtype2.split('|'))])
-    combos1 = get_allele_combos(cn_tmp[0])
-    combos2 = get_allele_combos(cn_tmp[1])
+    combos_bp1 = get_allele_combos(cn_tmp[0])
+    combos_bp2 = get_allele_combos(cn_tmp[1])
 
-    return tuple([combos1,combos2])
+    return tuple([combos_bp1,combos_bp2])
 
-def get_sv_allele_combos_tuple(sv):
-    cn_tmp = tuple([tuple(sv.gtype1.split('|')),tuple(sv.gtype2.split('|'))])
-    cnr_bp1,cnv_bp1,mu_bp1 = get_allele_combos(cn_tmp[0])
-    cnr_bp2,cnv_bp2,mu_bp2 = get_allele_combos(cn_tmp[1])
-
-    return pd.Series([tuple([cnr_bp1,cnr_bp2]),tuple([cnv_bp1,cnv_bp2]),tuple([mu_bp1,mu_bp2])])
+#def get_sv_allele_combos_tuple(sv):
+#    cn_tmp = tuple([tuple(sv.gtype1.split('|')),tuple(sv.gtype2.split('|'))])
+#    cnr_bp1,cnv_bp1,mu_bp1 = get_allele_combos(cn_tmp[0])
+#    cnr_bp2,cnv_bp2,mu_bp2 = get_allele_combos(cn_tmp[1])
+#
+#    return pd.Series([tuple([cnr_bp1,cnr_bp2]),tuple([cnv_bp1,cnv_bp2]),tuple([mu_bp1,mu_bp2])])
 
 def get_sv_vals(df,rlen):
     n = zip(np.array(df.norm1.values),np.array(df.norm2.values))
@@ -163,21 +164,28 @@ def get_snv_vals(df):
     cn_r,cn_v,mu_v = [],[],[]
     df = df.fillna('')
     df = df[df.chrom.values!='']
-    
-    for idx,snv in df.iterrows():
-        cn_tmp = snv.gtype.split('|')
-        cnr,cnv,mu = get_allele_combos_tuple(cn_tmp)
-        cn_r.append([cnr])
-        cn_v.append([cnv])
-        mu_v.append([mu])
+
+    def get_snv_allele_combos(sv):
+        return get_allele_combos(sv.dtype.split('|'))
+
+    ipdb.set_trace()
+    combos = df.apply(get_allele_combos,axis=1)
+#    for idx,snv in df.iterrows():
+#        cn_tmp = snv.gtype.split('|')
+#        cnr,cnv,mu = get_allele_combos_tuple(cn_tmp)
+#        cn_r.append([cnr])
+#        cn_v.append([cnv])
+#        mu_v.append([mu])
         
-    return b,n,cn_r,cn_v,mu_v
+    return b,n,combos
 
 def fit_and_sample(model, iters, burn, thin, use_map):
     #TODO: suppress warning about using fmin method
     if use_map:
-        map_ = pm.MAP( model )
-        map_.fit( method = 'fmin_powell' )
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            map_ = pm.MAP( model )
+            map_.fit( method = 'fmin_powell' )
     mcmc = pm.MCMC( model )
     mcmc.sample( iters, burn=burn, thin=thin )
     return mcmc
@@ -194,71 +202,73 @@ def get_pv(phi,cn_r,cn_v,mu,pi):
 
     return pv * mu
 
-def get_most_likely_cn(cn_r,cn_v,mu_v,si,di,phi,pi):
-    llik = []
-    vals = []
-    # for each subclone
-    for cn_rx, cn_vx, mu_vx in zip(cn_r,cn_v,mu_v):
-        # for each allelic state
-        for cn_ri, cn_vi, mu_vi in zip(cn_rx,cn_vx,mu_vx):
-            vals.append([cn_ri,cn_vi,mu_vi])
-            if cn_vi==0 or mu_vi==0:
-                llik.append(float('nan'))
-            else:
-                pv = get_pv(phi,cn_ri,cn_vi,mu_vi,pi)
-                temp = pm.binomial_like(si,di,pv)
-                llik.append(temp)
-    
-    vals = np.array(vals)
-    idx = np.where(np.array(llik)==np.nanmax(llik))[0]
-    if len(idx)==0:
-        #ipdb.set_trace()
-        # this shouldn't happen
-        return [0.,0.,0.]
-    else:
-        return vals[idx[0]]
+#def get_most_likely_cn(cn_r,cn_v,mu_v,si,di,phi,pi):
+#    llik = []
+#    vals = []
+#    # for each subclone
+#    for cn_rx, cn_vx, mu_vx in zip(cn_r,cn_v,mu_v):
+#        # for each allelic state
+#        for cn_ri, cn_vi, mu_vi in zip(cn_rx,cn_vx,mu_vx):
+#            vals.append([cn_ri,cn_vi,mu_vi])
+#            if cn_vi==0 or mu_vi==0:
+#                llik.append(float('nan'))
+#            else:
+#                pv = get_pv(phi,cn_ri,cn_vi,mu_vi,pi)
+#                temp = pm.binomial_like(si,di,pv)
+#                llik.append(temp)
+#    
+#    vals = np.array(vals)
+#    idx = np.where(np.array(llik)==np.nanmax(llik))[0]
+#    if len(idx)==0:
+#        #ipdb.set_trace()
+#        # this shouldn't happen
+#        return [0.,0.,0.]
+#    else:
+#        return vals[idx[0]]
 
 def filter_cns(cn_states):
     cn_str = [','.join(map(str,cn)) for cn in cn_states if cn[2]!=0 and cn[1]!=0]
     cn_str = np.unique(np.array(cn_str))
     return [map(float,cn) for cn in map(methodcaller('split',','),cn_str)]
 
-def get_cn_states(cn_r,cn_v,mu_v,sides):
-    # get all unique allele state combos per SV
-    cnr = [cn[side] for cn,side in zip(cn_r,sides)]
-    cnv = [cn[side] for cn,side in zip(cn_v,sides)]
-    muv = [mu[side] for mu,side in zip(mu_v,sides)]
-    cn_states = [[[cr_i[0][0],cv_i[0][0],mv_i[0][0]],[cr_i[0][1],cv_i[0][1],mv_i[0][1]], \
-                  [cr_i[1][0],cv_i[1][0],mv_i[1][0]],[cr_i[1][1],cv_i[1][1],mv_i[1][1]]] for cr_i,cv_i,mv_i in zip(cnr,cnv,muv)]    
-    return [filter_cns(state) for state in cn_states]
+#def get_cn_states(cn_r,cn_v,mu_v,sides):
+#    # get all unique allele state combos per SV
+#    cnr = [cn[side] for cn,side in zip(cn_r,sides)]
+#    cnv = [cn[side] for cn,side in zip(cn_v,sides)]
+#    muv = [mu[side] for mu,side in zip(mu_v,sides)]
+#    cn_states = [[[cr_i[0][0],cv_i[0][0],mv_i[0][0]],[cr_i[0][1],cv_i[0][1],mv_i[0][1]], \
+#                  [cr_i[1][0],cv_i[1][0],mv_i[1][0]],[cr_i[1][1],cv_i[1][1],mv_i[1][1]]] for cr_i,cv_i,mv_i in zip(cnr,cnv,muv)]    
+#    return [filter_cns(state) for state in cn_states]
 
 def calc_lik(combo,si,di,phi_i,pi):
     pvs = [ get_pv(phi_i,c[0],c[1],c[2],pi) for c in combo ]
     lls = [ pm.binomial_like(si,di,pvs[i]) for i,c in enumerate(combo)]
     return (pvs, lls)
 
-def get_most_likely_pv(cn_states,s,d,phi,pi):
+def get_most_likely_cn_states(cn_states,s,d,phi,pi):
+    '''
+    Obtain the copy-number states which maximise the binomial likelihood
+    of observing the supporting read depths at each variant location
+    '''
     cn_ll = [ calc_lik(cn_states[i],s[i],d[i],phi[i],pi)  for i in range(len(cn_states)) ]
     most_likely_pv = [ cn_lik[0][np.where(np.nanmax(cn_lik[1])==cn_lik[1])[0][0]] for i,cn_lik in enumerate(cn_ll)]
-    return most_likely_pv
-
-def get_most_likely_cn_states(cn_states,s,d,phi,pi):
-    cn_ll = [ calc_lik(cn_states[i],s[i],d[i],phi[i],pi)  for i in range(len(cn_states)) ]
     most_likely_cn = [ cn_states[i][np.where(np.nanmax(cn_lik[1])==cn_lik[1])[0][0]] for i,cn_lik in enumerate(cn_ll)]
-    return most_likely_cn
+    return most_likely_cn, most_likely_pv
 
 def cluster(df,pi,rlen,insert,ploidy,iters,burn,thin,beta,use_map,are_snvs=False,Ndp=param.clus_limit):
     '''
     clustering model using Dirichlet Process
     '''
     pl = ploidy
-    sup,dep,cn_r,cn_v,mu_v = [],[],[],[],[]
+    #sup,dep,cn_r,cn_v,mu_v = [],[],[],[],[]
+    sup, dep, cn_states = [], [], []
     sides = [] #only relevant for SVs
     cn_states = []
     Nvar = 0
     
     if are_snvs:        
-        sup,ref,cn_r,cn_v,mu_v = get_snv_vals(df)
+        #sup,ref,cn_r,cn_v,mu_v = get_snv_vals(df)
+        sup,ref,cn_states = get_snv_vals(df)
         dep = sup + ref
         av_cov = np.mean(dep)
         Nvar = len(sup)
@@ -297,7 +307,8 @@ def cluster(df,pi,rlen,insert,ploidy,iters,burn,thin,beta,use_map,are_snvs=False
 #        mu_vn = [m[2] for m in ml_cn]
 #
 #        return  get_pv(phi_k[z],cn_rn,cn_vn,mu_vn,pi)
-        return get_most_likely_pv(cn_states,sup,dep,phi_k[z],pi)
+         most_lik_cn_states, pvs = get_most_likely_cn_states(cn_states,sup,dep,phi_k[z],pi)
+         return pvs
     
     cbinom = pm.Binomial('cbinom', dep, p_var, observed=True, value=sup)
 
