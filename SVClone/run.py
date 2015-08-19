@@ -7,7 +7,7 @@ import ipdb
 import re
 import pandas as pd
 import vcf
-import cProfile, pstats, StringIO 
+# import cProfile, pstats, StringIO 
 from operator import methodcaller
 from . import run_clus
 from . import cluster
@@ -112,15 +112,6 @@ def run_cnv_filter(df_flt,cnv,neutral=False,are_snvs=False):
 #    return pd.Series()
 #
 #def get_genotype(cnrow):
-##    for col in cnrow.iteritems():
-##        mj = re.search("n(Maj)(?P<fraction>\d_\w)",col[0])
-##        if len(gtype)==2: break
-##        if mj:
-##            if np.isnan(col[1]) or col[1]==0: break
-##            nmin = 'nMin' + mj.group("fraction") #corresponding minor allele
-##            frac = 'frac' + mj.group("fraction") #allele fraction
-##            gtype.append([col[1],cnrow[nmin],cnrow[frac]])
-##    g_str = ["%d,%d,%f"%(gt[0],gt[1],gt[2]) for gt in gtype]
 #    #print('get genotype for %s:%d' % (cnrow['chr'],cnrow['startpos'])) 
 #    gtype = []
 #    bb_fields = ['nMaj1_A','nMin1_A','frac1_A','nMaj2_A','nMin2_A','frac2_A']
@@ -160,15 +151,15 @@ def load_cnvs(cnv):
     except KeyError:
         raise Exception('CNV file column names not recognised. Is the input a Battenberg output file?')
 
-def match_copy_numbers(sv_df, cnv_df, bp_fields=['bp1_chr','bp1_pos'], gtype_field='gtype1'):
+def match_copy_numbers(var_df, cnv_df, bp_fields=['bp1_chr','bp1_pos'], gtype_field='gtype1'):
     
-#    sv_df['gtype1'] = ''
-#    sv_df['gtype2'] = ''
-#    sv_arr = np.array(zip(sv_df.index.values,
-#                          sv_df['bp1_chr'].values,
-#                          sv_df['bp1_pos'].values,
-#                          sv_df['bp2_chr'].values,
-#                          sv_df['bp2_pos'].values),
+#    var_df['gtype1'] = ''
+#    var_df['gtype2'] = ''
+#    sv_arr = np.array(zip(var_df.index.values,
+#                          var_df['bp1_chr'].values,
+#                          var_df['bp1_pos'].values,
+#                          var_df['bp2_chr'].values,
+#                          var_df['bp2_pos'].values),
 #                     dtype=[('idx',int),('bp1_chr','S50'),\
 #                            ('bp1_pos',int),('bp2_chr','S50'),('bp2_pos',int)])
 #
@@ -176,23 +167,24 @@ def match_copy_numbers(sv_df, cnv_df, bp_fields=['bp1_chr','bp1_pos'], gtype_fie
 #        idx = sv['idx']
 #        for cnv in cnv_arr:
 #            if sv['bp1_chr'] == cnv['chr'] and cnv_overlaps(sv['bp1_pos'],cnv['startpos'],cnv['endpos']):
-#               sv_df.loc[idx,'gtype1'] = cnv['gtype']
+#               var_df.loc[idx,'gtype1'] = cnv['gtype']
 #            if sv['bp2_chr'] == cnv['chr'] and cnv_overlaps(sv['bp2_pos'],cnv['startpos'],cnv['endpos']):
-#               sv_df.loc[idx,'gtype2'] = cnv['gtype']
+#               var_df.loc[idx,'gtype2'] = cnv['gtype']
 #
-#    return sv_df 
-    sv_df[gtype_field] = ''
+#    return var_df 
+    var_df[gtype_field] = ''
     chrom_field, pos_field = bp_fields
-    sv_df[chrom_field] = map(str,sv_df[chrom_field].values)
-    bp_chroms = np.unique(sv_df[chrom_field].values)
+    var_df[chrom_field] = map(str,var_df[chrom_field].values)
+    var_df[pos_field] = map(int,var_df[pos_field].values)
+    bp_chroms = np.unique(var_df[chrom_field].values)
     bp_chroms = sorted(bp_chroms, key=lambda item: (int(item.partition(' ')[0]) \
                         if item[0].isdigit() else float('inf'), item))
     
     for bchr in bp_chroms:
         print('Matching copy-numbers for chrom %s'%bchr)
         gtypes = []
-        current_chr = sv_df[chrom_field].values==bchr
-        sv_tmp = sv_df[current_chr]
+        current_chr = var_df[chrom_field].values==bchr
+        sv_tmp = var_df[current_chr]
         cnv_tmp = cnv_df[cnv_df['chr']==bchr]
         
         if len(cnv_tmp)==0:
@@ -205,9 +197,9 @@ def match_copy_numbers(sv_df, cnv_df, bp_fields=['bp1_chr','bp1_pos'], gtype_fie
             gtype = match.loc[match.index[0]].gtype if len(match)>0 else '' 
             gtypes.append(gtype)
         
-        sv_indexes = sv_df[current_chr].index.values
-        sv_df.loc[sv_indexes,gtype_field] = gtypes
-    return sv_df
+        var_indexes = var_df[current_chr].index.values
+        var_df.loc[var_indexes,gtype_field] = gtypes
+    return var_df
 
 def load_svs(sv_file, rlen, insert):
     dat = pd.read_csv(sv_file,delimiter='\t',dtype=None, low_memory=False)
@@ -215,6 +207,20 @@ def load_svs(sv_file, rlen, insert):
     sv_df['norm_mean'] = map(np.mean,zip(sv_df['norm1'].values,sv_df['norm2'].values))
     return run_simple_filter(sv_df,rlen,insert)
 
+def load_snvs_mutect_callstats(snvs):
+    snv_df = pd.DataFrame(pd.read_csv(snvs,delimiter='\t',low_memory=False,dtype=None,comment="#"))
+    snv_df = snv_df[snv_df['judgement']=='KEEP']   
+    
+    snv_out = {'chrom' : snv_df.contig.map(str),
+               'pos'   : snv_df.position.map(int),
+               'gtype' : '',
+               'ref'   : snv_df.t_ref_sum.map(float),
+               'var'   : snv_df.t_alt_sum.map(float)}
+
+    snv_out = pd.DataFrame(snv_out)
+    snv_out = snv_out[['chrom','pos','gtype','ref','var']]
+    return snv_out
+    
 def load_snvs_mutect(snvs,sample):
     #TODO: remove sample
     vcf_reader = vcf.Reader(filename=snvs)
@@ -322,9 +328,11 @@ def is_same_sv(sv1,sv2):
 
 def filter_germline(gml_file,sv_df,rlen,insert):
     #TODO: optimise (avoid using iterrows)
+    print("Filtering out germline SVs...")
     df_gml = pd.DataFrame(pd.read_csv(gml_file,delimiter='\t',dtype=None,low_memory=False))
     df_gml = run_simple_filter(df_gml,rlen,insert)
     germline = []
+    
     for idx_sv,sv in sv_df.iterrows():
         sv_loc = [str(sv.bp1_chr),int(sv.bp1_pos),str(sv.bp2_chr),int(sv.bp2_pos)]
         same_chrs = np.logical_and(df_gml.bp1_chr.values==sv_loc[0],df_gml.bp2_chr.values==sv_loc[2])
@@ -336,10 +344,10 @@ def filter_germline(gml_file,sv_df,rlen,insert):
                 break
     return sv_df.drop(germline,axis=0)
 
-def run(samples,svs,gml,cnvs,rlens,inserts,pis,ploidies,out,n_runs,num_iters,burn,thin,beta,neutral,snvs,vcf_format,merge_clusts,use_map):
+def run(samples,svs,gml,cnvs,rlens,inserts,pis,ploidies,out,n_runs,num_iters,burn,thin,beta,neutral,snvs,snv_format,merge_clusts,use_map):
 
-    pr = cProfile.Profile()
-    pr.enable()
+    # pr = cProfile.Profile()
+    # pr.enable()
     
     if not os.path.exists(out):
         os.makedirs(out)
@@ -358,10 +366,12 @@ def run(samples,svs,gml,cnvs,rlens,inserts,pis,ploidies,out,n_runs,num_iters,bur
         snv_df = pd.DataFrame()
        
         if snvs!="":
-            if vcf_format == 'sanger':
+            if snv_format == 'sanger':
                 snv_df = load_snvs_sanger(snvs)
-            elif vcf_format == 'mutect':
+            elif snv_format == 'mutect':
                 snv_df = load_snvs_mutect(snvs,sample)
+            elif snv_format == 'mutect_callstats':
+                snv_df = load_snvs_mutect_callstats(snvs)
 
         filt_svs_file = '%s/%s_filtered_svs.tsv'%(out,sample)
         sv_df = load_svs(sv,rlen,insert)
@@ -409,10 +419,10 @@ def run(samples,svs,gml,cnvs,rlens,inserts,pis,ploidies,out,n_runs,num_iters,bur
             print('Clustering with %d SVs and %d SNVs'%(len(sv_df),len(snv_df)))        
             run_clus.infer_subclones(sample,sv_df,pi,rlen,insert,ploidy,out,n_runs,num_iters,burn,thin,beta,snv_df,merge_clusts,use_map)
 
-        pr.disable()
-        s = StringIO.StringIO()
-        sortby = 'cumulative'
-        ps = pstats.Stats(pr, stream=s).sort_stats(sortby)
-        ps.print_stats()
-        print s.getvalue()
+        # pr.disable()
+        # s = StringIO.StringIO()
+        # sortby = 'cumulative'
+        # ps = pstats.Stats(pr, stream=s).sort_stats(sortby)
+        # ps.print_stats()
+        # print s.getvalue()
 

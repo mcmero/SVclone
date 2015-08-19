@@ -6,7 +6,10 @@ from operator import methodcaller
 
 from . import cluster
 
-def dump_trace(clus_info,center_trace,outf):
+def dump_trace(clus_info,center_trace,clus_out_dir,trace_out,are_snvs):    
+    if are_snvs:
+        clus_out_dir = '%s/snvs'%clus_out_dir
+    outf = '%s/%s'%(clus_out_dir,trace_out)
     traces = np.array([center_trace[:,cid] for cid in clus_info.clus_id.values])
     df_traces = pd.DataFrame(np.transpose(traces),columns=clus_info.clus_id)
     df_traces.to_csv(outf,sep='\t',index=False)
@@ -41,9 +44,7 @@ def write_out_files_snv(df,clus_info,clus_members,df_probs,clus_cert,clus_out_di
     df = df[df.chrom.values!='']
 
     #sup,n,cn_r,cn_v,mu_v = cluster.get_snv_vals(df)
-    sup,dep,combos,sides,Nvar = cluster.get_snv_vals(df)
-    cn_states = [cn[side] for cn,side in zip(combos,sides)]
-    dep = sup + n
+    sup,dep,cn_states,Nvar = cluster.get_snv_vals(df)
     phis = clus_cert.average_ccf.values
     cns, pvs = cluster.get_most_likely_cn_states(cn_states,sup,dep,phis,pi)
 

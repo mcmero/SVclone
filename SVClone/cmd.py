@@ -47,8 +47,8 @@ parser.add_argument("--beta",dest="beta",default="8,1/0.05,0.1",type=str,
              "Dirichlet Processes' gamma function. Third value determines the starting value.")
 parser.add_argument("--snvs",dest="snvs",default="",type=str,
         help="SNVs in VCF format to (optionally) compare the clustering with SVs.")
-parser.add_argument("--vcf_format",dest="vcf_format",default="sanger",type=str,
-        help="Supplied SNV VCF is in the following input format: sanger (default), or mutect.")
+parser.add_argument("--snv-format",dest="snv_format",default="sanger",type=str,
+        help="Supplied SNV VCF is in the following input format: sanger (default), mutect or mutect_callstats.")
 parser.add_argument("--merge-clusts",dest="merge_clusts",action="store_true",
         help="Set to merge clusters.")
 parser.add_argument("--map",dest="use_map",action="store_true",
@@ -74,7 +74,7 @@ plot    = args.plot
 neutral = args.neutral
 snvs    = args.snvs
 use_map = args.use_map
-vcf_format      = args.vcf_format
+snv_format      = args.snv_format
 merge_clusts    = args.merge_clusts
 
 def proc_arg(arg,n_args=1,of_type=str):
@@ -105,7 +105,7 @@ if __name__ == '__main__':
             raise ValueError("Tumour purity value not between 0 and 1!")
     ploidy = proc_arg(ploidy,n,float)
     if snvs!="":
-        vcf_format = vcf_format.lower()
-        if not np.any(vcf_format==np.array(["sanger","mutect"])):
+        snv_format = snv_format.lower()
+        if not np.any(snv_format==np.array(["sanger","mutect","mutect_callstats"])):
             raise ValueError("Invalid VCF format specified")
-    run.run(samples,svs,gml,cnvs,rlen,insert,pi,ploidy,out,n_runs,n_iter,burn,thin,beta,neutral,snvs,vcf_format,merge_clusts,use_map)
+    run.run(samples,svs,gml,cnvs,rlen,insert,pi,ploidy,out,n_runs,n_iter,burn,thin,beta,neutral,snvs,snv_format,merge_clusts,use_map)

@@ -255,8 +255,10 @@ def run_clust(clus_out_dir,df,pi,rlen,insert,ploidy,num_iters,burn,thin,beta,mer
     # cluster plotting
     if cmd.plot:
         plot_clusters(center_trace,clus_idx,clus_max_prob,df,ploidy,pi,rlen,clus_out_dir,are_snvs)
-    write_output.dump_trace(clus_info,center_trace,'%s/premerge_phi_trace.txt'%clus_out_dir)
-    write_output.dump_trace(clus_info,z_trace,'%s/premerge_z_trace.txt'%clus_out_dir)
+    
+    trace_out = 'premerge'%clus_out_dir if merge_clusts else ''
+    write_output.dump_trace(clus_info,center_trace,clus_out_dir,trace_out+'phi_trace.txt',are_snvs)
+    write_output.dump_trace(clus_info,z_trace,clus_out_dir,trace_out+'z_trace.txt',are_snvs)
     
     # merge clusters
     if len(clus_info)>1 and merge_clusts:        
@@ -278,10 +280,13 @@ def infer_subclones(sample,df,pi,rlen,insert,ploidy,out,n_runs,num_iters,burn,th
         print("Cluster run: %d"%i)
 
         clus_out_dir = '%s/run%d'%(out,i)
+        
         if not os.path.exists(clus_out_dir):
-            os.makedirs(clus_out_dir)
+            os.makedirs(clus_out_dir)    
     
         if len(snv_df)>0:
+            if not os.path.exists('%s/snvs'%clus_out_dir):
+                os.makedirs('%s/snvs'%clus_out_dir)
             print("Clustering SNVs...")
             clus_info,center_trace,z_trace,clus_members,df_probs,clus_cert = \
                 run_clust(clus_out_dir,snv_df,pi,rlen,insert,ploidy,num_iters,burn,thin,beta,merge_clusts,use_map,are_snvs=True)

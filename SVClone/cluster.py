@@ -70,12 +70,19 @@ def get_cn_mu_v(cn):
 #
 #    return tuple(cn_r),tuple(cn_v),tuple(mu_v)
 
+#def get_sv_allele_combos_tuple(sv):
+#    cn_tmp = tuple([tuple(sv.gtype1.split('|')),tuple(sv.gtype2.split('|'))])
+#    cnr_bp1,cnv_bp1,mu_bp1 = get_allele_combos(cn_tmp[0])
+#    cnr_bp2,cnv_bp2,mu_bp2 = get_allele_combos(cn_tmp[1])
+#
+#    return pd.Series([tuple([cnr_bp1,cnr_bp2]),tuple([cnv_bp1,cnv_bp2]),tuple([mu_bp1,mu_bp2])])
+
 def get_allele_combos(c):
     combos = []
 
     if len(c) == 0 or c[0]=='':
         return combos
-
+    
     cn1_v,mu1_v = get_cn_mu_v(c[0])
     cn1 = map(float,c[0].split(',')) if len(c[0])>1 else c[0]
     cn1_ref_total  = sum(cn1[:2])
@@ -98,13 +105,6 @@ def get_sv_allele_combos(sv):
     combos_bp2 = get_allele_combos(cn_tmp[1])
 
     return tuple([combos_bp1,combos_bp2])
-
-#def get_sv_allele_combos_tuple(sv):
-#    cn_tmp = tuple([tuple(sv.gtype1.split('|')),tuple(sv.gtype2.split('|'))])
-#    cnr_bp1,cnv_bp1,mu_bp1 = get_allele_combos(cn_tmp[0])
-#    cnr_bp2,cnv_bp2,mu_bp2 = get_allele_combos(cn_tmp[1])
-#
-#    return pd.Series([tuple([cnr_bp1,cnr_bp2]),tuple([cnv_bp1,cnv_bp2]),tuple([mu_bp1,mu_bp2])])
 
 def get_sv_vals(df,rlen):
     n = zip(np.array(df.norm1.values),np.array(df.norm2.values))
@@ -161,15 +161,15 @@ def get_sv_vals(df,rlen):
 def get_snv_vals(df):
     n = df['ref'].values
     b = df['var'].values
-    cn_r,cn_v,mu_v = [],[],[]
+    #cn_r,cn_v,mu_v = [],[],[]
     df = df.fillna('')
     df = df[df.chrom.values!='']
 
     def get_snv_allele_combos(sv):
-        return get_allele_combos(sv.dtype.split('|'))
-
-    ipdb.set_trace()
-    combos = df.apply(get_allele_combos,axis=1)
+        return get_allele_combos(sv.gtype.split('|'))
+    
+    combos = df.apply(get_snv_allele_combos,axis=1)
+    
 #    for idx,snv in df.iterrows():
 #        cn_tmp = snv.gtype.split('|')
 #        cnr,cnv,mu = get_allele_combos_tuple(cn_tmp)
@@ -177,7 +177,7 @@ def get_snv_vals(df):
 #        cn_v.append([cnv])
 #        mu_v.append([mu])
         
-    return b,n,combos
+    return b,(n+b),combos,len(b)
 
 def fit_and_sample(model, iters, burn, thin, use_map):
     #TODO: suppress warning about using fmin method
@@ -268,10 +268,8 @@ def cluster(df,pi,rlen,insert,ploidy,iters,burn,thin,beta,use_map,are_snvs=False
     
     if are_snvs:        
         #sup,ref,cn_r,cn_v,mu_v = get_snv_vals(df)
-        sup,ref,cn_states = get_snv_vals(df)
-        dep = sup + ref
+        sup,dep,cn_states,Nvar = get_snv_vals(df)
         av_cov = np.mean(dep)
-        Nvar = len(sup)
         sides = np.zeros(Nvar,dtype=int)
     else:
         #sup,dep,cn_r,cn_v,mu_v,sides,Nvar = get_sv_vals(df,rlen)
