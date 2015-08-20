@@ -88,7 +88,8 @@ def plot_clusters(center_trace,clusters,assignments,df,pl,pi,rlen,clus_out_dir,a
         Nvar = len(sup)
         sides = np.zeros(Nvar,dtype=int)
     else:
-        sup,dep,cn_r,cn_v,mu_v,sides,Nvar = cluster.get_sv_vals(df,rlen)
+        #sup,dep,cn_r,cn_v,mu_v,sides,Nvar = cluster.get_sv_vals(df,rlen)
+        sup,dep,combos,sides,Nvar = cluster.get_sv_vals(df,rlen)
 
     for idx,clus in enumerate(clusters):
         clus_idx = np.array(assignments)==clus
