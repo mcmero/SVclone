@@ -250,7 +250,7 @@ def get_most_likely_cn_states(cn_states,s,d,phi,pi):
     Obtain the copy-number states which maximise the binomial likelihood
     of observing the supporting read depths at each variant location
     '''
-    cn_ll = [ calc_lik(cn_states[i],s[i],d[i],phi[i],pi) for i in range(len(cn_states)) ]
+    cn_ll = [ calc_lik(cn_states[i],s[i],d[i],phi[i],pi)  for i in range(len(cn_states)) ]
     most_likely_pv = [ cn_lik[0][np.where(np.nanmax(cn_lik[1])==cn_lik[1])[0][0]] for i,cn_lik in enumerate(cn_ll)]
     most_likely_cn = [ cn_states[i][np.where(np.nanmax(cn_lik[1])==cn_lik[1])[0][0]] for i,cn_lik in enumerate(cn_ll)]
     return most_likely_cn, most_likely_pv
@@ -277,7 +277,7 @@ def cluster(df,pi,rlen,insert,ploidy,iters,burn,thin,beta,use_map,are_snvs=False
         sup,dep,combos,sides,Nvar = get_sv_vals(df,rlen)
         cn_states = [cn[side] for cn,side in zip(combos,sides)]
     
-    sens = (.0 / ((pi/float(pl))*np.mean(dep)) 
+    sens = 1.0 / ((pi/pl)*np.mean(dep))
     alpha = pm.Gamma('alpha',0.9,1/0.9,value=2)
     #beta = pm.Gamma('beta',param.beta_shape,param.beta_rate)
     #beta = pm.Gamma('beta',1,10**(-7))
@@ -305,8 +305,8 @@ def cluster(df,pi,rlen,insert,ploidy,iters,burn,thin,beta,use_map,are_snvs=False
 #        mu_vn = [m[2] for m in ml_cn]
 #
 #        return  get_pv(phi_k[z],cn_rn,cn_vn,mu_vn,pi)
-        most_lik_cn_states, pvs = get_most_likely_cn_states(cn_states,sup,dep,phi_k[z],pi)
-        return pvs
+         most_lik_cn_states, pvs = get_most_likely_cn_states(cn_states,sup,dep,phi_k[z],pi)
+         return pvs
     
     cbinom = pm.Binomial('cbinom', dep, p_var, observed=True, value=sup)
 
