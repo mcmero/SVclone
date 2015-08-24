@@ -277,7 +277,7 @@ def cluster(df,pi,rlen,insert,ploidy,iters,burn,thin,beta,use_map,are_snvs=False
         sup,dep,combos,sides,Nvar = get_sv_vals(df,rlen)
         cn_states = [cn[side] for cn,side in zip(combos,sides)]
     
-    sens = 1.0 / ((pi/pl)*np.mean(dep))
+    sens = 1.0 / ((pi/float(pl))*np.mean(dep))
     alpha = pm.Gamma('alpha',0.9,1/0.9,value=2)
     #beta = pm.Gamma('beta',param.beta_shape,param.beta_rate)
     #beta = pm.Gamma('beta',1,10**(-7))
