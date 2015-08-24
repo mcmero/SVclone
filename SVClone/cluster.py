@@ -305,8 +305,8 @@ def cluster(df,pi,rlen,insert,ploidy,iters,burn,thin,beta,use_map,are_snvs=False
 #        mu_vn = [m[2] for m in ml_cn]
 #
 #        return  get_pv(phi_k[z],cn_rn,cn_vn,mu_vn,pi)
-         most_lik_cn_states, pvs = get_most_likely_cn_states(cn_states,sup,dep,phi_k[z],pi)
-         return pvs
+        most_lik_cn_states, pvs = get_most_likely_cn_states(cn_states,sup,dep,phi_k[z],pi)
+        return pvs
     
     cbinom = pm.Binomial('cbinom', dep, p_var, observed=True, value=sup)
 

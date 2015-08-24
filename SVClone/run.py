@@ -342,6 +342,8 @@ def filter_germline(gml_file,sv_df,rlen,insert):
             if sv_gml.support>0 and is_same_sv(sv_loc,sv_loc_gml):
                 germline.append(idx_sv)
                 break
+
+    print("Found %d SVs in the germline!" % len(germline))
     return sv_df.drop(germline,axis=0)
 
 def run(samples,svs,gml,cnvs,rlens,inserts,pis,ploidies,out,n_runs,num_iters,burn,thin,beta,neutral,snvs,snv_format,merge_clusts,use_map):
