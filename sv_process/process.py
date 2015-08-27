@@ -33,13 +33,16 @@ def is_soft_clipped(r):
 def is_minor_softclip(r):
     return (r['align_start'] < (params.tr)) and ((r['align_end'] + r['ref_start'] - r['ref_end']) < (params.tr))
 
-def is_normal_across_break(r,pos,max_ins,sc_len):
+def is_normal_across_break(r,pos,max_ins):
     # must overhang break by at least soft-clip threshold
     return  (not is_soft_clipped(r)) and \
             (abs(r['ins_len']) < max_ins) and \
-            (r['ref_start'] <= (pos - sc_len)) and \
-            (r['ref_end'] >= (pos + sc_len)) 
-          
+            (r['ref_start'] <= (pos - params.norm_overlap)) and \
+            (r['ref_end'] >= (pos + params.norm_overlap)) 
+
+def get_normal_overlap_bases(r,pos):
+    return min( [abs(r['ref_start']-pos), abs(r['ref_end']-pos)] )
+
 def is_normal_spanning(r,m,pos,max_ins):
     if not (is_soft_clipped(r) or is_soft_clipped(m)):
         if (not r['is_reverse'] and m['is_reverse']) or (r['is_reverse'] and not m['is_reverse']):
@@ -179,10 +182,12 @@ def get_loc_counts(loc_reads,pos,rc,reproc,split,norm,max_ins,sc_len,bp_num=1):
         r1 = loc_reads[idx]
         r2 = loc_reads[idx+1] if (idx+2)<=len(loc_reads) else None
         
-        if is_normal_across_break(x,pos,max_ins,sc_len):
+        if is_normal_across_break(x,pos,max_ins):
             norm = np.append(norm,r1)            
             split_norm = 'bp%d_split_norm'%bp_num
+            norm_olap = 'bp%d_norm_olap_bp'%bp_num
             rc[split_norm] = rc[split_norm]+1 
+            rc[norm_olap] = rc[norm_olap]+get_normal_overlap_bases(x,pos)
         elif is_supporting_split_read(x,pos,max_ins,sc_len):
             split = np.append(split,x)            
             split_supp = 'bp%d_split'%bp_num
@@ -234,6 +239,7 @@ def get_sv_read_counts(bp1,bp2,bam,inserts,max_dp,max_ins,sc_len,use_dir):
     loc1_reads = get_loc_reads(bp1,bamf,max_dp)    
     loc2_reads = get_loc_reads(bp2,bamf,max_dp)    
     bamf.close()
+    
     if len(loc1_reads)==0 or len(loc2_reads)==0:
         return np.empty(0,dtype=params.sv_out_dtype)
     
@@ -283,6 +289,9 @@ def get_sv_read_counts(bp1,bp2,bam,inserts,max_dp,max_ins,sc_len,use_dir):
         rc['bp1_dir'] = get_dir(split_bp1,span_bp1,loc1_reads,pos1,sc_len)
         rc['bp2_dir'] = get_dir(split_bp2,span_bp2,loc2_reads,pos2,sc_len)
 
+    rc['bp1_total_reads'] = len(loc1_reads)
+    rc['bp2_total_reads'] = len(loc2_reads)
+
     print('processed %d reads at loc1; %d reads at loc2' % (len(loc1_reads),len(loc2_reads)))
     return rc
 
@@ -308,16 +317,16 @@ def remove_duplicates(svs,use_dir):
     for idx,row in enumerate(svs):
         #reorder breakpoints based on position or chromosomes
         if use_dir:
-            bp1_chr, bp1_pos, bp1_dir, bp2_chr, bp2_pos, bp2_dir = row
+            bp1_chr, bp1_pos, bp1_dir, bp2_chr, bp2_pos, bp2_dir, sv_class = row
             if (bp1_chr!=bp2_chr and bp1_chr>bp2_chr) or (bp1_chr==bp2_chr and bp1_pos > bp2_pos):
-                svs[idx] = (bp2_chr,bp2_pos,bp2_dir,bp1_chr,bp1_pos,bp1_dir)
+                svs[idx] = (bp2_chr,bp2_pos,bp2_dir,bp1_chr,bp1_pos,bp1_dir,sv_class)
         else:
-            bp1_chr, bp1_pos, bp2_chr, bp2_pos = row
+            bp1_chr, bp1_pos, bp2_chr, bp2_pos, sv_class = row
             if (bp1_chr!=bp2_chr and bp1_chr>bp2_chr) or (bp1_chr==bp2_chr and bp1_pos > bp2_pos):
-                svs[idx] = (bp2_chr,bp2_pos,bp1_chr,bp1_pos)
+                svs[idx] = (bp2_chr,bp2_pos,bp1_chr,bp1_pos,sv_class)
     return np.unique(svs)
 
-def load_input_vcf(svin):
+def load_input_vcf(svin,class_field):
     sv_dtype = [s for i,s in enumerate(params.sv_dtype) if i not in [2,5]]
     
     sv_vcf = vcf.Reader(filename=svin)
@@ -366,9 +375,10 @@ def load_input_vcf(svin):
             bp1_pos = sv['POS']
             bp2_chr = mate['CHROM']
             bp2_pos = mate['POS']
-            
+            sv_class = sv['INFO'][class_field] if class_field!='' else ''
+
             procd = np.append(procd,[sv_id,mate_id])
-            new_sv = np.array([(bp1_chr,bp1_pos,bp2_chr,bp2_pos)],dtype=sv_dtype)        
+            new_sv = np.array([(bp1_chr,bp1_pos,bp2_chr,bp2_pos,sv_class)],dtype=sv_dtype)        
             svs = np.append(svs,new_sv)
         except KeyError:
             print("SV %s improperly paired or missing attributes"%sv_id)
@@ -402,15 +412,15 @@ def load_input_socrates(svin,rlen,use_dir,filt_repeats):
         if use_dir:
             bp1_dir = row[params.bp1_dir]
             bp2_dir = row[params.bp2_dir]
-            add_sv = np.array([(bp1_chr,bp1_pos,bp1_dir,bp2_chr,bp2_pos,bp2_dir)],dtype=sv_dtype)
+            add_sv = np.array([(bp1_chr,bp1_pos,bp1_dir,bp2_chr,bp2_pos,bp2_dir,'')],dtype=sv_dtype)
         else:
-            add_sv = np.array([(bp1_chr,bp1_pos,bp2_chr,bp2_pos)],dtype=sv_dtype)
+            add_sv = np.array([(bp1_chr,bp1_pos,bp2_chr,bp2_pos,'')],dtype=sv_dtype)
         
         svs = np.append(svs,add_sv)
 
     return remove_duplicates(svs,use_dir)
 
-def load_input_simple(svin,use_dir):
+def load_input_simple(svin,use_dir,class_field):
     sv_dtype =  [s for s in params.sv_dtype] if use_dir else [s for i,s in enumerate(params.sv_dtype) if i not in [2,5]]
 
     sv_tmp = np.genfromtxt(svin,delimiter='\t',names=True,dtype=None,invalid_raise=False)
@@ -420,13 +430,14 @@ def load_input_simple(svin,use_dir):
         bp1_pos = int(row['bp1_pos'])
         bp2_chr = str(row['bp2_chr'])
         bp2_pos = int(row['bp2_pos'])
-        add_sv = np.empty(0)
+        sv_class = row[class_field] if class_field!='' else ''
+        add_sv = np.empty(0)        
         if use_dir:
             bp1_dir = str(row['bp1_dir'])
             bp2_dir = str(row['bp2_dir'])
-            add_sv = np.array([(bp1_chr,bp1_pos,bp1_dir,bp2_chr,bp2_pos,bp2_dir)],dtype=sv_dtype)
+            add_sv = np.array([(bp1_chr,bp1_pos,bp1_dir,bp2_chr,bp2_pos,bp2_dir,sv_class)],dtype=sv_dtype)
         else:
-            add_sv = np.array([(bp1_chr,bp1_pos,bp2_chr,bp2_pos)],dtype=sv_dtype)
+            add_sv = np.array([(bp1_chr,bp1_pos,bp2_chr,bp2_pos,sv_class)],dtype=sv_dtype)
         svs = np.append(svs,add_sv)
     return remove_duplicates(svs,use_dir)
 
@@ -445,6 +456,7 @@ def proc_svs(args):
     socrates     = args.socrates
     use_dir      = args.use_dir
     filt_repeats = args.filt_repeats
+    class_field  = args.class_field
 
     filt_repeats = filt_repeats.split(',') if filt_repeats != '' else filt_repeats
     filt_repeats = [rep for rep in filt_repeats if rep!='']    
@@ -461,7 +473,7 @@ def proc_svs(args):
     rlen, inserts, max_dp, max_ins = get_params(bam, mean_dp, max_cn, rlen, insert_mean, insert_std, out)
 
     # write header output
-    header_out = ['ID'] + [h[0] for idx,h in enumerate(params.sv_dtype) if idx not in [2,5]] #don't include dir fields
+    header_out = ['ID'] + [h[0] for idx,h in enumerate(params.sv_dtype) if idx not in [2,5,6]] #don't include dir fields
     header_out.extend([h[0] for h in params.sv_out_dtype])
     
     with open('%s_svinfo.txt'%out,'w') as outf:        
@@ -470,19 +482,19 @@ def proc_svs(args):
 
     bp_dtype = [('chrom','S20'),('start', int), ('end', int), ('dir', 'S1')] if use_dir \
                  else [('chrom','S20'),('start', int), ('end', int)]
-    bp1_chr, bp1_pos, bp1_dir, bp2_chr, bp2_pos, bp2_dir = [h[0] for h in params.sv_dtype]
+    bp1_chr, bp1_pos, bp1_dir, bp2_chr, bp2_pos, bp2_dir, sv_class = [h[0] for h in params.sv_dtype]
              
     svs = np.empty(0)
     if simple:
-        svs = load_input_simple(svin,use_dir)
+        svs = load_input_simple(svin,use_dir,class_field)
     elif socrates:
         svs = load_input_socrates(svin,rlen,use_dir,filt_repeats)
     else:
-        svs = load_input_vcf(svin)
+        svs = load_input_vcf(svin,class_field)
     print("Extracting data from %d SVs"%len(svs))
 
     svd_prevResult, prevSV = None, None
-    id = 0
+    sv_id = 0
     for row in svs:        
         sv_prop = row[bp1_chr],row[bp1_pos],row[bp2_chr],row[bp2_pos]
         sv_str = '%s:%d|%s:%d'%sv_prop
@@ -507,39 +519,51 @@ def proc_svs(args):
             sv_rc['norm2'] = norm2
             sv_rc['support'] = support
             sv_rc['vaf1'] = support / (support + norm1) if support!=0 else 0
-            sv_rc['vaf2'] = support / (support + norm2) if support!=0 else 0
-           
-            #classify event
-            sv = (row['bp1_chr'],row['bp1_pos'],sv_rc['bp1_dir'][0],row['bp2_chr'],row['bp2_pos'],sv_rc['bp2_dir'][0])
-            svd_result = svd.detect(prevSV,svd_prevResult,sv)
-            svd_prevResult,prevSV = svd_result,sv
-            sv_rc['classification'] = svd.getResultType(svd_result)
-            id = id if svd_result[0]==svd.SVtypes.interspersedInsertion else id+1
-#            if row['classification']!=sv_rc['classification']:
-#                with open('assign.txt','a') as outp:
-#                    outp.write('%s:%d %s %s:%d %s'%sv + ' soc_class = %s; integrated = %s\n' % (row['classification'],sv_rc['classification']))            
-            sv_out = [id] + [r for idx,r in enumerate(row) if idx not in [2,5]] if use_dir else \
-                     [id] + [r for idx,r in enumerate(row)]
+            sv_rc['vaf2'] = support / (support + norm2) if support!=0 else 0            
+            
+            if class_field=='':
+
+                #classify event
+                sv = (row[bp1_chr],row[bp1_pos],sv_rc[bp1_dir][0], 
+                      row[bp2_chr],row[bp2_pos],sv_rc[bp2_dir][0])
+
+                svd_result = svd.detect(prevSV,svd_prevResult,sv)
+                svd_prevResult,prevSV = svd_result,sv
+            
+                sv_rc['classification'] = svd.getResultType(svd_result)
+                sv_id = sv_id if svd_result[0]==svd.SVtypes.interspersedInsertion else sv_id+1
+    #            if row['classification']!=sv_rc['classification']:
+    #                with open('assign.txt','a') as outp:
+    #                    outp.write('%s:%d %s %s:%d %s'%sv + \
+    #                               ' soc_class = %s; integrated = %s\n' % (row['classification'],sv_rc['classification']))            
+            else:
+                sv_id = sv_id+1
+                sv_rc['classification'] = row[sv_class]
+            
+            sv_out = [sv_id] + [r for idx,r in enumerate(row) if idx not in [2,5,6]] if use_dir else \
+                     [sv_id] + [r for idx,r in enumerate(row) if idx not in [4]]
             sv_out.extend([rc for rc in sv_rc[0]])
 
             with open('%s_svinfo.txt'%out,'a') as outf:
                 writer = csv.writer(outf,delimiter='\t',quoting=csv.QUOTE_NONE)
                 writer.writerow(sv_out)
-    #post-process: look for translocations
-    sv_info = np.genfromtxt('%s_svinfo.txt'%out,delimiter='\t',names=True,dtype=None)
-    trx_label    = svd.getResultType([svd.SVtypes.translocation])
-    intins_label = svd.getResultType([svd.SVtypes.interspersedInsertion])
-    rewrite=False
-    for idx,sv in enumerate(sv_info):
-        if sv['classification']==intins_label:
-            rewrite=True
-            sv_info[idx-1]['classification'] = intins_label
-            translocs = svd.detectTransloc(idx,sv_info)
-            if len(translocs)>0:
-                for i in translocs: sv_info[i]['classification'] = trx_label
-    if rewrite:
-        with open('%s_svinfo.txt'%out,'w') as outf:
-            writer = csv.writer(outf,delimiter='\t',quoting=csv.QUOTE_NONE)
-            writer.writerow(header_out)
-            for sv_out in sv_info:
-                writer.writerow(sv_out)
+
+    if class_field=='':
+        #post-process: look for translocations
+        sv_info = np.genfromtxt('%s_svinfo.txt'%out,delimiter='\t',names=True,dtype=None)
+        trx_label    = svd.getResultType([svd.SVtypes.translocation])
+        intins_label = svd.getResultType([svd.SVtypes.interspersedInsertion])
+        rewrite=False
+        for idx,sv in enumerate(sv_info):
+            if sv['classification']==intins_label:
+                rewrite=True
+                sv_info[idx-1]['classification'] = intins_label
+                translocs = svd.detectTransloc(idx,sv_info)
+                if len(translocs)>0:
+                    for i in translocs: sv_info[i]['classification'] = trx_label
+        if rewrite:
+            with open('%s_svinfo.txt'%out,'w') as outf:
+                writer = csv.writer(outf,delimiter='\t',quoting=csv.QUOTE_NONE)
+                writer.writerow(header_out)
+                for sv_out in sv_info:
+                    writer.writerow(sv_out)

@@ -35,11 +35,13 @@ parser.add_argument("--simple",dest="simple_svs",action="store_true",
         help="Whether sv input is in a simple format (see README), otherwise VCF format is assumed.")
 parser.add_argument("--socrates",dest="socrates",action="store_true",
         help="Whether sv input is 'Socrates' SV caller input.")
-parser.add_argument("--use-dir",dest="use_dir",action="store_true",
+parser.add_argument("--use_dir",dest="use_dir",action="store_true",
         help="Whether to use breakpoint direction in input file (must be supplied).")
-parser.add_argument("--filter-repeats",dest="filt_repeats",default="",
+parser.add_argument("--filter_repeats",dest="filt_repeats",default="",
         help="Comma-separated repeat types to filter, if found at both sides of the breakpoint). SOCRATES INPUT ONLY.")
-args = parser.parse_args()
+parser.add_argument("--sv_class_field",dest="class_field",default="",
+        help="Use existing classification field, specify the field name")
 
+args = parser.parse_args()
 if __name__ == '__main__':
     process.proc_svs(args)
