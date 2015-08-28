@@ -33,20 +33,20 @@ def is_soft_clipped(r):
 def is_minor_softclip(r):
     return (r['align_start'] < (params.tr)) and ((r['align_end'] + r['ref_start'] - r['ref_end']) < (params.tr))
 
-def is_normal_across_break(r,pos,max_ins):
+def is_normal_across_break(r,pos,min_ins,max_ins):
     # must overhang break by at least soft-clip threshold
     return  (not is_soft_clipped(r)) and \
-            (abs(r['ins_len']) < max_ins) and \
+            (r['ins_len'] < max_ins and r['ins_len'] > min_ins) and \
             (r['ref_start'] <= (pos - params.norm_overlap)) and \
             (r['ref_end'] >= (pos + params.norm_overlap)) 
 
 def get_normal_overlap_bases(r,pos):
     return min( [abs(r['ref_start']-pos), abs(r['ref_end']-pos)] )
 
-def is_normal_spanning(r,m,pos,max_ins):
+def is_normal_spanning(r,m,pos,min_ins,max_ins):
     if not (is_soft_clipped(r) or is_soft_clipped(m)):
         if (not r['is_reverse'] and m['is_reverse']) or (r['is_reverse'] and not m['is_reverse']):
-            return (abs(r['ins_len']) < max_ins) and \
+            return (r['ins_len'] < max_ins and r['ins_len'] > min_ins) and \
                    (r['ref_end'] < (pos + params.tr)) and \
                    (m['ref_start'] > (pos - params.tr))
     return False
@@ -157,7 +157,7 @@ def reads_to_sam(reads,bam,bp1,bp2,name):
     bamf.close()
     bam_out.close()
 
-def windowed_norm_read_count(loc_reads,inserts,max_ins):
+def windowed_norm_read_count(loc_reads,inserts,min_ins,max_ins):
     '''
     Counts normal non-soft-clipped reads within window range
     '''
@@ -171,18 +171,18 @@ def windowed_norm_read_count(loc_reads,inserts,max_ins):
             continue
         ins_dist = r2['ref_end']-r1['ref_start']
         facing = not r1['is_reverse'] and r2['is_reverse']
-        if not is_soft_clipped(r1) and not is_soft_clipped(r2) and facing and ins_dist > 0 and ins_dist < max_ins:
+        if not is_soft_clipped(r1) and not is_soft_clipped(r2) and facing and ins_dist > min_ins and ins_dist < max_ins:
             cnorm = cnorm + 2
     return cnorm
 
-def get_loc_counts(loc_reads,pos,rc,reproc,split,norm,max_ins,sc_len,bp_num=1):
+def get_loc_counts(loc_reads,pos,rc,reproc,split,norm,min_ins,max_ins,sc_len,bp_num=1):
     for idx,x in enumerate(loc_reads):
         if idx+1 >= len(loc_reads):            
             break        
         r1 = loc_reads[idx]
         r2 = loc_reads[idx+1] if (idx+2)<=len(loc_reads) else None
         
-        if is_normal_across_break(x,pos,max_ins):
+        if is_normal_across_break(x,pos,min_ins,max_ins):
             norm = np.append(norm,r1)            
             split_norm = 'bp%d_split_norm'%bp_num
             norm_olap = 'bp%d_norm_olap_bp'%bp_num
@@ -194,7 +194,7 @@ def get_loc_counts(loc_reads,pos,rc,reproc,split,norm,max_ins,sc_len,bp_num=1):
             split_cnt = 'bp%d_sc_bases'%bp_num
             rc[split_supp] = rc[split_supp]+1 
             rc[split_cnt] = rc[split_cnt]+get_sc_bases(x,pos)
-        elif r2!=None and r1['query_name']==r2['query_name'] and is_normal_spanning(r1,r2,pos,max_ins):
+        elif r2!=None and r1['query_name']==r2['query_name'] and is_normal_spanning(r1,r2,pos,min_ins,max_ins):
             norm = np.append(norm,r1)            
             norm = np.append(norm,r2)            
             span_norm = 'bp%d_span_norm'%bp_num
@@ -232,7 +232,7 @@ def get_dir(split,span,loc_reads,pos,sc_len):
         else:
             return '?'
 
-def get_sv_read_counts(bp1,bp2,bam,inserts,max_dp,max_ins,sc_len,use_dir):
+def get_sv_read_counts(bp1,bp2,bam,inserts,max_dp,min_ins,max_ins,sc_len,use_dir):
     bamf = pysam.AlignmentFile(bam, "rb")
     pos1 = (bp1['start'] + bp1['end']) / 2
     pos2 = (bp2['start'] + bp2['end']) / 2
@@ -251,10 +251,10 @@ def get_sv_read_counts(bp1,bp2,bam,inserts,max_dp,max_ins,sc_len,use_dir):
     split_bp2 = np.empty([0,len(params.read_dtype)],dtype=params.read_dtype)
     norm = np.empty([0,len(params.read_dtype)],dtype=params.read_dtype)
     
-    rc, reproc, split_bp1, norm = get_loc_counts(loc1_reads,pos1,rc,reproc,split_bp1,norm,max_ins,sc_len)
-    rc, reproc, split_bp2, norm = get_loc_counts(loc2_reads,pos2,rc,reproc,split_bp2,norm,max_ins,sc_len,2)
-    rc['bp1_win_norm'] = windowed_norm_read_count(loc1_reads,inserts,max_ins)
-    rc['bp2_win_norm'] = windowed_norm_read_count(loc2_reads,inserts,max_ins)
+    rc, reproc, split_bp1, norm = get_loc_counts(loc1_reads,pos1,rc,reproc,split_bp1,norm,min_ins,max_ins,sc_len)
+    rc, reproc, split_bp2, norm = get_loc_counts(loc2_reads,pos2,rc,reproc,split_bp2,norm,min_ins,max_ins,sc_len,2)
+    rc['bp1_win_norm'] = windowed_norm_read_count(loc1_reads,inserts,min_ins,max_ins)
+    rc['bp2_win_norm'] = windowed_norm_read_count(loc2_reads,inserts,min_ins,max_ins)
     
     reproc = np.sort(reproc,axis=0,order=['query_name','ref_start'])
     reproc = np.unique(reproc) #remove dups
@@ -305,13 +305,14 @@ def get_params(bam,mean_dp,max_cn,rlen,insert_mean,insert_std,out):
         inserts[0] = inserts[0]+(rlen*2) #derive fragment size
     
     max_dp = ((mean_dp*(params.window*2))/rlen)*max_cn
-    max_ins = 2*inserts[1]+inserts[0] #actually the *fragment* size
-
+    max_ins = inserts[0]+(2*inserts[1]) #actually the *fragment* size
+    min_ins = max(rlen*2,inserts[0]-(2*inserts[1])) #actually the *fragment* size
+    
     with open('%s_params.txt'%out,'w') as outp:
-        outp.write('read_len\tinsert_mean\tinsert_std\tinsert_cutoff\tmax_dep\n')
-        outp.write('%d\t%f\t%f\t%f\t%d'%(rlen,inserts[0]-(rlen*2),inserts[1],max_ins-(rlen*2),max_dp))
+        outp.write('read_len\tinsert_mean\tinsert_std\tinsert_min\tinsert_max\tmax_dep\n')
+        outp.write('%d\t%f\t%f\t%f\t%f\t%d'%(rlen,inserts[0]-(rlen*2),inserts[1],min_ins-(rlen*2),max_ins-(rlen*2),max_dp))
 
-    return rlen, inserts, max_dp, max_ins
+    return rlen, inserts, max_dp, max_ins, min_ins
 
 def remove_duplicates(svs,use_dir):
     for idx,row in enumerate(svs):
@@ -470,7 +471,7 @@ def proc_svs(args):
     if dirname!='' and not os.path.exists(dirname):
         os.makedirs(dirname)
 
-    rlen, inserts, max_dp, max_ins = get_params(bam, mean_dp, max_cn, rlen, insert_mean, insert_std, out)
+    rlen, inserts, max_dp, max_ins, min_ins = get_params(bam, mean_dp, max_cn, rlen, insert_mean, insert_std, out)
 
     # write header output
     header_out = ['ID'] + [h[0] for idx,h in enumerate(params.sv_dtype) if idx not in [2,5,6]] #don't include dir fields
@@ -504,11 +505,11 @@ def proc_svs(args):
         if use_dir:
             bp1 = np.array((row[bp1_chr],row[bp1_pos]-params.window,row[bp1_pos]+params.window,row[bp1_dir]),dtype=bp_dtype)
             bp2 = np.array((row[bp2_chr],row[bp2_pos]-params.window,row[bp2_pos]+params.window,row[bp2_dir]),dtype=bp_dtype)
-            sv_rc  = get_sv_read_counts(bp1,bp2,bam,inserts,max_dp,max_ins,sc_len,use_dir)
+            sv_rc  = get_sv_read_counts(bp1,bp2,bam,inserts,max_dp,min_ins,max_ins,sc_len,use_dir)
         else:
             bp1 = np.array((row[bp1_chr],row[bp1_pos]-params.window,row[bp1_pos]+params.window),dtype=bp_dtype)
             bp2 = np.array((row[bp2_chr],row[bp2_pos]-params.window,row[bp2_pos]+params.window),dtype=bp_dtype)
-            sv_rc  = get_sv_read_counts(bp1,bp2,bam,inserts,max_dp,max_ins,sc_len,use_dir)
+            sv_rc  = get_sv_read_counts(bp1,bp2,bam,inserts,max_dp,min_ins,max_ins,sc_len,use_dir)
         
         if len(sv_rc) > 0:
             norm1 = int(sv_rc['bp1_split_norm']+sv_rc['bp1_span_norm'])
