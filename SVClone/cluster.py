@@ -1,7 +1,6 @@
 import numpy as np
 import pandas as pd
 import pymc as pm
-import warnings
 import ipdb
 
 from operator import methodcaller
@@ -150,9 +149,10 @@ def get_sv_vals(df,rlen):
     #gt1_sc = np.array(map(len,map(methodcaller("split","|"),df.gtype1.values)))>1
     #gt2_sc = np.array(map(len,map(methodcaller("split","|"),df.gtype1.values)))>1
 
-    sides[has_both_gts] = [np.where(x==min(x))[0][0] for x in dev_from_cov[has_both_gts]]        
+    sides[has_both_gts] = [np.where(x==min(x))[0][0] for x in dev_from_cov[has_both_gts]]
 
     norm = [ni[si] for ni,si in zip(n,sides)]
+    #norm = map(np.mean,n)
     dep = np.array(norm+sup,dtype=float)
 
     #return sup,dep,cn_r,cn_v,mu_v,sides,Nvar
@@ -182,10 +182,8 @@ def get_snv_vals(df):
 def fit_and_sample(model, iters, burn, thin, use_map):
     #TODO: suppress warning about using fmin method
     if use_map:
-        with warnings.catch_warnings():
-            warnings.simplefilter("ignore")
-            map_ = pm.MAP( model )
-            map_.fit( method = 'fmin_powell' )
+        map_ = pm.MAP( model )
+        map_.fit( method = 'fmin_powell' )
     mcmc = pm.MCMC( model )
     mcmc.sample( iters, burn=burn, thin=thin )
     return mcmc
