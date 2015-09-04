@@ -170,11 +170,16 @@ def write_out_files(df,clus_info,clus_members,df_probs,clus_cert,clus_out_dir,sa
         mult_new_row = np.array([(bp1_chr,bp1_pos,bp2_chr,bp2_pos,sc_cn,
                                   int(round(freq*sc_cn)),tot_opts,var_opts,probs)],dtype=mult_dtype)
         mult_vect = np.append(mult_vect,mult_new_row)
+    
+    #adjust cluster freqs to cell prevalence
+    clus_cert.average_ccf = clus_cert.average_ccf.values*pi
+    clus_cert['90_perc_CI_lo'] = clus_cert['90_perc_CI_lo'].values*pi
+    clus_cert['90_perc_CI_hi'] = clus_cert['90_perc_CI_hi'].values*pi
 
     #rename cols
-    #rename_cols =  {'bp1_chr':'chr1', 'bp1_pos':'pos1', 'bp2_chr','chr2', 'bp2_pos':'pos2'}
-    #clus_cert = clus_cert.rename(columns = rename_cols)
-    #df_probs = df_probs.rename(columns = rename_cols)
+    rename_cols =  {'bp1_chr': 'chr1', 'bp1_pos': 'pos1', 'bp2_chr': 'chr2', 'bp2_pos': 'pos2'}
+    clus_cert = clus_cert.rename(columns = rename_cols)
+    df_probs = df_probs.rename(columns = rename_cols)
 
     pd.DataFrame(mlcn_vect).to_csv('%s/%s_most_likely_copynumbers.txt'%(clus_out_dir,sample),sep='\t',index=False)
     pd.DataFrame(mult_vect).to_csv('%s/%s_multiplicity.txt'%(clus_out_dir,sample),sep='\t',index=False)
