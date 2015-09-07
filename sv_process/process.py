@@ -30,8 +30,8 @@ def read_to_array(x,bamf):
 def is_soft_clipped(r):
     return r['align_start'] != 0 or (r['len'] + r['ref_start'] != r['ref_end'])
 
-def is_minor_softclip(r):
-    return (r['align_start'] < (params.tr)) and ((r['align_end'] + r['ref_start'] - r['ref_end']) < (params.tr))
+def is_minor_softclip(r,threshold=params.tr):
+    return (r['align_start'] < threshold) and ((r['align_end'] + r['ref_start'] - r['ref_end']) < threshold)
 
 def is_normal_across_break(r,pos,min_ins,max_ins):
     # must overhang break by at least soft-clip threshold
@@ -66,7 +66,7 @@ def is_supporting_split_read(r,pos,max_ins,sc_len):
 
 def is_supporting_split_read_lenient(r,pos):
     '''
-    Same as is_supporting_split_read wihout insert and soft-clip threshold checks
+    Same as is_supporting_split_read without insert and soft-clip threshold checks
     '''
     if r['align_start'] < (params.tr): #a "soft" threshold if it is soft-clipped at the other end        
         return (r['len'] - r['align_end'] >= params.tr) and r['ref_end'] > (pos - params.tr) and r['ref_end'] < (pos + params.tr)
@@ -88,12 +88,19 @@ def get_bp_dist(x,bp_pos):
     else: 
         return (bp_pos - x['ref_start'])
 
+def points_towards_break(x,pos):
+    if x['is_reverse']:
+        if x['ref_start'] + params.tr < pos: return False
+    else: 
+        if x['ref_end'] - params.tr > pos: return False
+    return True
+
 def is_supporting_spanning_pair(r,m,bp1,bp2,inserts,max_ins):
     pos1 = (bp1['start'] + bp1['end']) / 2
     pos2 = (bp2['start'] + bp2['end']) / 2
     
-    if is_soft_clipped(r) or is_soft_clipped(m):
-        return False
+#    if is_soft_clipped(r) or is_soft_clipped(m):
+#        return False
     
     #ensure this isn't just a regular old spanning pair    
     if r['chrom']==m['chrom']:
@@ -101,14 +108,31 @@ def is_supporting_spanning_pair(r,m,bp1,bp2,inserts,max_ins):
             if m['ref_start']-r['ref_end'] < max_ins: return False
         else:
             if r['ref_start']-m['ref_end'] < max_ins: return False
+    
+    #check read orientation
+    #spanning reads should always point towards the break
+    if not points_towards_break(r,pos1) or not points_towards_break(m,pos2):
+        return False
 
     ins_dist1 = get_bp_dist(r,pos1)
     ins_dist2 = get_bp_dist(m,pos2)
 
-    if ins_dist1<0 or ins_dist2<0:
-        return False
+    if is_supporting_split_read_lenient(r,pos1):
+        if is_soft_clipped(m): 
+            #only allow one soft-clip
+            return False
+        if abs(ins_dist1)+abs(ins_dist2) < max_ins: 
+            return True
+    elif is_supporting_split_read_lenient(m,pos2):
+        if is_soft_clipped(r):
+            return False
+        if abs(ins_dist1)+abs(ins_dist2) < max_ins:
+            return True
     else:
-        return (ins_dist1+ins_dist2) < max_ins
+        if ins_dist1>=-params.tr and ins_dist2>=-params.tr and abs(ins_dist1)+abs(ins_dist2) < max_ins:
+            return True    
+
+    return False
 
 def get_loc_reads(bp,bamf,max_dp):
     loc = '%s:%d:%d' % (bp['chrom'], max(0,bp['start']), bp['end'])
@@ -267,6 +291,7 @@ def get_sv_read_counts(bp1,bp2,bam,inserts,max_dp,min_ins,max_ins,sc_len,use_dir
         if reproc[idx+1]['query_name'] != reproc[idx]['query_name']:
             #not paired
             continue
+
         mate = np.array(reproc[idx+1],copy=True)
         r1 = np.array(x,copy=True)
         r2 = np.array(mate,copy=True)
