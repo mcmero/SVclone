@@ -19,7 +19,6 @@ def write_out_files_snv(df,clus_info,clus_members,df_probs,clus_cert,clus_out_di
     clus_out_dir = '%s/snvs'%clus_out_dir
     if not os.path.exists(clus_out_dir):
         os.makedirs(clus_out_dir)
-
     clus_info.to_csv('%s/clusters.txt'%(clus_out_dir),sep='\t',index=False)
     with open('%s/number_of_clusters.txt'%clus_out_dir,'w') as outf:
         outf.write("sample\tclusters\n")
@@ -76,7 +75,12 @@ def write_out_files_snv(df,clus_info,clus_members,df_probs,clus_cert,clus_out_di
 
 def write_out_files(df,clus_info,clus_members,df_probs,clus_cert,clus_out_dir,sample,pi,rlen):
     
-    clus_info.to_csv('%s/clusters.txt'%(clus_out_dir),sep='\t',index=False)
+    clus_info = clus_info[['clus_id','size','phi']]
+    rename_cols =  {'clus_id': 'cluster', 'size': 'n_ssms', 'phi': 'proportion'}
+
+    clus_info = clus_info.rename(columns = rename_cols)    
+    clus_info.to_csv('%s/%s_subclonal_structure.txt'%(clus_out_dir,sample),sep='\t',index=False)
+
     with open('%s/number_of_clusters.txt'%clus_out_dir,'w') as outf:
         outf.write("sample\tclusters\n")
         outf.write('%s\t%d\n'%(sample,len(clus_info)))
