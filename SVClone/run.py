@@ -27,7 +27,8 @@ def run_simple_filter(df,rlen,insert):
     '''
     span = np.array(df.spanning)
     split = np.array(df.bp1_split+df.bp2_split)
-    df_flt = df[(span+split)>=1]
+    #df_flt = df[(span+split)>=1]
+    df_flt = df[np.logical_and(span>0,split>0)]
 
     itx = df_flt['bp1_chr']!=df_flt['bp2_chr']
     frag_len = 2*rlen+insert
