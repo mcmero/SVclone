@@ -83,8 +83,8 @@ def run_cnv_filter(df_flt,cnv,neutral=False,are_snvs=False):
             # weight ranges by copy-numbers
             depths = df_flt['ref'].values + df_flt['var'].values
             cns = cluster.get_weighted_cns(df_flt.gtype.values)
-            cn_nonzero = np.logical_not(cns==0) 
-            depths[cn_nonzero] = (depths/cns)[cn_nonzero]
+            cn_nonzero = np.logical_not(cns==0)
+            depths[cn_nonzero] = (depths[cn_nonzero]/cns[cn_nonzero])
 
             dep_ranges = get_outlier_ranges(depths)
             df_flt = df_flt[np.logical_and(depths>dep_ranges[0],depths<dep_ranges[1])]
@@ -403,7 +403,10 @@ def run(samples,svs,gml,cnvs,rlens,inserts,pis,ploidies,out,n_runs,num_iters,bur
             sv_df['gtype1'] = '1,1,1.000000'
             sv_df['gtype2'] = '1,1,1.000000'
             #sv_df = sv_df[(sv_df.norm_mean<np.percentile(sv_df.norm_mean,85))]                
-            sv_df = filter_outlying_norm_wins(sv_df)
+            sv_df = run_cnv_filter(sv_df,cnv,neutral)
+            if snvs!="":
+                snv_df['gtype'] = '1,1,1.000000'
+                snv_df = run_cnv_filter(snv_df,cnv,neutral,True)
 
         #reindex data frames
         sv_df.index = range(len(sv_df))

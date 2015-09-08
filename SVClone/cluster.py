@@ -10,13 +10,13 @@ def get_weighted_cns(gtypes):
     gtypes_split = [map(methodcaller("split",","),x) for x in map(methodcaller("split","|"),gtypes)]    
     cn_vals = []
     for gtype in gtypes_split:
-        cn_val = sum([int(eval(g[0]))+int(eval(g[1]))*float(eval(g[2])) if g!=[''] else 0 for g in gtype])
+        cn_val = sum([int(eval(g[0]))+int(eval(g[1]))*float(eval(g[2])) if g!=[''] else 2 for g in gtype])
         cn_vals.append(cn_val)
     return np.array(cn_vals)/2
 
 def normalise_wins_by_cn(df_flt):
-    bp1_win = df_flt.bp1_win_norm.values
-    bp2_win = df_flt.bp2_win_norm.values
+    bp1_win = df_flt.bp1_win_norm.map(float).values
+    bp2_win = df_flt.bp2_win_norm.map(float).values
     
     bp1_wcn = get_weighted_cns(df_flt.gtype1.values)
     bp2_wcn = get_weighted_cns(df_flt.gtype2.values)
@@ -165,11 +165,10 @@ def get_snv_vals(df):
     df = df.fillna('')
     df = df[df.chrom.values!='']
 
-    def get_snv_allele_combos(sv):
-        return get_allele_combos(sv.gtype.split('|'))
-    
+    def get_snv_allele_combos(snv):
+        return get_allele_combos(snv.gtype.split('|'))
+     
     combos = df.apply(get_snv_allele_combos,axis=1)
-    
 #    for idx,snv in df.iterrows():
 #        cn_tmp = snv.gtype.split('|')
 #        cnr,cnv,mu = get_allele_combos_tuple(cn_tmp)
