@@ -36,7 +36,7 @@ def is_minor_softclip(r,threshold=params.tr):
 def is_normal_across_break(r,pos,min_ins,max_ins):
     # must overhang break by at least soft-clip threshold
     return  (not is_soft_clipped(r)) and \
-            (r['ins_len'] < max_ins and r['ins_len'] > min_ins) and \
+            (abs(r['ins_len']) < max_ins and abs(r['ins_len']) > min_ins) and \
             (r['ref_start'] <= (pos - params.norm_overlap)) and \
             (r['ref_end'] >= (pos + params.norm_overlap)) 
 
@@ -46,7 +46,7 @@ def get_normal_overlap_bases(r,pos):
 def is_normal_spanning(r,m,pos,min_ins,max_ins):
     if not (is_soft_clipped(r) or is_soft_clipped(m)):
         if (not r['is_reverse'] and m['is_reverse']) or (r['is_reverse'] and not m['is_reverse']):
-            return (r['ins_len'] < max_ins and r['ins_len'] > min_ins) and \
+            return (abs(r['ins_len']) < max_ins and abs(r['ins_len']) > min_ins) and \
                    (r['ref_end'] < (pos + params.tr)) and \
                    (m['ref_start'] > (pos - params.tr))
     return False
@@ -330,8 +330,9 @@ def get_params(bam,mean_dp,max_cn,rlen,insert_mean,insert_std,out):
         inserts[0] = inserts[0]+(rlen*2) #derive fragment size
     
     max_dp = ((mean_dp*(params.window*2))/rlen)*max_cn
-    max_ins = inserts[0]+(2*inserts[1]) #actually the *fragment* size
-    min_ins = max(rlen*2,inserts[0]-(2*inserts[1])) #actually the *fragment* size
+    max_ins = inserts[0]+(2*inserts[1]) #actually the max *fragment* size
+    #min_ins = max(rlen*2,inserts[0]-(2*inserts[1])) #actually the min *fragment* size
+    min_ins = rlen*2
     
     with open('%s_params.txt'%out,'w') as outp:
         outp.write('read_len\tinsert_mean\tinsert_std\tinsert_min\tinsert_max\tmax_dep\n')
