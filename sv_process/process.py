@@ -558,7 +558,7 @@ def proc_svs(args):
                 svd_prevResult,prevSV = svd_result,sv
             
                 sv_rc['classification'] = svd.getResultType(svd_result)
-                sv_id = sv_id if svd_result[0]==svd.SVtypes.interspersedInsertion else sv_id+1
+                sv_id = sv_id if svd_result[0]==svd.SVtypes.interspersedDuplication else sv_id+1
     #            if row['classification']!=sv_rc['classification']:
     #                with open('assign.txt','a') as outp:
     #                    outp.write('%s:%d %s %s:%d %s'%sv + \
@@ -579,7 +579,7 @@ def proc_svs(args):
         #post-process: look for translocations
         sv_info = np.genfromtxt('%s_svinfo.txt'%out,delimiter='\t',names=True,dtype=None)
         trx_label    = svd.getResultType([svd.SVtypes.translocation])
-        intins_label = svd.getResultType([svd.SVtypes.interspersedInsertion])
+        intins_label = svd.getResultType([svd.SVtypes.interspersedDuplication])
         rewrite=False
         for idx,sv in enumerate(sv_info):
             if sv['classification']==intins_label:

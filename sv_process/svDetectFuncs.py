@@ -18,7 +18,7 @@ class SVtypes:
     tandem=1
     deletion=2
     inversion=4
-    interspersedInsertion=tandem+deletion
+    interspersedDuplication=tandem+deletion
     translocation=8
     novelInsertion=16
     interchromosomal=32
@@ -30,8 +30,8 @@ def getTypeFromSting(classification):
         return SVtypes.deletion
     elif classification=="INV":
         return SVtypes.inversion
-    elif classification=="INTINS":
-        return SVtypes.interspersedInsertion
+    elif classification=="INTDUP":
+        return SVtypes.interspersedDuplication
     elif classification=="TRX":
         return SVtypes.translocation
     elif classification=="INS":
@@ -56,8 +56,8 @@ def getTypeFromSting(classification):
         # string="DEL"
     # if r==SVtypes.inversion:
         # string="INV"
-    # if r==SVtypes.interspersedInsertion:
-        # string="INTINS"
+    # if r==SVtypes.interspersedDuplication:
+        # string="INTDUP"
     # if r==SVtypes.translocation:
         # string="TRX"
     # if r==SVtypes.novelInsertion:
@@ -79,8 +79,8 @@ def getResultType(result):
         string="DEL"
     if r==SVtypes.inversion:
         string="INV"
-    if r==SVtypes.interspersedInsertion:
-        string="INTINS"
+    if r==SVtypes.interspersedDuplication:
+        string="INTDUP"
     if r==SVtypes.translocation:
         string="TRX"
     if r==SVtypes.novelInsertion:
@@ -103,8 +103,8 @@ def printResultWithLine(result,content):
         string="DEL"
     if r==SVtypes.inversion:
         string="INV"
-    if r==SVtypes.interspersedInsertion:
-        string="INTINS"
+    if r==SVtypes.interspersedDuplication:
+        string="INTDUP"
     if r==SVtypes.translocation:
         string="TRX"
     if r==SVtypes.novelInsertion:
@@ -181,8 +181,8 @@ def detect (prevSV,prevResult,sv):
             distance1 = pc1_realign-int(c1_realign)
             distance2 = pc1_anchor-int(c1_anchor)
             if abs(distance1)<blurbp2 or abs(distance2)<blurbp2:#if this two events are nearby.
-                if result+prevResult==SVtypes.interspersedInsertion:
-                    result=SVtypes.interspersedInsertion
+                if result+prevResult==SVtypes.interspersedDuplication:
+                    result=SVtypes.interspersedDuplication
         
 #    elif c1_realign_dir==c1_anchor_dir and c2_realign_dir==c2_anchor_dir:
     elif c1_realign_dir==c1_anchor_dir and c1_anchor_dir==c1_realign_dir:
