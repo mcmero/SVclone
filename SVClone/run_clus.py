@@ -29,35 +29,35 @@ def gen_new_colours(N):
     RGB_tuples = map(lambda x: colorsys.hsv_to_rgb(*x), HSV_tuples)
     return RGB_tuples
 
-def plot_cluster_hist(clusters,assignments,df,pl,pi,rlen,clus_out_dir,are_snvs=False):
-    fig, axes = plt.subplots(1, 1, sharex=False, sharey=False, figsize=(12.5,4))
-    RGB_tuples = gen_new_colours(len(clusters))
-    
-    sup,dep,cn_r,cn_v,mu_v,sides = [],[],[],[],[],[]
-    Nvar = 0
-    if are_snvs:
-        clus_out_dir = '%s/snvs'%clus_out_dir
-        if not os.path.exists(clus_out_dir):
-            os.makedirs(clus_out_dir)
-        sup,ref,cn_r,cn_v,mu_v = cluster.get_snv_vals(df)
-        dep = sup + ref
-        av_cov = np.mean(dep)
-        Nvar = len(sup)
-        sides = np.zeros(Nvar,dtype=int)
-    else:
-        sup,dep,cn_r,cn_v,mu_v,sides,Nvar = cluster.get_sv_vals(df,rlen)
-
-    for idx,clus in enumerate(clusters):
-        clus_idx = np.array(assignments)==clus
-        sup_clus = sup[clus_idx]
-        dep_clus = dep[clus_idx]
-        #axes[0].set_title("Clusters post-cluster merge: Cell fractions (raw VAFs purity-ploidy-adjusted)")
-        #axes[0].hist(((s1/(n1+s1)*pl)/pi),bins=np.array(range(0,100,2))/100.,alpha=0.75,color=RGB_tuples[idx])
-        axes.set_title("Raw VAFs")
-        axes.hist(sup_clus/dep_clus,bins=np.array(range(0,100,2))/100.,alpha=0.75,color=RGB_tuples[idx])
-    
-    hist_plot = '%s/merged_cluster_hist'%clus_out_dir
-    plt.savefig(hist_plot)
+#def plot_cluster_hist(clusters,assignments,df,pl,pi,rlen,clus_out_dir):
+#    fig, axes = plt.subplots(1, 1, sharex=False, sharey=False, figsize=(12.5,4))
+#    RGB_tuples = gen_new_colours(len(clusters))
+#    
+#    sup,dep,cn_r,cn_v,mu_v,sides = [],[],[],[],[],[]
+#    Nvar = 0
+#    if are_snvs:
+#        clus_out_dir = '%s/snvs'%clus_out_dir
+#        if not os.path.exists(clus_out_dir):
+#            os.makedirs(clus_out_dir)
+#        sup,ref,cn_r,cn_v,mu_v = cluster.get_snv_vals(df)
+#        dep = sup + ref
+#        av_cov = np.mean(dep)
+#        Nvar = len(sup)
+#        sides = np.zeros(Nvar,dtype=int)
+#    else:
+#        sup,dep,cn_r,cn_v,mu_v,sides,Nvar = cluster.get_sv_vals(df,rlen)
+#
+#    for idx,clus in enumerate(clusters):
+#        clus_idx = np.array(assignments)==clus
+#        sup_clus = sup[clus_idx]
+#        dep_clus = dep[clus_idx]
+#        #axes[0].set_title("Clusters post-cluster merge: Cell fractions (raw VAFs purity-ploidy-adjusted)")
+#        #axes[0].hist(((s1/(n1+s1)*pl)/pi),bins=np.array(range(0,100,2))/100.,alpha=0.75,color=RGB_tuples[idx])
+#        axes.set_title("Raw VAFs")
+#        axes.hist(sup_clus/dep_clus,bins=np.array(range(0,100,2))/100.,alpha=0.75,color=RGB_tuples[idx])
+#    
+#    hist_plot = '%s/merged_cluster_hist'%clus_out_dir
+#    plt.savefig(hist_plot)
 
 def plot_clusters(center_trace,clusters,assignments,snv_df,sv_df,pl,pi,rlen,clus_out_dir):
     fig, axes = plt.subplots(2, 1, sharex=False, sharey=False, figsize=(12.5,8))
@@ -74,22 +74,21 @@ def plot_clusters(center_trace,clusters,assignments,snv_df,sv_df,pl,pi,rlen,clus
     leg = axes[0].legend(loc="upper right")
     leg.get_frame().set_alpha(0.7)
     axes[1].set_title("Raw VAFs")
-    #axes[2].set_title("Unmerged clusters: Cell fractions (raw VAFs purity-ploidy-adjusted)")
     
-    sup,dep,cn_r,cn_v,mu_v,sides = [],[],[],[],[],[]
+    sup, dep, cn_states = [], [], []
     Nvar = 0
-    if are_snvs:
-        clus_out_dir = '%s/snvs'%clus_out_dir
-        if not os.path.exists(clus_out_dir):
-            os.makedirs(clus_out_dir)
-        sup,ref,cn_r,cn_v,mu_v = cluster.get_snv_vals(df)
-        dep = sup + ref
-        av_cov = np.mean(dep)
-        Nvar = len(sup)
-        sides = np.zeros(Nvar,dtype=int)
+    if len(sv_df)>0 and len(snv_df)>0:
+        sup,dep,cn_states,Nvar = get_snv_vals(snv_df)
+        sv_sup,sv_dep,sv_cn_states,sv_Nvar = get_sv_vals(sv_df,rlen,pi,pl)
+        
+        sup = np.append(sup,sv_sup)
+        dep = np.append(dep,sv_dep)
+        cn_states = np.append(cn_states,sv_cn_states)
+        Nvar = Nvar + sv_Nvar
+    elif len(snv_df)>0:
+        sup,dep,cn_states,Nvar = cluster.get_snv_vals(snv_df)
     else:
-        #sup,dep,cn_r,cn_v,mu_v,sides,Nvar = cluster.get_sv_vals(df,rlen)
-        sup,dep,combos,sides,Nvar = cluster.get_sv_vals(df,rlen)
+        sup,dep,cn_states,Nvar = cluster.get_sv_vals(sv_df,rlen,pi,pl)
 
     for idx,clus in enumerate(clusters):
         clus_idx = np.array(assignments)==clus
@@ -205,7 +204,7 @@ def merge_results(clus_merged, merged_ids, df_probs, ccert):
     return df_probs_new,ccert_new
 
 
-def post_process_clusters(mcmc,sv_df,snv_df,merge_clusts,clus_out_dir,sample,pi,rlen):
+def post_process_clusters(mcmc,sv_df,snv_df,merge_clusts,clus_out_dir,sample,pi,ploidy,rlen):
     #npoints = len(df.spanning.values) if not are_snvs else len(df['var'].values)
     # assign points to highest probabiliy cluster
     npoints = len(snv_df) + len(sv_df)
@@ -311,11 +310,11 @@ def post_process_clusters(mcmc,sv_df,snv_df,merge_clusts,clus_out_dir,sample,pi,
                     snv_probs,snv_ccert,clus_out_dir,sample,pi)
         if len(sv_df)>0:
             write_output.write_out_files(sv_df,clus_info,sv_members,
-                    sv_probs,sv_ccert,clus_out_dir,sample,pi,rlen)
+                    sv_probs,sv_ccert,clus_out_dir,sample,pi,ploidy,rlen)
     
     # cluster plotting
     if cmd.plot:
-        plot_clusters(center_trace,clus_idx,clus_max_prob,df,ploidy,pi,rlen,clus_out_dir,are_snvs)
+        plot_clusters(center_trace,clus_idx,clus_max_prob,snv_df,sv_df,ploidy,pi,rlen,clus_out_dir)
     
 
 #return clus_info,center_trace,z_trace,clus_members,df_probs,ccert
@@ -331,14 +330,14 @@ def infer_subclones(sample,sv_df,pi,rlen,insert,ploidy,out,n_runs,num_iters,burn
         
         if cocluster:
             mcmc = cluster.cluster(sv_df,snv_df,pi,rlen,insert,ploidy,num_iters,burn,thin,beta,use_map)
-            post_process_clusters(mcmc,sv_df,snv_df,merge_clusts,clus_out_dir,sample,pi,rlen)
+            post_process_clusters(mcmc,sv_df,snv_df,merge_clusts,clus_out_dir,sample,pi,ploidy,rlen)
         else:            
             if len(snv_df)>0:
                 if not os.path.exists('%s/snvs'%clus_out_dir):
                     os.makedirs('%s/snvs'%clus_out_dir)
                 mcmc = cluster.cluster(pd.DataFrame(),snv_df,pi,rlen,insert,ploidy,num_iters,burn,thin,beta,use_map)
-                post_process_clusters(mcmc,pd.DataFrame(),snv_df,merge_clusts,clus_out_dir,sample,pi,rlen)
+                post_process_clusters(mcmc,pd.DataFrame(),snv_df,merge_clusts,clus_out_dir,sample,pi,ploidy,rlen)
             if len(sv_df)>0:
                 mcmc = cluster.cluster(sv_df,pd.DataFrame(),pi,rlen,insert,ploidy,num_iters,burn,thin,beta,use_map)
-                post_process_clusters(mcmc,sv_df,pd.DataFrame(),merge_clusts,clus_out_dir,sample,pi,rlen)
+                post_process_clusters(mcmc,sv_df,pd.DataFrame(),merge_clusts,clus_out_dir,sample,pi,ploidy,rlen)
 

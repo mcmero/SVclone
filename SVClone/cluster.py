@@ -105,7 +105,7 @@ def get_sv_allele_combos(sv):
 
     return tuple([combos_bp1,combos_bp2])
 
-def get_sv_vals(df,rlen):
+def get_sv_vals(df,rlen,pi,pl):
     n = zip(np.array(df.norm1.values),np.array(df.norm2.values))
     s = np.array(df.bp1_split.values+df.bp2_split.values)
     d = np.array(df.spanning.values)
@@ -127,36 +127,74 @@ def get_sv_vals(df,rlen):
     Nvar = len(sup)
     
     # calculate the average depth using windowed counts
-    win1 = (df.bp1_win_norm.values*rlen)/(param.window*2)
-    win2 = (df.bp2_win_norm.values*rlen)/(param.window*2)
-    av_cov = np.mean([win1,win2])
+    #win1 = (df.bp1_win_norm.values*rlen)/(param.window*2)
+    #win2 = (df.bp2_win_norm.values*rlen)/(param.window*2)
+    #av_cov = np.mean([win1,win2])
      
     sides = np.zeros(Nvar,dtype=int)
     sides[df.gtype1.values=='']=1 #no genotype for bp1, use bp2
 
-    has_both_gts = np.logical_and(df.gtype1.values!='',df.gtype2.values!='')
+    #has_both_gts = np.logical_and(df.gtype1.values!='',df.gtype2.values!='')
     
-    bp1_win, bp2_win = normalise_wins_by_cn(df)
-    bp1_win, bp2_win = (bp2_win*rlen)/(param.window*2), (bp2_win*rlen)/(param.window*2)
+    #bp1_win, bp2_win = normalise_wins_by_cn(df)
+    #bp1_win, bp2_win = (bp2_win*rlen)/(param.window*2), (bp2_win*rlen)/(param.window*2)
 
     # for sides with gtypes for both sides, pick the side where the adjusted window count is closest to the average coverage
-    av_cov = np.mean([bp1_win,bp2_win])
-    dev_from_cov = np.array(zip(abs(bp1_win-av_cov),abs(bp2_win-av_cov)))
+    #av_cov = np.mean([bp1_win,bp2_win])
+    #dev_from_cov = np.array(zip(abs(bp1_win-av_cov),abs(bp2_win-av_cov)))
 
     # ALT: pick the side where the norm count is closest to the mean coverage
     #dev_from_cov = np.array(zip(abs(n_bp1-av_cov),abs(n_bp2-av_cov)))
-    # OR: prefer sides with subclonal genotype data
-    #gt1_sc = np.array(map(len,map(methodcaller("split","|"),df.gtype1.values)))>1
-    #gt2_sc = np.array(map(len,map(methodcaller("split","|"),df.gtype1.values)))>1
+    
+    # prefer sides with subclonal genotype data    
+    gt1_sc = np.array(map(len,map(methodcaller("split","|"),df.gtype1.values)))>1
+    gt2_sc = np.array(map(len,map(methodcaller("split","|"),df.gtype1.values)))>1    
+    one_sc = np.logical_xor(gt1_sc,gt2_sc)
 
-    sides[has_both_gts] = [np.where(x==min(x))[0][0] for x in dev_from_cov[has_both_gts]]
+    exclusive_subclones = zip(df.gtype1.values[one_sc],df.gtype2.values[one_sc]) 
+    sides[one_sc] = [0 if gt1!='' else 1 for gt1,gt2 in exclusive_subclones]
 
-    norm = [ni[si] for ni,si in zip(n,sides)]
+    has_both_gts = np.logical_and(df.gtype1.values!='',df.gtype2.values!='')
+    #sides[has_both_gts] = 
+    #sides[has_both_gts] = [np.where(x==min(x))[0][0] for x in dev_from_cov[has_both_gts]]
+
+    norm = np.array([ni[si] for ni,si in zip(n,sides)])
     #norm = map(np.mean,n)
-    dep = np.array(norm+sup,dtype=float)
+
+    # both sides have genotypes, both either subclonal or clonal
+    # in this case, just take the simple normal mean of the two sides
+    both_gts_same_type = np.logical_and(has_both_gts,one_sc==False)
+    norm[both_gts_same_type] = map(np.mean,np.array(n)[both_gts_same_type])
 
     #return sup,dep,cn_r,cn_v,mu_v,sides,Nvar
     cn_states = [cn[side] for cn,side in zip(combos,sides)]
+
+    try:
+        # read value adjustments for specific types of events
+        # currently the adjustments are quite simple
+        sv_classes = df.classification.values    
+        invs = sv_classes == 'INV'
+        dups = np.logical_or(sv_classes == 'DUP', sv_classes == 'INTDUP')
+        dels = sv_classes == 'DEL'
+        
+        # inversions have their supporting reads / 2 
+        # as each break contains two sets of supporting reads
+        if sum(invs)>0:
+            sup[invs] = sup[invs]/2
+        
+        # normal read counts for duplications are adjusted by purity and ploidy
+        if sum(dups)>0:
+            non_gain = np.logical_or(dels,invs)
+            # estimate adjustment from normal counts for SV events where there is no gain of DNA
+            # if these events don't exist, adjust by normal component + tumour/2 (half tumour normal
+            # reads will come from duplication, on one chromosome, so divide by ploidy
+            adjust_factor = np.mean(norm[non_gain]) if sum(non_gain)>0 else (1-pi) + ((pi)/2/pl)    
+            norm[dups] = norm[dups] * adjust_factor
+
+    except AttributeError:
+        print('Warning, no classifications found. SV read counts cannot be adjusted')
+
+    dep = np.array(norm+sup,dtype=float)
     return sup,dep,cn_states,Nvar
 
 def get_snv_vals(df):
@@ -262,13 +300,12 @@ def cluster(sv_df,snv_df,pi,rlen,insert,ploidy,iters,burn,thin,beta,use_map,Ndp=
     pl = ploidy
     sup, dep, cn_states = [], [], []
     #sides = [] #only relevant for SVs
-    cn_states = []
     Nvar = 0
     
     if len(sv_df)>0 and len(snv_df)>0:
         print("Coclustering SVs & SNVs...")
         sup,dep,cn_states,Nvar = get_snv_vals(snv_df)
-        sv_sup,sv_dep,sv_cn_states,sv_Nvar = get_sv_vals(sv_df,rlen)
+        sv_sup,sv_dep,sv_cn_states,sv_Nvar = get_sv_vals(sv_df,rlen,pi,ploidy)
         
         sup = np.append(sup,sv_sup)
         dep = np.append(dep,sv_dep)
@@ -280,7 +317,7 @@ def cluster(sv_df,snv_df,pi,rlen,insert,ploidy,iters,burn,thin,beta,use_map,Ndp=
         #sides = np.zeros(Nvar,dtype=int)
     else:
         print("Clustering SVs...")
-        sup,dep,cn_states,Nvar = get_sv_vals(sv_df,rlen)
+        sup,dep,cn_states,Nvar = get_sv_vals(sv_df,rlen,pi,ploidy)
 
     sens = 1.0 / ((pi/float(pl))*np.mean(dep))
     alpha = pm.Gamma('alpha',0.9,1/0.9,value=2)
