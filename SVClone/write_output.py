@@ -7,10 +7,7 @@ from operator import methodcaller
 
 from . import cluster
 
-def dump_trace(clus_info,center_trace,clus_out_dir,trace_out,are_snvs):    
-    if are_snvs:
-        clus_out_dir = '%s/snvs'%clus_out_dir
-    outf = '%s/%s'%(clus_out_dir,trace_out)
+def dump_trace(clus_info,center_trace,outf):    
     traces = np.array([center_trace[:,cid] for cid in clus_info.clus_id.values])
     df_traces = pd.DataFrame(np.transpose(traces),columns=clus_info.clus_id)
     df_traces.to_csv(outf,sep='\t',index=False)
@@ -19,26 +16,42 @@ def write_out_files_snv(df,clus_info,clus_members,df_probs,clus_cert,clus_out_di
     clus_out_dir = '%s/snvs'%clus_out_dir
     if not os.path.exists(clus_out_dir):
         os.makedirs(clus_out_dir)
-    clus_info.to_csv('%s/clusters.txt'%(clus_out_dir),sep='\t',index=False)
+    
+    clus_info['phi'] = clus_info.phi.values*pi
+    clus_info = clus_info[['clus_id','size','phi']]
+    rename_cols =  {'clus_id': 'cluster', 'size': 'n_ssms', 'phi': 'proportion'}
+
+    clus_info = clus_info.rename(columns = rename_cols)    
+    clus_info.to_csv('%s/%s_subclonal_structure.txt'%(clus_out_dir,sample),sep='\t',index=False)
+
     with open('%s/number_of_clusters.txt'%clus_out_dir,'w') as outf:
         outf.write("sample\tclusters\n")
         outf.write('%s\t%d\n'%(sample,len(clus_info)))
     
-    cn_dtype =  [('chr1','S50'),
-                 ('pos1',int),
-                 ('total_copynumber1',int),
-                 ('no_chrs_bearing_mutation2',int)]
+    cn_dtype =  [('chr','S50'),
+                 ('pos',int),
+                 ('total_copynumber',int),
+                 ('no_chrs_bearing_mutation',int)]
 
-    mlcn_dtype =[('chrom','S50'),
+    mlcn_dtype =[('chr','S50'),
                  ('pos',int),
                  ('bb_CN','S50'),
                  ('most_likely_ref_copynumber',int),
                  ('most_likely_variant_copynumber',int),
                  ('prop_chrs_bearing_mutation',float)]
+    
+    mult_dtype =[('chr','S50'),
+                 ('pos',int),
+                 ('tumour_copynumber',int),
+                 ('multiplicity',int),
+                 ('tumour_copynumber_options','S50'),
+                 ('multiplicity_options','S50'),
+                 ('probabilities','S50')]
 
     cmem = np.hstack(clus_members)
     cn_vect = np.empty((0,len(cmem)),dtype=cn_dtype)
     mlcn_vect = np.empty((0,len(cmem)),dtype=mlcn_dtype)
+    mult_vect   = np.empty((0,len(cmem)),dtype=mult_dtype)
     #clus_snvs = df.loc[cmem].copy()
     df = df.fillna('')
     df = df[df.chrom.values!='']
@@ -68,13 +81,34 @@ def write_out_files_snv(df,clus_info,clus_members,df_probs,clus_cert,clus_out_di
         ml_new_row = np.array([(chrom,pos,snv['gtype'],ref_cn,sc_cn,freq)],dtype=mlcn_dtype)
         mlcn_vect = np.append(mlcn_vect,ml_new_row)
         
+        var_states = cn_states[idx]
+        tot_opts = ','.join(map(str,[int(x[1]) for x in var_states]))
+        var_opts = ','.join(map(str,[int(round(x[1]*x[2])) for x in var_states]))
+        probs = [(1/float(len(var_states)))]*len(var_states)
+        probs = ','.join(map(lambda x: str(round(x,4)),probs))
+
+        mult_new_row = np.array([(chrom,pos,sc_cn,int(round(freq*sc_cn)),tot_opts,var_opts,probs)],dtype=mult_dtype)
+        mult_vect = np.append(mult_vect,mult_new_row)
+        
+    clus_cert.average_ccf = clus_cert.average_ccf.values*pi
+    clus_cert['90_perc_CI_lo'] = clus_cert['90_perc_CI_lo'].values*pi
+    clus_cert['90_perc_CI_hi'] = clus_cert['90_perc_CI_hi'].values*pi
+
+    #rename cols
+    rename_cols =  {'bp1_chr': 'chr1', 'bp1_pos': 'pos1', 'bp2_chr': 'chr2', 
+                    'bp2_pos': 'pos2', 'average_ccf': 'average_proportion'}
+    clus_cert = clus_cert.rename(columns = rename_cols)
+    df_probs = df_probs.rename(columns = rename_cols)
+
     pd.DataFrame(mlcn_vect).to_csv('%s/%s_most_likely_copynumbers.txt'%(clus_out_dir,sample),sep='\t',index=False)
     pd.DataFrame(cn_vect).to_csv('%s/%s_copynumber.txt'%(clus_out_dir,sample),sep='\t',index=False)
     df_probs.to_csv('%s/%s_assignment_probability_table.txt'%(clus_out_dir,sample),sep='\t',index=False)
     clus_cert.to_csv('%s/%s_cluster_certainty.txt'%(clus_out_dir,sample),sep='\t',index=False)
+    pd.DataFrame(mult_vect).to_csv('%s/%s_multiplicity.txt'%(clus_out_dir,sample),sep='\t',index=False)
 
 def write_out_files(df,clus_info,clus_members,df_probs,clus_cert,clus_out_dir,sample,pi,rlen):
     
+    clus_info['phi'] = clus_info.phi.values*pi
     clus_info = clus_info[['clus_id','size','phi']]
     rename_cols =  {'clus_id': 'cluster', 'size': 'n_ssms', 'phi': 'proportion'}
 
@@ -125,8 +159,8 @@ def write_out_files(df,clus_info,clus_members,df_probs,clus_cert,clus_out_dir,sa
     clus_svs    = df.loc[cmem].copy()
     
     #sup,dep,cn_r,cn_v,mu_v,sides,av_cov = cluster.get_sv_vals(df,rlen)
-    sup,dep,combos,sides,Nvar = cluster.get_sv_vals(df,rlen)
-    cn_states = [cn[side] for cn,side in zip(combos,sides)]
+    sup,dep,cn_states,Nvar = cluster.get_sv_vals(df,rlen)
+    #TODO: should all be cellular prevalence - do this with SNVs also 
     phis = clus_cert.average_ccf.values
     cns,pvs = cluster.get_most_likely_cn_states(cn_states,sup,dep,phis,pi)
 
@@ -181,7 +215,7 @@ def write_out_files(df,clus_info,clus_members,df_probs,clus_cert,clus_out_dir,sa
     clus_cert['90_perc_CI_hi'] = clus_cert['90_perc_CI_hi'].values*pi
 
     #rename cols
-    rename_cols =  {'bp1_chr': 'chr1', 'bp1_pos': 'pos1', 'bp2_chr': 'chr2', 'bp2_pos': 'pos2'}
+    rename_cols =  {'bp1_chr': 'chr1', 'bp1_pos': 'pos1', 'bp2_chr': 'chr2', 'bp2_pos': 'pos2', 'average_ccf': 'average_proportion'}
     clus_cert = clus_cert.rename(columns = rename_cols)
     df_probs = df_probs.rename(columns = rename_cols)
 

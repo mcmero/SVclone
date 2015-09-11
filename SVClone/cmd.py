@@ -9,7 +9,8 @@ import numpy as np
 
 parser = argparse.ArgumentParser(prefix_chars='--')
 parser.add_argument("-s","--samples",dest="samples",
-    help="Required: Sample names (comma separated if multiple), not including germline.")
+        help="Required: Sample names (comma separated if multiple), not including germline. " + \
+             "WARNING: if clustering using mutect SNVs, the sample name must match the sample name in the vcf file. ")
 parser.add_argument("-i","--input",dest="procd_svs",
     help="Required: Processed structural variation input (comma separated if multiple).")
 parser.add_argument("-g","--germline",dest="germline",default="",
@@ -47,12 +48,14 @@ parser.add_argument("--beta",dest="beta",default="8,1/0.05,0.1",type=str,
              "Dirichlet Processes' gamma function. Third value determines the starting value.")
 parser.add_argument("--snvs",dest="snvs",default="",type=str,
         help="SNVs in VCF format to (optionally) compare the clustering with SVs.")
-parser.add_argument("--snv-format",dest="snv_format",default="sanger",type=str,
+parser.add_argument("--snv_format",dest="snv_format",default="sanger",type=str,
         help="Supplied SNV VCF is in the following input format: sanger (default), mutect or mutect_callstats.")
-parser.add_argument("--merge-clusts",dest="merge_clusts",action="store_true",
+parser.add_argument("--merge",dest="merge_clusts",action="store_true",
         help="Set to merge clusters.")
 parser.add_argument("--map",dest="use_map",action="store_true",
         help="Use maximum a-posteriori fitting (may significantly increase runtime).")
+parser.add_argument("--cocluster",dest="cocluster",action="store_true",
+        help="Whether to cluster SNVs and SVs together.")
 
 args = parser.parse_args()
 
@@ -76,6 +79,7 @@ snvs    = args.snvs
 use_map = args.use_map
 snv_format      = args.snv_format
 merge_clusts    = args.merge_clusts
+cocluster       = args.cocluster
 
 def proc_arg(arg,n_args=1,of_type=str):
     arg = str.split(arg,',')
@@ -108,4 +112,4 @@ if __name__ == '__main__':
         snv_format = snv_format.lower()
         if not np.any(snv_format==np.array(["sanger","mutect","mutect_callstats"])):
             raise ValueError("Invalid VCF format specified")
-    run.run(samples,svs,gml,cnvs,rlen,insert,pi,ploidy,out,n_runs,n_iter,burn,thin,beta,neutral,snvs,snv_format,merge_clusts,use_map)
+    run.run(samples,svs,gml,cnvs,rlen,insert,pi,ploidy,out,n_runs,n_iter,burn,thin,beta,neutral,snvs,snv_format,merge_clusts,use_map,cocluster)

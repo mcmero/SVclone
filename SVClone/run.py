@@ -223,7 +223,6 @@ def load_snvs_mutect_callstats(snvs):
     return snv_out
     
 def load_snvs_mutect(snvs,sample):
-    #TODO: remove sample
     vcf_reader = vcf.Reader(filename=snvs)
     snv_dtype = [('chrom','S50'),('pos',int),('gtype','S50'),('ref',float),('var',float)]
     snv_df = np.empty([0,5],dtype=snv_dtype)
@@ -347,7 +346,7 @@ def filter_germline(gml_file,sv_df,rlen,insert):
     print("Found %d SVs in the germline!" % len(germline))
     return sv_df.drop(germline,axis=0)
 
-def run(samples,svs,gml,cnvs,rlens,inserts,pis,ploidies,out,n_runs,num_iters,burn,thin,beta,neutral,snvs,snv_format,merge_clusts,use_map):
+def run(samples,svs,gml,cnvs,rlens,inserts,pis,ploidies,out,n_runs,num_iters,burn,thin,beta,neutral,snvs,snv_format,merge_clusts,use_map,cocluster):
 
     # pr = cProfile.Profile()
     # pr.enable()
@@ -375,8 +374,9 @@ def run(samples,svs,gml,cnvs,rlens,inserts,pis,ploidies,out,n_runs,num_iters,bur
                 snv_df = load_snvs_mutect(snvs,sample)
             elif snv_format == 'mutect_callstats':
                 snv_df = load_snvs_mutect_callstats(snvs)
-
-        filt_svs_file = '%s/%s_filtered_svs.tsv'%(out,sample)
+            n = snv_df['ref'].values
+            b = snv_df['var'].values
+    
         sv_df = load_svs(sv,rlen,insert)
 #        if os.path.isfile(filt_svs_file):
 #            print('Found filtered SVs file, running clustering on these variants')
@@ -412,8 +412,8 @@ def run(samples,svs,gml,cnvs,rlens,inserts,pis,ploidies,out,n_runs,num_iters,bur
         sv_df.index = range(len(sv_df))
         if len(snv_df)>0: snv_df.index = range(len(snv_df))
 
-        sv_df.index = range(len(sv_df))
         sv_df.to_csv('%s/%s_filtered_svs.tsv'%(out,sample),sep='\t',index=False,na_rep='')
+        snv_df.to_csv('%s/%s_filtered_snvs.tsv'%(out,sample),sep='\t',index=False,na_rep='')
         
         with open('%s/purity_ploidy.txt'%out,'w') as outf:
             outf.write("sample\tpurity\tploidy\n")
@@ -423,7 +423,7 @@ def run(samples,svs,gml,cnvs,rlens,inserts,pis,ploidies,out,n_runs,num_iters,bur
             print("Less than 5 post-filtered SVs. Clustering not recommended for this sample. Exiting.")
         else:
             print('Clustering with %d SVs and %d SNVs'%(len(sv_df),len(snv_df)))        
-            run_clus.infer_subclones(sample,sv_df,pi,rlen,insert,ploidy,out,n_runs,num_iters,burn,thin,beta,snv_df,merge_clusts,use_map)
+            run_clus.infer_subclones(sample,sv_df,pi,rlen,insert,ploidy,out,n_runs,num_iters,burn,thin,beta,snv_df,merge_clusts,use_map,cocluster)
 
         # pr.disable()
         # s = StringIO.StringIO()

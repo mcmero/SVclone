@@ -156,11 +156,13 @@ def get_sv_vals(df,rlen):
     dep = np.array(norm+sup,dtype=float)
 
     #return sup,dep,cn_r,cn_v,mu_v,sides,Nvar
-    return sup,dep,combos,sides,Nvar
+    cn_states = [cn[side] for cn,side in zip(combos,sides)]
+    return sup,dep,cn_states,Nvar
 
 def get_snv_vals(df):
     n = df['ref'].values
     b = df['var'].values
+
     #cn_r,cn_v,mu_v = [],[],[]
     df = df.fillna('')
     df = df[df.chrom.values!='']
@@ -175,7 +177,6 @@ def get_snv_vals(df):
 #        cn_r.append([cnr])
 #        cn_v.append([cnv])
 #        mu_v.append([mu])
-        
     return b,(n+b),combos,len(b)
 
 def fit_and_sample(model, iters, burn, thin, use_map):
@@ -250,30 +251,37 @@ def get_most_likely_cn_states(cn_states,s,d,phi,pi):
     cn_ll = [ calc_lik(cn_states[i],s[i],d[i],phi[i],pi)  for i in range(len(cn_states)) ]
     most_likely_pv = [ cn_lik[0][np.where(np.nanmax(cn_lik[1])==cn_lik[1])[0][0]] for i,cn_lik in enumerate(cn_ll)]
     most_likely_cn = [ cn_states[i][np.where(np.nanmax(cn_lik[1])==cn_lik[1])[0][0]] for i,cn_lik in enumerate(cn_ll)]
-    return most_likely_cn, most_likely_pv
+    #TODO: currently using precision fudge factor to get around 
+    #0 probability errors when pv = 1 - look into this bug more
+    return most_likely_cn, np.array(most_likely_pv)-0.00000001
 
-def cluster(df,pi,rlen,insert,ploidy,iters,burn,thin,beta,use_map,are_snvs=False,Ndp=param.clus_limit):
+def cluster(sv_df,snv_df,pi,rlen,insert,ploidy,iters,burn,thin,beta,use_map,Ndp=param.clus_limit):
     '''
     clustering model using Dirichlet Process
     '''
     pl = ploidy
-    #sup,dep,cn_r,cn_v,mu_v = [],[],[],[],[]
     sup, dep, cn_states = [], [], []
-    sides = [] #only relevant for SVs
+    #sides = [] #only relevant for SVs
     cn_states = []
     Nvar = 0
     
-    if are_snvs:        
-        #sup,ref,cn_r,cn_v,mu_v = get_snv_vals(df)
-        sup,dep,cn_states,Nvar = get_snv_vals(df)
-        av_cov = np.mean(dep)
-        sides = np.zeros(Nvar,dtype=int)
+    if len(sv_df)>0 and len(snv_df)>0:
+        print("Coclustering SVs & SNVs...")
+        sup,dep,cn_states,Nvar = get_snv_vals(snv_df)
+        sv_sup,sv_dep,sv_cn_states,sv_Nvar = get_sv_vals(sv_df,rlen)
+        
+        sup = np.append(sup,sv_sup)
+        dep = np.append(dep,sv_dep)
+        cn_states = np.append(cn_states,sv_cn_states)
+        Nvar = Nvar + sv_Nvar
+    elif len(snv_df)>0:
+        print("Clustering SNVs...")
+        sup,dep,cn_states,Nvar = get_snv_vals(snv_df)
+        #sides = np.zeros(Nvar,dtype=int)
     else:
-        #sup,dep,cn_r,cn_v,mu_v,sides,Nvar = get_sv_vals(df,rlen)
-        #cn_states = get_cn_states(cn_r,cn_v,mu_v,sides)
-        sup,dep,combos,sides,Nvar = get_sv_vals(df,rlen)
-        cn_states = [cn[side] for cn,side in zip(combos,sides)]
-    
+        print("Clustering SVs...")
+        sup,dep,cn_states,Nvar = get_sv_vals(sv_df,rlen)
+
     sens = 1.0 / ((pi/float(pl))*np.mean(dep))
     alpha = pm.Gamma('alpha',0.9,1/0.9,value=2)
     #beta = pm.Gamma('beta',param.beta_shape,param.beta_rate)

@@ -59,7 +59,7 @@ def plot_cluster_hist(clusters,assignments,df,pl,pi,rlen,clus_out_dir,are_snvs=F
     hist_plot = '%s/merged_cluster_hist'%clus_out_dir
     plt.savefig(hist_plot)
 
-def plot_clusters(center_trace,clusters,assignments,df,pl,pi,rlen,clus_out_dir,are_snvs=False):
+def plot_clusters(center_trace,clusters,assignments,snv_df,sv_df,pl,pi,rlen,clus_out_dir):
     fig, axes = plt.subplots(2, 1, sharex=False, sharey=False, figsize=(12.5,8))
 
     RGB_tuples = gen_new_colours(len(clusters))
@@ -109,7 +109,7 @@ def mean_confidence_interval(phi_trace, alpha=0.1):
     h = se * sp.stats.t._ppf((1+(1-alpha))/2., n-1)
     return round(m,4), round(m-h,4), round(m+h,4)
 
-def merge_clusters(clus_out_dir,df,clus_info,clus_merged,clus_members,merged_ids,cparams,num_iters,burn,thin,are_snvs=False):
+def merge_clusters(clus_out_dir,snv_df,sv_df,clus_info,clus_merged,clus_members,merged_ids,cparams,num_iters,burn,thin):
     '''
     cparams = [pi,rlen,insert,ploidy]
     '''
@@ -205,11 +205,11 @@ def merge_results(clus_merged, merged_ids, df_probs, ccert):
     return df_probs_new,ccert_new
 
 
-def run_clust(clus_out_dir,df,pi,rlen,insert,ploidy,num_iters,burn,thin,beta,merge_clusts,use_map,are_snvs=False):
-    mcmc = cluster.cluster(df,pi,rlen,insert,ploidy,num_iters,burn,thin,beta,use_map,are_snvs)
-    npoints = len(df.spanning.values) if not are_snvs else len(df['var'].values)
-
+def post_process_clusters(mcmc,sv_df,snv_df,merge_clusts,clus_out_dir,sample,pi,rlen):
+    #npoints = len(df.spanning.values) if not are_snvs else len(df['var'].values)
     # assign points to highest probabiliy cluster
+    npoints = len(snv_df) + len(sv_df)
+
     z_trace = mcmc.trace('z')[:]
     clus_counts = [np.bincount(z_trace[:,i]) for i in range(npoints)]
     clus_max_prob = [index_max(c) for c in clus_counts]
@@ -237,75 +237,108 @@ def run_clust(clus_out_dir,df,pi,rlen,insert,ploidy,num_iters,burn,thin,beta,mer
     df_probs = pd.DataFrame(clus_counts,dtype=float)[clus_ids].fillna(0)
     df_probs = df_probs.apply(lambda x: x/sum(x),axis=1)
     df_probs.columns = col_names
-    df_pos = []
-    if are_snvs:
-        df_pos = ['chrom','pos']
-    else:
-        df_pos = ['bp1_chr','bp1_pos','bp2_chr','bp2_pos']
-    df_probs = df[df_pos].join(df_probs)
 
     # cluster certainty
     clus_max_df = pd.DataFrame(clus_max_prob,columns=['most_likely_assignment'])
     phi_cols = ["average_ccf","90_perc_CI_lo","90_perc_CI_hi"]
     phi_matrix = pd.DataFrame(phis[:],index=clus_ids,columns=phi_cols).loc[clus_max_prob]
     phi_matrix.index = range(len(phi_matrix))
-    ccert = df[df_pos].join(clus_max_df).join(phi_matrix)
+    ccert = clus_max_df.join(phi_matrix)
     clus_info.index = range(len(clus_info))
     print(clus_info)
 
+    if len(snv_df)>0 and len(sv_df)==0:
+        # snvs only trace output
+        clus_out_dir = '%s/snvs'%clus_out_dir        
+    trace_out = 'premerge' if merge_clusts else ''
+    trace_out = '%s/%s'%(clus_out_dir,trace_out)
+    write_output.dump_trace(clus_info,center_trace,trace_out+'phi_trace.txt')
+    write_output.dump_trace(clus_info,z_trace,trace_out+'z_trace.txt')
+    
+    if len(clus_info)>1 and merge_clusts: 
+        #TODO: fix merging
+        print('Merge clusters feature has been temporarily removed')
+
+    # merge clusters
+#    if len(clus_info)>1 and merge_clusts:        
+#        clus_merged = pd.DataFrame(columns=clus_info.columns,index=clus_info.index)
+#        clus_merged, clus_members, merged_ids  = merge_clusters(clus_out_dir,snv_df,sv_df,clus_info,clus_merged,\
+#                clus_members,[],[pi,rlen,insert,ploidy],num_iters,burn,thin)
+#        
+#        if len(clus_merged)!=len(clus_info):
+#            clus_info = clus_merged
+#            df_probs, ccert = merge_results(clus_merged, merged_ids, df_probs, ccert)
+#            if cmd.plot:
+#                plot_cluster_hist(clus_merged.clus_id.values,ccert.most_likely_assignment.values,df,ploidy,pi,rlen,clus_out_dir,are_snvs)
+    
+    snv_probs = pd.DataFrame()
+    snv_ccert = pd.DataFrame()
+    snv_members = np.empty(0)
+    if len(snv_df)>0:
+        snv_pos = ['chrom','pos']
+        snv_probs = df_probs.loc[:len(snv_df)-1]
+        snv_probs = snv_df[snv_pos].join(snv_probs)
+        
+        snv_ccert = ccert.loc[:len(snv_df)-1]
+        snv_ccert = snv_df[snv_pos].join(snv_ccert)
+
+        snv_max_probs = np.array(clus_max_prob)[:len(snv_df)]
+        snv_members = np.array([np.where(np.array(snv_max_probs)==i)[0] for i in clus_ids])
+
+    sv_probs = pd.DataFrame()
+    sv_ccert = pd.DataFrame()
+    sv_members = np.empty(0)
+    if len(sv_df)>0:
+        lb = len(snv_df) if len(snv_df)>0 else 0
+        
+        sv_pos = ['bp1_chr','bp1_pos','bp2_chr','bp2_pos']
+        sv_probs = df_probs.loc[lb:lb+len(sv_df)-1]
+        sv_probs.index = sv_df.index
+        sv_probs = sv_df[sv_pos].join(sv_probs)
+        
+        sv_ccert = ccert.loc[lb:lb+len(sv_df)-1]
+        sv_ccert.index = sv_df.index
+        sv_ccert = sv_df[sv_pos].join(sv_ccert)
+        
+        sv_max_probs = np.array(clus_max_prob)[:len(sv_df)]
+        sv_members = np.array([np.where(np.array(sv_max_probs)==i)[0] for i in clus_ids])
+    
+    if len(clus_info) < 1:
+        print("Warning! Could not converge on any major SV clusters. Skipping.\n")
+    else:
+        if len(snv_df)>0:
+            write_output.write_out_files_snv(snv_df,clus_info,snv_members,
+                    snv_probs,snv_ccert,clus_out_dir,sample,pi)
+        if len(sv_df)>0:
+            write_output.write_out_files(sv_df,clus_info,sv_members,
+                    sv_probs,sv_ccert,clus_out_dir,sample,pi,rlen)
+    
     # cluster plotting
     if cmd.plot:
         plot_clusters(center_trace,clus_idx,clus_max_prob,df,ploidy,pi,rlen,clus_out_dir,are_snvs)
     
-    trace_out = 'premerge'%clus_out_dir if merge_clusts else ''
-    write_output.dump_trace(clus_info,center_trace,clus_out_dir,trace_out+'phi_trace.txt',are_snvs)
-    write_output.dump_trace(clus_info,z_trace,clus_out_dir,trace_out+'z_trace.txt',are_snvs)
-    
-    # merge clusters
-    if len(clus_info)>1 and merge_clusts:        
-        clus_merged = pd.DataFrame(columns=clus_info.columns,index=clus_info.index)
-        clus_merged, clus_members, merged_ids  = merge_clusters(clus_out_dir,df,clus_info,clus_merged,\
-                clus_members,[],[pi,rlen,insert,ploidy],num_iters,burn,thin,are_snvs)
-        
-        if len(clus_merged)!=len(clus_info):
-            clus_info = clus_merged
-            df_probs, ccert = merge_results(clus_merged, merged_ids, df_probs, ccert)
-            if cmd.plot:
-                plot_cluster_hist(clus_merged.clus_id.values,ccert.most_likely_assignment.values,df,ploidy,pi,rlen,clus_out_dir,are_snvs)
-    
-    return clus_info,center_trace,z_trace,clus_members,df_probs,ccert
 
-def infer_subclones(sample,df,pi,rlen,insert,ploidy,out,n_runs,num_iters,burn,thin,beta,snv_df,merge_clusts,use_map):
+#return clus_info,center_trace,z_trace,clus_members,df_probs,ccert
+
+def infer_subclones(sample,sv_df,pi,rlen,insert,ploidy,out,n_runs,num_iters,burn,thin,beta,snv_df,merge_clusts,use_map,cocluster):
     clus_info,center_trace,ztrace,clus_members = None,None,None,None
     for i in range(n_runs):
         print("Cluster run: %d"%i)
 
         clus_out_dir = '%s/run%d'%(out,i)
-        
         if not os.path.exists(clus_out_dir):
             os.makedirs(clus_out_dir)    
-    
-        if len(snv_df)>0:
-            if not os.path.exists('%s/snvs'%clus_out_dir):
-                os.makedirs('%s/snvs'%clus_out_dir)
-            print("Clustering SNVs...")
-            clus_info,center_trace,z_trace,clus_members,df_probs,clus_cert = \
-                run_clust(clus_out_dir,snv_df,pi,rlen,insert,ploidy,num_iters,burn,thin,beta,merge_clusts,use_map,are_snvs=True)
-            write_output.write_out_files_snv(snv_df,clus_info,clus_members,df_probs,clus_cert,clus_out_dir,sample,pi)
-
-        print("Clustering SVs...")
-        clus_info,center_trace,z_trace,clus_members,df_probs,clus_cert = \
-                run_clust(clus_out_dir,df,pi,rlen,insert,ploidy,num_iters,burn,thin,beta,use_map,merge_clusts)
-         
-        sv_loss = 1-(sum(clus_info['size'])/float(len(df)))
-
-        if len(clus_info) < 1:
-            print("Warning! Could not converge on any major clusters. Skipping.\n")
-            continue
-            #if sv_loss > param.tolerate_svloss:
-            #    warn_str = "Warning! Lost %f of SVs.\n" % sv_loss
-            #if (clus_info.phi.values[0]*2.)>(1+param.subclone_diff):
-            #    warn_str = warn_str + "Warning! Largest VAF cluster exceeds 0.5.\n"
         
-        write_output.write_out_files(df,clus_info,clus_members,df_probs,clus_cert,clus_out_dir,sample,pi,rlen)
+        if cocluster:
+            mcmc = cluster.cluster(sv_df,snv_df,pi,rlen,insert,ploidy,num_iters,burn,thin,beta,use_map)
+            post_process_clusters(mcmc,sv_df,snv_df,merge_clusts,clus_out_dir,sample,pi,rlen)
+        else:            
+            if len(snv_df)>0:
+                if not os.path.exists('%s/snvs'%clus_out_dir):
+                    os.makedirs('%s/snvs'%clus_out_dir)
+                mcmc = cluster.cluster(pd.DataFrame(),snv_df,pi,rlen,insert,ploidy,num_iters,burn,thin,beta,use_map)
+                post_process_clusters(mcmc,pd.DataFrame(),snv_df,merge_clusts,clus_out_dir,sample,pi,rlen)
+            if len(sv_df)>0:
+                mcmc = cluster.cluster(sv_df,pd.DataFrame(),pi,rlen,insert,ploidy,num_iters,burn,thin,beta,use_map)
+                post_process_clusters(mcmc,sv_df,pd.DataFrame(),merge_clusts,clus_out_dir,sample,pi,rlen)
 
