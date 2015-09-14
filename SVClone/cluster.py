@@ -188,7 +188,7 @@ def get_sv_vals(df,rlen,pi,pl):
             # estimate adjustment from normal counts for SV events where there is no gain of DNA
             # if these events don't exist, adjust by normal component + tumour/2 (half tumour normal
             # reads will come from duplication, on one chromosome, so divide by ploidy
-            adjust_factor = np.mean(norm[non_gain]) if sum(non_gain)>0 else (1-pi) + ((pi)/2/pl)    
+            adjust_factor = np.mean(norm[non_gain])/np.mean(norm[dups]) if sum(non_gain)>0 else (1-pi) + ((pi)/2/pl)    
             norm[dups] = norm[dups] * adjust_factor
 
     except AttributeError:
