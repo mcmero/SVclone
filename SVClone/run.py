@@ -44,6 +44,23 @@ def is_clonal_neutral(gtype):
         return (gt[0]==1 and gt[1]==1 and gt[2]==1)
     return False
 
+def is_copynumber_zero(gtype):
+    '''
+    returns false if copynumber genotype
+    of the major and minor alleles
+    are 0 for the clone or any subclone
+    '''
+    if gtype=='': return False
+    gtype = map(methodcaller('split',','),gtype.split('|'))
+    if len(gtype)==1:
+        gt = map(float,gtype[0])
+        if gt[2]==1:            
+            return (gt[0]==0 and gt[1]==0)
+        else:
+            gt2 = map(float,gtype[1])
+            return ((gt[0]==0 and gt[1]==0) or (gt2[0]==0 and gt2[1]==0))
+    return False
+
 def filter_outlying_norm_wins(df_flt):
     bp1_win, bp2_win = cluster.normalise_wins_by_cn(df_flt)
     bp1_ranges = get_outlier_ranges(bp1_win)
@@ -90,8 +107,12 @@ def run_cnv_filter(df_flt,cnv,neutral=False,are_snvs=False):
             df_flt = df_flt[np.logical_and(depths>dep_ranges[0],depths<dep_ranges[1])]
         else:
             df_flt = df_flt[np.logical_or(df_flt.gtype1.values!='',df_flt.gtype2.values!='')]
+            
+            gt1_is_zero = np.array(map(is_copynumber_zero,df_flt.gtype1.values))
+            gt2_is_zero = np.array(map(is_copynumber_zero,df_flt.gtype2.values))
+            df_flt = df_flt[np.logical_and(gt1_is_zero==False,gt2_is_zero==False)]
+            
             df_flt = filter_outlying_norm_wins(df_flt)
-            #df_flt = df_flt[np.logical_and(df_flt.bp1_win_norm<600,df_flt.bp2_win_norm<600)]
     if are_snvs:
         df_flt = df_flt.fillna('')
         df_flt = df_flt[np.logical_and(df_flt.gtype.values!='',df_flt.chrom.values!='')]
