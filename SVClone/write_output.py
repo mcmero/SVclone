@@ -3,6 +3,7 @@ import pandas as pd
 import os
 import ipdb
 import math
+from . import parameters as params
 from operator import methodcaller
 
 from . import cluster
@@ -27,32 +28,17 @@ def write_out_files_snv(df,clus_info,clus_members,df_probs,clus_cert,clus_out_di
     with open('%s/number_of_clusters.txt'%clus_out_dir,'w') as outf:
         outf.write("sample\tclusters\n")
         outf.write('%s\t%d\n'%(sample,len(clus_info)))
-    
-    cn_dtype =  [('chr','S50'),
-                 ('pos',int),
-                 ('total_copynumber',int),
-                 ('no_chrs_bearing_mutation',int)]
-
-    mlcn_dtype =[('chr','S50'),
-                 ('pos',int),
-                 ('bb_CN','S50'),
-                 ('most_likely_ref_copynumber',int),
-                 ('most_likely_variant_copynumber',int),
-                 ('prop_chrs_bearing_mutation',float)]
-    
-    mult_dtype =[('chr','S50'),
-                 ('pos',int),
-                 ('tumour_copynumber',int),
-                 ('multiplicity',int),
-                 ('tumour_copynumber_options','S50'),
-                 ('multiplicity_options','S50'),
-                 ('probabilities','S50')]
 
     cmem = np.hstack(clus_members)
+    cn_dtype = params.snv_cn_dtype
+    mlcn_dtype = params.snv_mlcn_dtype
+    mult_dtype = params.snv_mult_dtype
+
     cn_vect = np.empty((0,len(cmem)),dtype=cn_dtype)
     mlcn_vect = np.empty((0,len(cmem)),dtype=mlcn_dtype)
     mult_vect   = np.empty((0,len(cmem)),dtype=mult_dtype)
     #clus_snvs = df.loc[cmem].copy()
+    
     df = df.fillna('')
     df = df[df.chrom.values!='']
 
@@ -118,41 +104,12 @@ def write_out_files(df,clus_info,clus_members,df_probs,clus_cert,clus_out_dir,sa
     with open('%s/number_of_clusters.txt'%clus_out_dir,'w') as outf:
         outf.write("sample\tclusters\n")
         outf.write('%s\t%d\n'%(sample,len(clus_info)))
-    
-    cn_dtype =  [('chr1','S50'),
-                 ('pos1',int),
-                 ('total_copynumber1',int),
-                 ('no_chrs_bearing_mutation1',int),
-                 ('chr2','S50'),
-                 ('pos2',int),
-                 ('total_copynumber2',int),
-                 ('no_chrs_bearing_mutation2',int)]
-
-    mlcn_dtype =[('chr1','S50'),
-                 ('pos1',int),
-                 ('chr2','S50'),
-                 ('pos2',int),
-                 ('pos1_bb_CN','S50'),
-                 ('pos2_bb_CN','S50'),
-                 ('most_likely_ref_copynumber',int),
-                 ('most_likely_variant_copynumber',int),
-                 ('prop_chrs_bearing_mutation',float),
-                 ('support',int),
-                 ('depth',int),      
-                 ('pv',float)]
-                 #('ploidy_fixed_pv',float)]
-   
-    mult_dtype =[('chr1','S50'),
-                 ('pos1',int),
-                 ('chr2','S50'),
-                 ('pos2',int),
-                 ('tumour_copynumber',int),
-                 ('multiplicity',int),
-                 ('tumour_copynumber_options','S50'),
-                 ('multiplicity_options','S50'),
-                 ('probabilities','S50')]
 
     cmem        = np.hstack(clus_members)
+    cn_dtype    = params.sv_cn_dtype
+    mlcn_dtype  = params.sv_mlcn_dtype
+    mult_dtype  = params.sv_mult_dtype
+
     cn_vect     = np.empty((0,len(cmem)),dtype=cn_dtype)
     mlcn_vect   = np.empty((0,len(cmem)),dtype=mlcn_dtype)
     mult_vect   = np.empty((0,len(cmem)),dtype=mult_dtype)
@@ -215,7 +172,9 @@ def write_out_files(df,clus_info,clus_members,df_probs,clus_cert,clus_out_dir,sa
     clus_cert['90_perc_CI_hi'] = clus_cert['90_perc_CI_hi'].values*pi
 
     #rename cols
-    rename_cols =  {'bp1_chr': 'chr1', 'bp1_pos': 'pos1', 'bp2_chr': 'chr2', 'bp2_pos': 'pos2', 'average_ccf': 'average_proportion'}
+    rename_cols =  {'bp1_chr': 'chr1', 'bp1_pos': 'pos1', 
+                    'bp2_chr': 'chr2', 'bp2_pos': 'pos2', 
+                    'average_ccf': 'average_proportion'}
     clus_cert = clus_cert.rename(columns = rename_cols)
     df_probs = df_probs.rename(columns = rename_cols)
 

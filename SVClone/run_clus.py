@@ -78,8 +78,8 @@ def plot_clusters(center_trace,clusters,assignments,snv_df,sv_df,pl,pi,rlen,clus
     sup, dep, cn_states = [], [], []
     Nvar = 0
     if len(sv_df)>0 and len(snv_df)>0:
-        sup,dep,cn_states,Nvar = get_snv_vals(snv_df)
-        sv_sup,sv_dep,sv_cn_states,sv_Nvar = get_sv_vals(sv_df,rlen,pi,pl)
+        sup,dep,cn_states,Nvar = cluster.get_snv_vals(snv_df)
+        sv_sup,sv_dep,sv_cn_states,sv_Nvar = cluster.get_sv_vals(sv_df,rlen,pi,pl)
         
         sup = np.append(sup,sv_sup)
         dep = np.append(dep,sv_dep)
