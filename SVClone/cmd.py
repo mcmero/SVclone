@@ -11,7 +11,7 @@ parser = argparse.ArgumentParser(prefix_chars='--')
 parser.add_argument("-s","--samples",dest="samples",
         help="Required: Sample names (comma separated if multiple), not including germline. " + \
              "WARNING: if clustering using mutect SNVs, the sample name must match the sample name in the vcf file. ")
-parser.add_argument("-i","--input",dest="procd_svs",
+parser.add_argument("-i","--input",default="",dest="procd_svs",
     help="Required: Processed structural variation input (comma separated if multiple).")
 parser.add_argument("-g","--germline",dest="germline",default="",
     help="Germline SVs. If not provided, will assume all SVs are somatic.")

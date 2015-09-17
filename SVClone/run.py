@@ -367,6 +367,69 @@ def filter_germline(gml_file,sv_df,rlen,insert):
     print("Found %d SVs in the germline!" % len(germline))
     return sv_df.drop(germline,axis=0)
 
+
+def adjust_sv_read_counts(sv_df,pi,pl):
+    n = zip(np.array(sv_df.norm1.values),np.array(sv_df.norm2.values))
+    s = np.array(sv_df.bp1_split.values+sv_df.bp2_split.values)
+    d = np.array(sv_df.spanning.values)
+    sup = np.array(d+s,dtype=float)
+    Nvar = len(sv_df)
+
+    combos = sv_df.apply(cluster.get_sv_allele_combos,axis=1)
+    sides = np.zeros(Nvar,dtype=int)
+    sides[sv_df.gtype1.values==''] = 1 #no genotype for bp1, use bp2
+
+    # prefer sides with subclonal genotype data    
+    gt1_sc = np.array(map(len,map(methodcaller("split","|"),sv_df.gtype1.values)))>1
+    gt2_sc = np.array(map(len,map(methodcaller("split","|"),sv_df.gtype1.values)))>1    
+    one_sc = np.logical_xor(gt1_sc,gt2_sc)
+
+    exclusive_subclones = zip(sv_df.gtype1.values[one_sc],sv_df.gtype2.values[one_sc]) 
+    sides[one_sc] = [0 if gt1!='' else 1 for gt1,gt2 in exclusive_subclones]
+    has_both_gts = np.logical_and(sv_df.gtype1.values!='',sv_df.gtype2.values!='')
+    cn_states = [cn[side] for cn,side in zip(combos,sides)]
+    
+    # both sides have genotypes, both either subclonal or clonal
+    # in this case, just take the simple normal mean of the two sides
+    norm = np.array([ni[si] for ni,si in zip(n,sides)])
+    both_gts_same_type = np.logical_and(has_both_gts,one_sc==False)
+    norm[both_gts_same_type] = map(np.mean,np.array(n)[both_gts_same_type])
+ 
+    try:
+
+        # read value adjustments for specific types of events
+        # currently the adjustments are quite simple
+        sv_classes = sv_df.classification.values
+        invs = [ sv_class in params.inversion_class for sv_class in sv_classes ]
+        dups = [ sv_class in params.dna_gain_class for sv_class in sv_classes ]
+        dels = [ sv_class in params.deletion_class for sv_class in sv_classes ]
+        
+        # inversions have their supporting reads / 2 
+        # as each break contains two sets of supporting reads
+        if sum(invs)>0:
+            sup[invs] = sup[invs]/2
+        
+        # normal read counts for duplications are adjusted by purity and ploidy
+        if sum(dups)>0:
+            non_gain = np.logical_or(dels,invs)
+            # estimate adjustment from normal counts for SV events where there is no gain of DNA
+            # if these events don't exist, adjust by normal component + tumour/2 (half tumour normal
+            # reads will come from duplication, on one chromosome, so divide by ploidy
+            adjust_factor = np.mean(norm[non_gain])/np.mean(norm[dups]) if sum(non_gain)>0 else (1-pi) + ((pi)/2/pl)    
+            norm[dups] = norm[dups] * adjust_factor
+        
+    except AttributeError:
+        print('Warning, no classifications found. SV read counts cannot be adjusted')
+
+    sv_df['adjusted_norm']      = norm
+    sv_df['adjusted_support']   = sup
+    sv_df['adjusted_depth']     = norm+sup
+    sv_df['preferred_side']     = sides
+    sv_df['raw_mean_vaf']       = (s+d)/(s+d+map(float,sv_df.norm_mean.values))
+    sv_df['adjusted_vaf']       = map(float,sup)/(norm+sup)
+
+    return sv_df
+
 def run(samples,svs,gml,cnvs,rlens,inserts,pis,ploidies,out,n_runs,num_iters,burn,thin,beta,neutral,snvs,snv_format,merge_clusts,use_map,cocluster):
 
     # pr = cProfile.Profile()
@@ -398,53 +461,51 @@ def run(samples,svs,gml,cnvs,rlens,inserts,pis,ploidies,out,n_runs,num_iters,bur
             n = snv_df['ref'].values
             b = snv_df['var'].values
     
-        sv_df = load_svs(sv,rlen,insert)
-#        if os.path.isfile(filt_svs_file):
-#            print('Found filtered SVs file, running clustering on these variants')
-#            sv_df = pd.read_csv(filt_svs_file,delimiter='\t',na_values='')
-#            sv_df = pd.DataFrame(sv_df).fillna('')
-#            print('Clustering with %d SVs and %d SNVs'%(len(sv_df),len(snv_df)))
-#            run_clus.infer_subclones(sample,sv_df,pi,rlen,insert,ploidy,out,n_runs,num_iters,burn,thin,beta,snv_df)
-#            return None
+        if sv!="":
+            sv_df = load_svs(sv,rlen,insert)
 
         if gml!="":
             sv_df = filter_germline(gml,sv_df,rlen,insert)
-        
+       
         if cnv!="":
             cnv_df = load_cnvs(cnv)
-            sv_df = match_copy_numbers(sv_df,cnv_df) 
-            sv_df = match_copy_numbers(sv_df,cnv_df,['bp2_chr','bp2_pos'],'gtype2') 
-            sv_df = run_cnv_filter(sv_df,cnv,neutral)
-            
-            if len(snv_df)>0:
+
+            if sv!="":
+                sv_df = match_copy_numbers(sv_df,cnv_df) 
+                sv_df = match_copy_numbers(sv_df,cnv_df,['bp2_chr','bp2_pos'],'gtype2') 
+                sv_df = run_cnv_filter(sv_df,cnv,neutral)
+        
+            if snvs!="":
                 snv_df = match_copy_numbers(snv_df,cnv_df,['chrom','pos'],'gtype')
                 snv_df = run_cnv_filter(snv_df,cnv,neutral,are_snvs=True)
+
         else:
-            print('No Battenberg input defined, assuming all loci are copy-number neutral')
-            sv_df['gtype1'] = '1,1,1.000000'
-            sv_df['gtype2'] = '1,1,1.000000'
-            #sv_df = sv_df[(sv_df.norm_mean<np.percentile(sv_df.norm_mean,85))]                
-            sv_df = run_cnv_filter(sv_df,cnv,neutral)
+
+            if sv!="":
+                print('No Battenberg input defined, assuming all loci are copy-number neutral')
+                sv_df['gtype1'] = '1,1,1.000000'
+                sv_df['gtype2'] = '1,1,1.000000'
+                sv_df = run_cnv_filter(sv_df,cnv,neutral)
+
             if snvs!="":
                 snv_df['gtype'] = '1,1,1.000000'
                 snv_df = run_cnv_filter(snv_df,cnv,neutral,True)
-
-        #reindex data frames
-        sv_df.index = range(len(sv_df))
-        if len(snv_df)>0: snv_df.index = range(len(snv_df))
-
-        sv_df.to_csv('%s/%s_filtered_svs.tsv'%(out,sample),sep='\t',index=False,na_rep='')
-        snv_df.to_csv('%s/%s_filtered_snvs.tsv'%(out,sample),sep='\t',index=False,na_rep='')
+            
+        if len(sv_df)>0: 
+            sv_df.index = range(len(sv_df)) #reindex
+            sv_df = adjust_sv_read_counts(sv_df,pi,ploidy)
+            sv_df.to_csv('%s/%s_filtered_adjusted_svs.tsv'%(out,sample),sep='\t',index=False,na_rep='')
+        
+        if len(snv_df)>0: 
+            snv_df.index = range(len(snv_df)) #reindex
+            snv_df.to_csv('%s/%s_filtered_snvs.tsv'%(out,sample),sep='\t',index=False,na_rep='')
         
         with open('%s/purity_ploidy.txt'%out,'w') as outf:
             outf.write("sample\tpurity\tploidy\n")
             outf.write('%s\t%f\t%f\n'%(sample,pi,ploidy))
       
-        if len(sv_df) < 5:
-            print("Less than 5 post-filtered SVs. Clustering not recommended for this sample. Exiting.")
-        else:
-            print('Clustering with %d SVs and %d SNVs'%(len(sv_df),len(snv_df)))        
-            run_clus.infer_subclones(sample,sv_df,pi,rlen,insert,ploidy,out,n_runs,num_iters,burn,thin,beta,snv_df,merge_clusts,use_map,cocluster)
+        print('Clustering with %d SVs and %d SNVs'%(len(sv_df),len(snv_df)))        
+        run_clus.infer_subclones(sample,sv_df,pi,rlen,insert,ploidy,out,n_runs,num_iters,burn,thin,beta,snv_df,merge_clusts,use_map,cocluster)
 
         # pr.disable()
         # s = StringIO.StringIO()

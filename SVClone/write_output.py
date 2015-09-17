@@ -116,7 +116,7 @@ def write_out_files(df,clus_info,clus_members,df_probs,clus_cert,clus_out_dir,sa
     clus_svs    = df.loc[cmem].copy()
     
     #sup,dep,cn_r,cn_v,mu_v,sides,av_cov = cluster.get_sv_vals(df,rlen)
-    sup,dep,cn_states,Nvar = cluster.get_sv_vals(df,rlen,pi,ploidy)
+    sup,dep,cn_states,Nvar = cluster.get_sv_vals(df)
     #TODO: should all be cellular prevalence - do this with SNVs also 
     phis = clus_cert.average_ccf.values
     cns,pvs = cluster.get_most_likely_cn_states(cn_states,sup,dep,phis,pi)
