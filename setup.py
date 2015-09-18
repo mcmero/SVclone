@@ -6,11 +6,9 @@ setup(name='SVClone',
       url='https://bitbucket.org/mcmero/svclone',
       author='Marek Cmero',
       author_email='mcmero@student.unimelb.edu.au',
-      license='Unimelb',
+      license='',
       packages=['SVClone'],
-      entry_points = {
-        'console_scripts': ['svclone = svclone.cmd:main'],
-      },
+      scripts=['SVClone.py'],
       long_description=open('README.md').read(),
       zip_safe=False)
 

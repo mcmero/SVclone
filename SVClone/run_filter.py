@@ -1,16 +1,20 @@
 '''
 Run clustering and tree building on sample inputs
 '''
+from __future__ import print_function
+
 import os
 import numpy as np
 import ipdb
 import re
 import pandas as pd
 import vcf
-# import cProfile, pstats, StringIO 
+# import cProfile, pstats, StringIO
+
 from operator import methodcaller
 from . import run_clus
 from . import cluster
+from . import load_data
 from . import parameters as params
 
 def get_outlier_ranges(vals):
@@ -118,82 +122,8 @@ def run_cnv_filter(df_flt,cnv,neutral=False,are_snvs=False):
         df_flt = df_flt[np.logical_and(df_flt.gtype.values!='',df_flt.chrom.values!='')]
     return df_flt
 
-#def cnv_overlaps(bp_pos,cnv_start,cnv_end):
-#    return (bp_pos >= cnv_start and bp_pos <= cnv_end)
-
-#def find_cn_cols(bp_chr,bp_pos,cnv,cols=['nMaj1_A','nMin1_A','frac1_A','nMaj2_A','nMin2_A','frac2_A']):
-#    for idx,c in cnv.iterrows():
-#        if str(bp_chr)==c['chr'] and cnv_overlaps(bp_pos,c['startpos'],c['endpos']):
-#            return c[cols[0]],c[cols[1]],c[cols[2]],c[cols[3]],c[cols[4]],c[cols[5]]
-#    return float('nan'),float('nan'),float('nan'),float('nan'),float('nan'),float('nan')
-
-#def find_cn_col(bp_chr,bp_pos,cnv):
-#    for idx,c in cnv.iterrows():
-#        if str(bp_chr)==c['chr'] and cnv_overlaps(bp_pos,c['startpos'],c['endpos']):
-#            return c
-#    return pd.Series()
-#
-#def get_genotype(cnrow):
-#    #print('get genotype for %s:%d' % (cnrow['chr'],cnrow['startpos'])) 
-#    gtype = []
-#    bb_fields = ['nMaj1_A','nMin1_A','frac1_A','nMaj2_A','nMin2_A','frac2_A']
-#    maj1A, min1A, frac1A = cnrow[bb_fields[:3]].values 
-#    
-#    if np.nan in [maj1A, min1A, frac1A]:
-#        raise('Standard battenberg fields not found. Please check your copy-number input.')
-#
-#    g_str = '%d,%d,%f' % (maj1A, min1A, frac1A)
-#    if frac1A!=1:
-#        maj2A, min2A, frac2A = cnrow[bb_fields[3:]].values
-#        g_str += '|%d,%d,%f' % (maj2A, min2A, frac2A)
-#
-#    return g_str
-
-def load_cnvs(cnv):
-    cnv = pd.read_csv(cnv,delimiter='\t',dtype=None)
-    cnv_df = pd.DataFrame(cnv)
-    cnv_df['chr'] = map(str,cnv_df['chr'])
-    
-    try:
-        gtypes = cnv_df['nMaj1_A'].map(str) + ',' + \
-                 cnv_df['nMin1_A'].map(str) + ',' + \
-                 cnv_df['frac1_A'].map(str)
-
-        # join subclonal genotypes
-        subclonal = cnv_df['frac1_A']!=1
-        cnv_sc    = cnv_df[subclonal]
-        gtypes[subclonal] = gtypes[subclonal] + '|' + \
-                            cnv_sc['nMaj2_A'].map(str) + ',' + \
-                            cnv_sc['nMin2_A'].map(str) + ',' + \
-                            cnv_sc['frac2_A'].map(str)
-        
-        cnv_df['gtype'] = gtypes
-        select_cols = ['chr','startpos','endpos','gtype']
-        return cnv_df[select_cols]
-    except KeyError:
-        raise Exception('CNV file column names not recognised. Is the input a Battenberg output file?')
-
 def match_copy_numbers(var_df, cnv_df, bp_fields=['bp1_chr','bp1_pos'], gtype_field='gtype1'):
     
-#    var_df['gtype1'] = ''
-#    var_df['gtype2'] = ''
-#    sv_arr = np.array(zip(var_df.index.values,
-#                          var_df['bp1_chr'].values,
-#                          var_df['bp1_pos'].values,
-#                          var_df['bp2_chr'].values,
-#                          var_df['bp2_pos'].values),
-#                     dtype=[('idx',int),('bp1_chr','S50'),\
-#                            ('bp1_pos',int),('bp2_chr','S50'),('bp2_pos',int)])
-#
-#    for sv in sv_arr:
-#        idx = sv['idx']
-#        for cnv in cnv_arr:
-#            if sv['bp1_chr'] == cnv['chr'] and cnv_overlaps(sv['bp1_pos'],cnv['startpos'],cnv['endpos']):
-#               var_df.loc[idx,'gtype1'] = cnv['gtype']
-#            if sv['bp2_chr'] == cnv['chr'] and cnv_overlaps(sv['bp2_pos'],cnv['startpos'],cnv['endpos']):
-#               var_df.loc[idx,'gtype2'] = cnv['gtype']
-#
-#    return var_df 
     var_df[gtype_field] = ''
     chrom_field, pos_field = bp_fields
     var_df[chrom_field] = map(str,var_df[chrom_field].values)
@@ -222,121 +152,6 @@ def match_copy_numbers(var_df, cnv_df, bp_fields=['bp1_chr','bp1_pos'], gtype_fi
         var_indexes = var_df[current_chr].index.values
         var_df.loc[var_indexes,gtype_field] = gtypes
     return var_df
-
-def load_svs(sv_file, rlen, insert):
-    dat = pd.read_csv(sv_file,delimiter='\t',dtype=None, low_memory=False)
-    sv_df = pd.DataFrame(dat)
-    sv_df['norm_mean'] = map(np.mean,zip(sv_df['norm1'].values,sv_df['norm2'].values))
-    return run_simple_filter(sv_df,rlen,insert)
-
-def load_snvs_mutect_callstats(snvs):
-    snv_df = pd.DataFrame(pd.read_csv(snvs,delimiter='\t',low_memory=False,dtype=None,comment="#"))
-    snv_df = snv_df[snv_df['judgement']=='KEEP']   
-    
-    snv_out = {'chrom' : snv_df.contig.map(str),
-               'pos'   : snv_df.position.map(int),
-               'gtype' : '',
-               'ref'   : snv_df.t_ref_sum.map(float),
-               'var'   : snv_df.t_alt_sum.map(float)}
-
-    snv_out = pd.DataFrame(snv_out)
-    snv_out = snv_out[['chrom','pos','gtype','ref','var']]
-    return snv_out
-    
-def load_snvs_mutect(snvs,sample):
-    vcf_reader = vcf.Reader(filename=snvs)
-    snv_dtype = [('chrom','S50'),('pos',int),('gtype','S50'),('ref',float),('var',float)]
-    snv_df = np.empty([0,5],dtype=snv_dtype)
-
-    samples = vcf_reader.samples
-    if len(samples)==0:
-        raise Exception('No samples found in VCF!')
-    elif not np.any(np.array(samples)==sample):
-        print('Warning, sample not found in VCF, selecting first sample')
-        sample = samples[0]
-
-    for record in vcf_reader:
-        if record.FILTER is not None:
-            if len(record.FILTER)>0:
-                continue
-        ad = record.genotype(sample)['AD']
-        ref_reads, variant_reads = float(ad[0]), float(ad[1])
-        total_reads = ref_reads + variant_reads
-        if variant_reads!=0:
-            tmp = np.array((record.CHROM,record.POS,'',ref_reads,variant_reads),dtype=snv_dtype)
-            snv_df = np.append(snv_df,tmp)
-
-    return pd.DataFrame(snv_df)
-
-def load_snvs_sanger(snvs):
-    vcf_reader = vcf.Reader(filename=snvs)
-    snv_dtype = [('chrom','S50'),('pos',int),('gtype','S50'),('ref',float),('var',float)]
-    snv_df = np.empty([0,5],dtype=snv_dtype)
-
-    #code adapted from: https://github.com/morrislab/phylowgs/blob/master/parser/create_phylowgs_inputs.py
-    samples = vcf_reader.samples
-    if samples[0]!='NORMAL' or samples[1]!='TUMOUR':
-        raise Exception('VCF SNV file is of invalid format. Expected "NORMAL" and "TUMOUR" samples.')
-
-    for record in vcf_reader:
-        # get most likely genotypes
-        genotypes = [record.INFO['TG'], record.INFO['SG']]        
-        if len(genotypes)==0:
-            continue
-        if record.FILTER is not None:
-            if len(record.FILTER)>0:
-                continue
-    
-        variant_set = set()
-        reference_nt = ''
-        while len(variant_set) == 0:
-            if len(genotypes) == 0:
-                break
-                #raise Exception('No more genotypes to find variant_nt in for %s' % variant)
-            gt = genotypes.pop(0)
-            normal_gt, tumour_gt = gt.split('/')
-            if normal_gt[0] == normal_gt[1]:
-                reference_nt = normal_gt[0]
-                variant_set = set(tumour_gt) - set(reference_nt)
-        variant_nt = variant_set.pop() if len(variant_set)!=0 else ''
-        
-        if variant_nt=='':
-            print('Warning: no valid genotypes for variant %s:%d; skipping.'%(record.CHROM,record.POS))
-            continue
-            
-        normal = record.genotype('NORMAL')
-        tumour = record.genotype('TUMOUR')
-
-        tumor_reads = {
-          'forward': {
-            'A': int(tumour['FAZ']),
-            'C': int(tumour['FCZ']),
-            'G': int(tumour['FGZ']),
-            'T': int(tumour['FTZ']),
-          },
-          'reverse': {
-            'A': int(tumour['RAZ']),
-            'C': int(tumour['RCZ']),
-            'G': int(tumour['RGZ']),
-            'T': int(tumour['RTZ']),
-          },
-        }
-
-        ref_reads = tumor_reads['forward'][reference_nt] + tumor_reads['reverse'][reference_nt]
-        variant_reads = tumor_reads['forward'][variant_nt] + tumor_reads['reverse'][variant_nt]
-        total_reads = ref_reads + variant_reads
-        
-        if variant_reads!=0:
-            tmp = np.array((record.CHROM,record.POS,'',ref_reads,variant_reads),dtype=snv_dtype)
-            snv_df = np.append(snv_df,tmp)
-
-    #import matplotlib.pyplot as plt
-    #fig, axes = plt.subplots(1, 1, sharex=False, sharey=False)
-    #dep = snv_df['ref']+snv_df['var']
-    #sup = map(float,snv_df['var'])
-    #axes.hist(sup/dep);plt.savefig('/home/mcmero/Desktop/test')
-    #ipdb.set_trace()
-    return pd.DataFrame(snv_df)
 
 def is_same_sv(sv1,sv2):
     sv1_chr1, sv1_bp1, sv1_chr2, sv1_bp2 = sv1
@@ -430,45 +245,78 @@ def adjust_sv_read_counts(sv_df,pi,pl):
 
     return sv_df
 
-def run(samples,svs,gml,cnvs,rlens,inserts,pis,ploidies,out,n_runs,num_iters,burn,thin,beta,neutral,snvs,snv_format,merge_clusts,use_map,cocluster):
-
+def run(args):    
     # pr = cProfile.Profile()
-    # pr.enable()
-    
+    # pr.enable()    
+
+    sample      = args.sample
+    svs         = args.procd_svs
+    gml         = args.germline
+    cnvs        = args.cnvs
+    out         = args.outdir
+    rlen        = args.rlen
+    snvs        = args.snvs
+    snv_format  = args.snv_format
+    neutral     = args.neutral
+    insert      = args.insert
+    pi          = args.pi
+    ploidy      = args.ploidy
+   
+    def proc_arg(arg,n_args=1,of_type=str):
+        arg = str.split(arg,',')
+        arg = arg * n_args if len(arg)==1 else arg
+        if of_type==int or of_type==float:
+            return map(eval,arg)
+        else:
+            return map(of_type,arg)
+
+    sample  = proc_arg(sample)
+    n       = len(sample)
+    svs     = proc_arg(svs)
+    cnvs    = proc_arg(cnvs)
+    insert  = proc_arg(insert,n,float)
+    rlen    = proc_arg(rlen,n,int)
+    pi      = proc_arg(pi,n,float)
+    ploidy  = proc_arg(ploidy,n,float)
+
+    for p in pi:
+        if p<0 or p>1:
+            raise ValueError("Tumour purity value not between 0 and 1!")
+            
+    if len(svs)!=n or len(cnvs)!=n:
+        raise ValueError("Number of samples does not match number of input files")
+
     if not os.path.exists(out):
         os.makedirs(out)
 
-    if len(samples)>1:
+    if len(sample)>1:
         print("Multiple sample processing not yet implemented")
         #TODO: processing of multiple samples
-        #for sm,sv,cnv,rlen,insert,pi in zip(samples,svs,cnvs,rlens,inserts,pis):
-        #    dat = pd.read_csv(sv,delimiter='\t')
-        #    df = pd.DataFrame(dat)
-        #    svinfo = pd.DataFrame(dat)
     else:
-        sample,sv,cnv,rlen,insert,pi,ploidy = samples[0],svs[0],cnvs[0],rlens[0],inserts[0],pis[0],ploidies[0]
+        sample,sv,cnv,rlen,insert,pi,ploidy = sample[0],svs[0],cnvs[0],rlen[0],insert[0],pi[0],ploidy[0]
         sv_df  = pd.DataFrame()
         cnv_df = pd.DataFrame()
         snv_df = pd.DataFrame()
        
         if snvs!="":
             if snv_format == 'sanger':
-                snv_df = load_snvs_sanger(snvs)
+                snv_df = load_data.load_snvs_sanger(snvs)
             elif snv_format == 'mutect':
-                snv_df = load_snvs_mutect(snvs,sample)
+                snv_df = load_data.load_snvs_mutect(snvs,sample)
             elif snv_format == 'mutect_callstats':
-                snv_df = load_snvs_mutect_callstats(snvs)
+                snv_df = load_data.load_snvs_mutect_callstats(snvs)
             n = snv_df['ref'].values
             b = snv_df['var'].values
     
         if sv!="":
-            sv_df = load_svs(sv,rlen,insert)
+            sv_df = load_data.load_svs(sv)
+            sv_df = run_simple_filter(sv_df,rlen,insert)
 
         if gml!="":
             sv_df = filter_germline(gml,sv_df,rlen,insert)
        
         if cnv!="":
-            cnv_df = load_cnvs(cnv)
+            cnv_df = load_data.load_cnvs(cnv)
 
             if sv!="":
                 sv_df = match_copy_numbers(sv_df,cnv_df) 
@@ -478,7 +326,6 @@ def run(samples,svs,gml,cnvs,rlens,inserts,pis,ploidies,out,n_runs,num_iters,bur
             if snvs!="":
                 snv_df = match_copy_numbers(snv_df,cnv_df,['chrom','pos'],'gtype')
                 snv_df = run_cnv_filter(snv_df,cnv,neutral,are_snvs=True)
-
         else:
 
             if sv!="":
@@ -503,9 +350,13 @@ def run(samples,svs,gml,cnvs,rlens,inserts,pis,ploidies,out,n_runs,num_iters,bur
         with open('%s/purity_ploidy.txt'%out,'w') as outf:
             outf.write("sample\tpurity\tploidy\n")
             outf.write('%s\t%f\t%f\n'%(sample,pi,ploidy))
-      
-        print('Clustering with %d SVs and %d SNVs'%(len(sv_df),len(snv_df)))        
-        run_clus.infer_subclones(sample,sv_df,pi,rlen,insert,ploidy,out,n_runs,num_iters,burn,thin,beta,snv_df,merge_clusts,use_map,cocluster)
+        
+        with open('%s/read_params.txt'%out,'w') as outf:
+            outf.write("sample\tread_len\tmean_insert\n")
+            outf.write('%s\t%f\t%f\n'%(sample,rlen,insert))
+        
+        #print('Clustering with %d SVs and %d SNVs'%(len(sv_df),len(snv_df)))        
+        #run_clus.infer_subclones(sample,sv_df,pi,rlen,insert,ploidy,out,n_runs,num_iters,burn,thin,beta,snv_df,merge_clusts,use_map,cocluster)
 
         # pr.disable()
         # s = StringIO.StringIO()

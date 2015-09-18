@@ -1,6 +1,8 @@
 '''
 Facilitates clustering of SVs
 '''
+from __future__ import print_function
+
 import subprocess
 import ipdb
 import os
@@ -12,12 +14,12 @@ matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 import colorsys
 import IPython
+
 from collections import OrderedDict
 from IPython.core.pylabtools import figsize
 
 from . import cluster
 from . import parameters as param
-from . import cmd
 from . import write_output
 
 import numpy as np
@@ -108,7 +110,7 @@ def mean_confidence_interval(phi_trace, alpha=0.1):
     h = se * sp.stats.t._ppf((1+(1-alpha))/2., n-1)
     return round(m,4), round(m-h,4), round(m+h,4)
 
-def merge_clusters(clus_out_dir,snv_df,sv_df,clus_info,clus_merged,clus_members,merged_ids,cparams,num_iters,burn,thin):
+def merge_clusters(clus_out_dir,snv_df,sv_df,clus_info,clus_merged,clus_members,merged_ids,cparams,n_iter,burn,thin):
     '''
     cparams = [pi,rlen,insert,ploidy]
     '''
@@ -127,7 +129,7 @@ def merge_clusters(clus_out_dir,snv_df,sv_df,clus_info,clus_merged,clus_members,
 
             new_members = np.concatenate([clus_members[idx],clus_members[idx+1]])
             mcmc = cluster.cluster(df.loc[new_members], cparams[0], cparams[1], \
-                    cparams[2], cparams[3], num_iters, burn, thin, None, are_snvs, 1)
+                    cparams[2], cparams[3], n_iter, burn, thin, None, are_snvs, 1)
             trace = mcmc.trace("phi_k")[:]
 
             phis = mean_confidence_interval(trace)
@@ -171,7 +173,7 @@ def merge_clusters(clus_out_dir,snv_df,sv_df,clus_info,clus_merged,clus_members,
         return (clus_merged,clus_members,merged_ids)
     else: 
         new_df = pd.DataFrame(columns=clus_merged.columns,index=clus_merged.index)
-        return merge_clusters(clus_out_dir,df,clus_merged,new_df,clus_members,merged_ids,cparams,num_iters,burn,thin,are_snvs)
+        return merge_clusters(clus_out_dir,df,clus_merged,new_df,clus_members,merged_ids,cparams,n_iter,burn,thin,are_snvs)
 
 def merge_results(clus_merged, merged_ids, df_probs, ccert):    
     # merge probability table
@@ -204,7 +206,7 @@ def merge_results(clus_merged, merged_ids, df_probs, ccert):
     return df_probs_new,ccert_new
 
 
-def post_process_clusters(mcmc,sv_df,snv_df,merge_clusts,clus_out_dir,sample,pi,ploidy,rlen):
+def post_process_clusters(mcmc,sv_df,snv_df,merge_clusts,clus_out_dir,sample,pi,ploidy,rlen,plot):
     #npoints = len(df.spanning.values) if not are_snvs else len(df['var'].values)
     # assign points to highest probabiliy cluster
     npoints = len(snv_df) + len(sv_df)
@@ -262,7 +264,7 @@ def post_process_clusters(mcmc,sv_df,snv_df,merge_clusts,clus_out_dir,sample,pi,
 #    if len(clus_info)>1 and merge_clusts:        
 #        clus_merged = pd.DataFrame(columns=clus_info.columns,index=clus_info.index)
 #        clus_merged, clus_members, merged_ids  = merge_clusters(clus_out_dir,snv_df,sv_df,clus_info,clus_merged,\
-#                clus_members,[],[pi,rlen,insert,ploidy],num_iters,burn,thin)
+#                clus_members,[],[pi,rlen,insert,ploidy],n_iter,burn,thin)
 #        
 #        if len(clus_merged)!=len(clus_info):
 #            clus_info = clus_merged
@@ -313,13 +315,59 @@ def post_process_clusters(mcmc,sv_df,snv_df,merge_clusts,clus_out_dir,sample,pi,
                     sv_probs,sv_ccert,clus_out_dir,sample,pi,ploidy,rlen)
     
     # cluster plotting
-    if cmd.plot:
+    if plot:
         plot_clusters(center_trace,clus_idx,clus_max_prob,snv_df,sv_df,ploidy,pi,rlen,clus_out_dir)
     
 
-#return clus_info,center_trace,z_trace,clus_members,df_probs,ccert
+def run_clustering(args):
+    
+    sample          = args.sample
+    n_runs          = args.n_runs
+    n_iter          = args.n_iter
+    burn            = args.burn
+    thin            = args.thin
+    beta            = args.beta
+    plot            = args.plot
+    use_map         = args.use_map
+    merge_clusts    = args.merge_clusts
+    cocluster       = args.cocluster
+    out             = args.outdir
 
-def infer_subclones(sample,sv_df,pi,rlen,insert,ploidy,out,n_runs,num_iters,burn,thin,beta,snv_df,merge_clusts,use_map,cocluster):
+    purity_ploidy_file = '%s/purity_ploidy.txt' % out
+    read_params_file   = '%s/read_params.txt' % out
+
+    pi      = 1.
+    ploidy  = 2.   
+    if os.path.exists(purity_ploidy_file):
+        pur_pl  = pd.read_csv(purity_ploidy_file,delimiter='\t',dtype=None,header=0)
+        pi      = float(pur_pl.purity.values[0])
+        ploidy  = float(pur_pl.ploidy.values[0])
+    else:
+        print('purity_ploidy.txt file not found! Assuming purity = 1, ploidy = 2') 
+   
+    rlen    = 100
+    insert  = 100
+    if os.path.exists(read_params_file):
+        read_params = pd.read_csv(read_params_file,delimiter='\t',dtype=None,header=0)
+        rlen        = int(read_params.read_len.values[0])
+        insert      = float(read_params.mean_insert.values[0])
+    else:
+        print('read_params.txt file not found! Assuming read length = 100, mean insert length = 100') 
+
+    sv_df       = pd.DataFrame()
+    snv_df      = pd.DataFrame()
+
+    sv_file     = '%s/%s_filtered_adjusted_svs.tsv' % (out,sample)
+    snv_file    = '%s/%s_filtered_snvs.tsv' % (out,sample)
+
+    if os.path.exists(sv_file):
+        sv_df = pd.read_csv(sv_file,delimiter='\t',dtype=None,header=0,low_memory=False)
+        sv_df = pd.DataFrame(sv_df).fillna('')
+
+    if os.path.exists(snv_file):
+        snv_df = pd.read_csv(snv_file,delimiter='\t',dtype=None,header=0,low_memory=False)
+        snv_df = pd.DataFrame(snv_df).fillna('')
+    
     clus_info,center_trace,ztrace,clus_members = None,None,None,None
     for i in range(n_runs):
         print("Cluster run: %d"%i)
@@ -329,15 +377,15 @@ def infer_subclones(sample,sv_df,pi,rlen,insert,ploidy,out,n_runs,num_iters,burn
             os.makedirs(clus_out_dir)    
         
         if cocluster:
-            mcmc = cluster.cluster(sv_df,snv_df,pi,rlen,insert,ploidy,num_iters,burn,thin,beta,use_map)
-            post_process_clusters(mcmc,sv_df,snv_df,merge_clusts,clus_out_dir,sample,pi,ploidy,rlen)
+            mcmc = cluster.cluster(sv_df,snv_df,pi,rlen,insert,ploidy,n_iter,burn,thin,beta,use_map)
+            post_process_clusters(mcmc,sv_df,snv_df,merge_clusts,clus_out_dir,sample,pi,ploidy,rlen,plot)
         else:            
             if len(snv_df)>0:
                 if not os.path.exists('%s/snvs'%clus_out_dir):
                     os.makedirs('%s/snvs'%clus_out_dir)
-                mcmc = cluster.cluster(pd.DataFrame(),snv_df,pi,rlen,insert,ploidy,num_iters,burn,thin,beta,use_map)
-                post_process_clusters(mcmc,pd.DataFrame(),snv_df,merge_clusts,clus_out_dir,sample,pi,ploidy,rlen)
+                mcmc = cluster.cluster(pd.DataFrame(),snv_df,pi,rlen,insert,ploidy,n_iter,burn,thin,beta,use_map)
+                post_process_clusters(mcmc,pd.DataFrame(),snv_df,merge_clusts,clus_out_dir,sample,pi,ploidy,rlen,plot)
             if len(sv_df)>0:
-                mcmc = cluster.cluster(sv_df,pd.DataFrame(),pi,rlen,insert,ploidy,num_iters,burn,thin,beta,use_map)
-                post_process_clusters(mcmc,sv_df,pd.DataFrame(),merge_clusts,clus_out_dir,sample,pi,ploidy,rlen)
+                mcmc = cluster.cluster(sv_df,pd.DataFrame(),pi,rlen,insert,ploidy,n_iter,burn,thin,beta,use_map)
+                post_process_clusters(mcmc,sv_df,pd.DataFrame(),merge_clusts,clus_out_dir,sample,pi,ploidy,rlen,plot)
 
