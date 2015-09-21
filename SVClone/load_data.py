@@ -2,6 +2,35 @@ import pandas as pd
 import numpy as np
 import vcf
 
+from . import cluster
+
+def get_sv_vals(sv_df,no_adjust):
+    combos = sv_df.apply(cluster.get_sv_allele_combos,axis=1)
+    sides = sv_df.preferred_side.values
+    cn_states = [cn[side] for cn,side in zip(combos,sides)]
+    if no_adjust:
+        sup = sv_df.adjusted_support.map(float).values
+        dep = sv_df.adjusted_depth.map(float).values
+        Nvar = len(sv_df)
+        return sup,dep,cn_states,Nvar
+    else:
+        sup  = sv_df.support.map(float).values
+        norm = zip(sv_df.norm1.values,sv_df.norm2.values)
+        norm = np.array([float(n[side]) for n,side in zip(norm,sv_df.preferred_side.values)])
+        dep  = norm+sup 
+        Nvar = len(sv_df)
+        return sup,dep,cn_states,Nvar
+
+def get_snv_vals(df):
+    n = df['ref'].map(float).values
+    b = df['var'].map(float).values
+
+    def get_snv_allele_combos(snv):
+        return cluster.get_allele_combos(snv.gtype.split('|'))
+     
+    combos = df.apply(get_snv_allele_combos,axis=1)
+    return b,(n+b),combos,len(b)
+
 def load_svs(sv_file):
     dat = pd.read_csv(sv_file,delimiter='\t',dtype=None, low_memory=False)
     sv_df = pd.DataFrame(dat)
@@ -140,3 +169,70 @@ def load_snvs_sanger(snvs):
     #axes.hist(sup/dep);plt.savefig('/home/mcmero/Desktop/test')
     
     return pd.DataFrame(snv_df)
+
+#def get_sv_vals(df,rlen,pi,pl):
+#    n = zip(np.array(df.norm1.values),np.array(df.norm2.values))
+#    s = np.array(df.bp1_split.values+df.bp2_split.values)
+#    d = np.array(df.spanning.values)
+#    #cn_r,cn_v,mu_v = [],[],[]
+#    
+#    combos = df.apply(get_sv_allele_combos,axis=1)
+#    #cn_r,cn_v,mu_v = combos[0],combos[1],combos[2]
+#
+##    for idx,sv in df.iterrows():
+##        cn_tmp = tuple([tuple(sv.gtype1.split('|')),tuple(sv.gtype2.split('|'))])
+##        cnr_bp1,cnv_bp1,mu_bp1 = get_allele_combos_tuple(cn_tmp[0])
+##        cnr_bp2,cnv_bp2,mu_bp2 = get_allele_combos_tuple(cn_tmp[1])
+##        cn_r.append(tuple([cnr_bp1,cnr_bp2]))
+##        cn_v.append(tuple([cnv_bp1,cnv_bp2]))
+##        mu_v.append(tuple([mu_bp1,mu_bp2]))
+#
+#    sup = np.array(d+s,dtype=float)
+#    n_bp1,n_bp2 = [ni[0] for ni in n],[ni[1] for ni in n]
+#    Nvar = len(sup)
+#    
+#    # calculate the average depth using windowed counts
+#    #win1 = (df.bp1_win_norm.values*rlen)/(param.window*2)
+#    #win2 = (df.bp2_win_norm.values*rlen)/(param.window*2)
+#    #av_cov = np.mean([win1,win2])
+#     
+#    sides = np.zeros(Nvar,dtype=int)
+#    sides[df.gtype1.values=='']=1 #no genotype for bp1, use bp2
+#
+#    #has_both_gts = np.logical_and(df.gtype1.values!='',df.gtype2.values!='')
+#    
+#    #bp1_win, bp2_win = normalise_wins_by_cn(df)
+#    #bp1_win, bp2_win = (bp2_win*rlen)/(param.window*2), (bp2_win*rlen)/(param.window*2)
+#
+#    # for sides with gtypes for both sides, pick the side where the adjusted window count is closest to the average coverage
+#    #av_cov = np.mean([bp1_win,bp2_win])
+#    #dev_from_cov = np.array(zip(abs(bp1_win-av_cov),abs(bp2_win-av_cov)))
+#
+#    # ALT: pick the side where the norm count is closest to the mean coverage
+#    #dev_from_cov = np.array(zip(abs(n_bp1-av_cov),abs(n_bp2-av_cov)))
+#    
+#    # prefer sides with subclonal genotype data    
+#    gt1_sc = np.array(map(len,map(methodcaller("split","|"),df.gtype1.values)))>1
+#    gt2_sc = np.array(map(len,map(methodcaller("split","|"),df.gtype1.values)))>1    
+#    one_sc = np.logical_xor(gt1_sc,gt2_sc)
+#
+#    exclusive_subclones = zip(df.gtype1.values[one_sc],df.gtype2.values[one_sc]) 
+#    sides[one_sc] = [0 if gt1!='' else 1 for gt1,gt2 in exclusive_subclones]
+#
+#    has_both_gts = np.logical_and(df.gtype1.values!='',df.gtype2.values!='')
+#    #sides[has_both_gts] = 
+#    #sides[has_both_gts] = [np.where(x==min(x))[0][0] for x in dev_from_cov[has_both_gts]]
+#
+#    norm = np.array([ni[si] for ni,si in zip(n,sides)])
+#    #norm = map(np.mean,n)
+#
+#    # both sides have genotypes, both either subclonal or clonal
+#    # in this case, just take the simple normal mean of the two sides
+#    both_gts_same_type = np.logical_and(has_both_gts,one_sc==False)
+#    norm[both_gts_same_type] = map(np.mean,np.array(n)[both_gts_same_type])
+#
+#    #return sup,dep,cn_r,cn_v,mu_v,sides,Nvar
+#    cn_states = [cn[side] for cn,side in zip(combos,sides)]
+#
+#    dep = np.array(norm+sup,dtype=float)
+#    return sup,dep,cn_states,Nvar

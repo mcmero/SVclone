@@ -19,6 +19,7 @@ from collections import OrderedDict
 from IPython.core.pylabtools import figsize
 
 from . import cluster
+from . import load_data
 from . import parameters as param
 from . import write_output
 
@@ -31,37 +32,7 @@ def gen_new_colours(N):
     RGB_tuples = map(lambda x: colorsys.hsv_to_rgb(*x), HSV_tuples)
     return RGB_tuples
 
-#def plot_cluster_hist(clusters,assignments,df,pl,pi,rlen,clus_out_dir):
-#    fig, axes = plt.subplots(1, 1, sharex=False, sharey=False, figsize=(12.5,4))
-#    RGB_tuples = gen_new_colours(len(clusters))
-#    
-#    sup,dep,cn_r,cn_v,mu_v,sides = [],[],[],[],[],[]
-#    Nvar = 0
-#    if are_snvs:
-#        clus_out_dir = '%s/snvs'%clus_out_dir
-#        if not os.path.exists(clus_out_dir):
-#            os.makedirs(clus_out_dir)
-#        sup,ref,cn_r,cn_v,mu_v = cluster.get_snv_vals(df)
-#        dep = sup + ref
-#        av_cov = np.mean(dep)
-#        Nvar = len(sup)
-#        sides = np.zeros(Nvar,dtype=int)
-#    else:
-#        sup,dep,cn_r,cn_v,mu_v,sides,Nvar = cluster.get_sv_vals(df,rlen)
-#
-#    for idx,clus in enumerate(clusters):
-#        clus_idx = np.array(assignments)==clus
-#        sup_clus = sup[clus_idx]
-#        dep_clus = dep[clus_idx]
-#        #axes[0].set_title("Clusters post-cluster merge: Cell fractions (raw VAFs purity-ploidy-adjusted)")
-#        #axes[0].hist(((s1/(n1+s1)*pl)/pi),bins=np.array(range(0,100,2))/100.,alpha=0.75,color=RGB_tuples[idx])
-#        axes.set_title("Raw VAFs")
-#        axes.hist(sup_clus/dep_clus,bins=np.array(range(0,100,2))/100.,alpha=0.75,color=RGB_tuples[idx])
-#    
-#    hist_plot = '%s/merged_cluster_hist'%clus_out_dir
-#    plt.savefig(hist_plot)
-
-def plot_clusters(center_trace,clusters,assignments,snv_df,sv_df,pl,pi,rlen,clus_out_dir):
+def plot_clusters(center_trace,clusters,assignments,sup,dep,clus_out_dir):
     fig, axes = plt.subplots(2, 1, sharex=False, sharey=False, figsize=(12.5,8))
 
     RGB_tuples = gen_new_colours(len(clusters))
@@ -77,21 +48,6 @@ def plot_clusters(center_trace,clusters,assignments,snv_df,sv_df,pl,pi,rlen,clus
     leg.get_frame().set_alpha(0.7)
     axes[1].set_title("Raw VAFs")
     
-    sup, dep, cn_states = [], [], []
-    Nvar = 0
-    if len(sv_df)>0 and len(snv_df)>0:
-        sup,dep,cn_states,Nvar = cluster.get_snv_vals(snv_df)
-        sv_sup,sv_dep,sv_cn_states,sv_Nvar = cluster.get_sv_vals(sv_df)
-        
-        sup = np.append(sup,sv_sup)
-        dep = np.append(dep,sv_dep)
-        cn_states = np.append(cn_states,sv_cn_states)
-        Nvar = Nvar + sv_Nvar
-    elif len(snv_df)>0:
-        sup,dep,cn_states,Nvar = cluster.get_snv_vals(snv_df)
-    else:
-        sup,dep,cn_states,Nvar = cluster.get_sv_vals(sv_df)
-
     for idx,clus in enumerate(clusters):
         clus_idx = np.array(assignments)==clus
         sup_clus = sup[clus_idx]
@@ -205,8 +161,7 @@ def merge_results(clus_merged, merged_ids, df_probs, ccert):
 
     return df_probs_new,ccert_new
 
-
-def post_process_clusters(mcmc,sv_df,snv_df,merge_clusts,clus_out_dir,sample,pi,ploidy,rlen,plot):
+def post_process_clusters(mcmc,sv_df,snv_df,merge_clusts,clus_out_dir,sample,pi,sup,dep,cn_states,plot):
     #npoints = len(df.spanning.values) if not are_snvs else len(df['var'].values)
     # assign points to highest probabiliy cluster
     npoints = len(snv_df) + len(sv_df)
@@ -221,6 +176,10 @@ def post_process_clusters(mcmc,sv_df,snv_df,merge_clusts,clus_out_dir,sample,pi,
     # cluster distribution
     clus_info = pd.DataFrame(clus_idx,columns=['clus_id'])
     clus_info['size'] = clus_mp_counts
+    
+    if len(clus_info) < 1:
+        print("Warning! Could not converge on any major SV clusters. Skipping.\n")
+        return None
 
     # get cluster means
     center_trace = mcmc.trace("phi_k")[:]
@@ -256,6 +215,10 @@ def post_process_clusters(mcmc,sv_df,snv_df,merge_clusts,clus_out_dir,sample,pi,
     write_output.dump_trace(clus_info,center_trace,trace_out+'phi_trace.txt')
     write_output.dump_trace(clus_info,z_trace,trace_out+'z_trace.txt')
     
+    # cluster plotting
+    if plot:
+        plot_clusters(center_trace,clus_idx,clus_max_prob,sup,dep,clus_out_dir)
+    
     if len(clus_info)>1 and merge_clusts: 
         #TODO: fix merging
         print('Merge clusters feature has been temporarily removed')
@@ -286,6 +249,12 @@ def post_process_clusters(mcmc,sv_df,snv_df,merge_clusts,clus_out_dir,sample,pi,
         snv_max_probs = np.array(clus_max_prob)[:len(snv_df)]
         snv_members = np.array([np.where(np.array(snv_max_probs)==i)[0] for i in clus_ids])
 
+        snv_sup  = sup[:len(snv_df)]
+        snv_dep  = dep[:len(snv_df)]
+        snv_cn_states = cn_states[:len(snv_df)]
+        write_output.write_out_files_snv(snv_df,clus_info,snv_members,
+                snv_probs,snv_ccert,clus_out_dir,sample,pi,snv_sup,snv_dep,snv_cn_states)
+
     sv_probs = pd.DataFrame()
     sv_ccert = pd.DataFrame()
     sv_members = np.empty(0)
@@ -303,22 +272,13 @@ def post_process_clusters(mcmc,sv_df,snv_df,merge_clusts,clus_out_dir,sample,pi,
         
         sv_max_probs = np.array(clus_max_prob)[:len(sv_df)]
         sv_members = np.array([np.where(np.array(sv_max_probs)==i)[0] for i in clus_ids])
-    
-    if len(clus_info) < 1:
-        print("Warning! Could not converge on any major SV clusters. Skipping.\n")
-    else:
-        if len(snv_df)>0:
-            write_output.write_out_files_snv(snv_df,clus_info,snv_members,
-                    snv_probs,snv_ccert,clus_out_dir,sample,pi)
-        if len(sv_df)>0:
-            write_output.write_out_files(sv_df,clus_info,sv_members,
-                    sv_probs,sv_ccert,clus_out_dir,sample,pi,ploidy,rlen)
-    
-    # cluster plotting
-    if plot:
-        plot_clusters(center_trace,clus_idx,clus_max_prob,snv_df,sv_df,ploidy,pi,rlen,clus_out_dir)
-    
 
+        sv_sup  = sup[lb:lb+len(sv_df)]
+        sv_dep  = dep[lb:lb+len(sv_df)]
+        sv_cn_states = cn_states[lb:lb+len(sv_df)]
+        write_output.write_out_files(sv_df,clus_info,sv_members,
+                    sv_probs,sv_ccert,clus_out_dir,sample,pi,sv_sup,sv_dep,sv_cn_states)
+    
 def run_clustering(args):
     
     sample          = args.sample
@@ -332,16 +292,17 @@ def run_clustering(args):
     merge_clusts    = args.merge_clusts
     cocluster       = args.cocluster
     out             = args.outdir
+    no_adjust       = args.no_adjust
 
     purity_ploidy_file = '%s/purity_ploidy.txt' % out
     read_params_file   = '%s/read_params.txt' % out
 
     pi      = 1.
-    ploidy  = 2.   
+    pl      = 2. #ploidy
     if os.path.exists(purity_ploidy_file):
         pur_pl  = pd.read_csv(purity_ploidy_file,delimiter='\t',dtype=None,header=0)
         pi      = float(pur_pl.purity.values[0])
-        ploidy  = float(pur_pl.ploidy.values[0])
+        pl      = float(pur_pl.ploidy.values[0])
     else:
         print('purity_ploidy.txt file not found! Assuming purity = 1, ploidy = 2') 
    
@@ -357,7 +318,7 @@ def run_clustering(args):
     sv_df       = pd.DataFrame()
     snv_df      = pd.DataFrame()
 
-    sv_file     = '%s/%s_filtered_adjusted_svs.tsv' % (out,sample)
+    sv_file     = '%s/%s_filtered_svs.tsv' % (out,sample)
     snv_file    = '%s/%s_filtered_snvs.tsv' % (out,sample)
 
     if os.path.exists(sv_file):
@@ -368,7 +329,7 @@ def run_clustering(args):
         snv_df = pd.read_csv(snv_file,delimiter='\t',dtype=None,header=0,low_memory=False)
         snv_df = pd.DataFrame(snv_df).fillna('')
     
-    clus_info,center_trace,ztrace,clus_members = None,None,None,None
+    clus_info,center_trace,ztrace,clus_members = None,None,None,None    
     for i in range(n_runs):
         print("Cluster run: %d"%i)
 
@@ -377,15 +338,34 @@ def run_clustering(args):
             os.makedirs(clus_out_dir)    
         
         if cocluster:
-            mcmc = cluster.cluster(sv_df,snv_df,pi,rlen,insert,ploidy,n_iter,burn,thin,beta,use_map)
-            post_process_clusters(mcmc,sv_df,snv_df,merge_clusts,clus_out_dir,sample,pi,ploidy,rlen,plot)
+            if len(sv_df)>0 and len(snv_df)>0:
+                print("Coclustering SVs & SNVs...")
+                sup,dep,cn_states,Nvar = load_data.get_snv_vals(snv_df)
+                sv_sup,sv_dep,sv_cn_states,sv_Nvar = load_data.get_sv_vals(sv_df,no_adjust)
+                
+                sup = np.append(sup,sv_sup)
+                dep = np.append(dep,sv_dep)
+                cn_states = np.append(cn_states,sv_cn_states)
+                Nvar = Nvar + sv_Nvar
+                
+                mcmc = cluster.cluster(sup,dep,cn_states,Nvar,pi,rlen,insert,pl,n_iter,burn,thin,beta,use_map)
+                post_process_clusters(mcmc,sv_df,snv_df,merge_clusts,clus_out_dir,sample,pi,sup,dep,cn_states,plot)
+            else:
+                print('Cannot cocluster - check that valid SV and SNV input is supplied')
         else:            
             if len(snv_df)>0:
                 if not os.path.exists('%s/snvs'%clus_out_dir):
                     os.makedirs('%s/snvs'%clus_out_dir)
-                mcmc = cluster.cluster(pd.DataFrame(),snv_df,pi,rlen,insert,ploidy,n_iter,burn,thin,beta,use_map)
-                post_process_clusters(mcmc,pd.DataFrame(),snv_df,merge_clusts,clus_out_dir,sample,pi,ploidy,rlen,plot)
+                sup,dep,cn_states,Nvar = load_data.get_snv_vals(snv_df)
+
+                print('Clustering SNVs...')
+                mcmc = cluster.cluster(sup,dep,cn_states,Nvar,pi,rlen,insert,pl,n_iter,burn,thin,beta,use_map)
+                post_process_clusters(mcmc,pd.DataFrame(),snv_df,merge_clusts,clus_out_dir,sample,pi,sup,dep,cn_states,plot)
+
             if len(sv_df)>0:
-                mcmc = cluster.cluster(sv_df,pd.DataFrame(),pi,rlen,insert,ploidy,n_iter,burn,thin,beta,use_map)
-                post_process_clusters(mcmc,sv_df,pd.DataFrame(),merge_clusts,clus_out_dir,sample,pi,ploidy,rlen,plot)
+                sup,dep,cn_states,Nvar = load_data.get_sv_vals(sv_df,no_adjust)
+
+                print('Clustering SVs...')
+                mcmc = cluster.cluster(sup,dep,cn_states,Nvar,pi,rlen,insert,pl,n_iter,burn,thin,beta,use_map)
+                post_process_clusters(mcmc,sv_df,pd.DataFrame(),merge_clusts,clus_out_dir,sample,pi,sup,dep,cn_states,plot)
 

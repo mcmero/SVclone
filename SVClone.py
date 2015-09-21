@@ -63,6 +63,20 @@ filter_parser.add_argument("-p","--purity",dest="pi",default="1.",
 filter_parser.add_argument("-y","--ploidy",dest="ploidy",default="2.0",
                     help="Tumour ploidy; default = 2 (diploid).")
 
+filter_parser.add_argument("--minsplit",dest="minsplit",default=1,
+                    help="Require at least N split reads to keep SV (default = 1).")
+
+filter_parser.add_argument("--minspan",dest="minspan",default=1,
+                    help="Require at least N spanning reads to keep SV (default = 1).")
+
+filter_parser.add_argument("--sizefilter",dest="sizefilter",default=-1,
+                    help='''Filter out SVs below this size. By default, SVs below read length * 2 + mean 
+                    insert size are filtered out''')
+
+filter_parser.add_argument("--filter_outliers",dest="filter_outliers",action="store_true",
+                    help='''Filter out SVs with depth values that are considers outliers, based on the 
+                    copy-number adjusted distribution of depths.''')
+
 filter_parser.set_defaults(func=run_filter.run)
 
 ##########################################################################################################
@@ -104,6 +118,9 @@ cluster_parser.add_argument("--map",dest="use_map",action="store_true",
 
 cluster_parser.add_argument("--cocluster",dest="cocluster",action="store_true",
                     help="Whether to cluster SNVs and SVs together.")
+
+cluster_parser.add_argument("--no_adjust",action="store_true",
+                    help='Do not use adjusted normal reads for duplications, or adjusted supporting reads for inversions') 
 
 cluster_parser.set_defaults(func=run_clus.run_clustering)
 

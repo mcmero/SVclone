@@ -7,13 +7,14 @@ from . import parameters as params
 from operator import methodcaller
 
 from . import cluster
+from . import load_data
 
 def dump_trace(clus_info,center_trace,outf):    
     traces = np.array([center_trace[:,cid] for cid in clus_info.clus_id.values])
     df_traces = pd.DataFrame(np.transpose(traces),columns=clus_info.clus_id)
     df_traces.to_csv(outf,sep='\t',index=False)
 
-def write_out_files_snv(df,clus_info,clus_members,df_probs,clus_cert,clus_out_dir,sample,pi):
+def write_out_files_snv(df,clus_info,clus_members,df_probs,clus_cert,clus_out_dir,sample,pi,sup,dep,cn_states):
     clus_out_dir = '%s/snvs'%clus_out_dir
     if not os.path.exists(clus_out_dir):
         os.makedirs(clus_out_dir)
@@ -39,11 +40,7 @@ def write_out_files_snv(df,clus_info,clus_members,df_probs,clus_cert,clus_out_di
     mult_vect   = np.empty((0,len(cmem)),dtype=mult_dtype)
     #clus_snvs = df.loc[cmem].copy()
     
-    df = df.fillna('')
-    df = df[df.chrom.values!='']
-
-    #sup,n,cn_r,cn_v,mu_v = cluster.get_snv_vals(df)
-    sup,dep,cn_states,Nvar = cluster.get_snv_vals(df)
+    #sup,dep,cn_states,Nvar = load_data.get_snv_vals(df)
     phis = clus_cert.average_ccf.values
     cns, pvs = cluster.get_most_likely_cn_states(cn_states,sup,dep,phis,pi)
 
@@ -92,7 +89,7 @@ def write_out_files_snv(df,clus_info,clus_members,df_probs,clus_cert,clus_out_di
     clus_cert.to_csv('%s/%s_cluster_certainty.txt'%(clus_out_dir,sample),sep='\t',index=False)
     pd.DataFrame(mult_vect).to_csv('%s/%s_multiplicity.txt'%(clus_out_dir,sample),sep='\t',index=False)
 
-def write_out_files(df,clus_info,clus_members,df_probs,clus_cert,clus_out_dir,sample,pi,ploidy,rlen):
+def write_out_files(df,clus_info,clus_members,df_probs,clus_cert,clus_out_dir,sample,pi,sup,dep,cn_states):
     
     clus_info['phi'] = clus_info.phi.values*pi
     clus_info = clus_info[['clus_id','size','phi']]
@@ -115,8 +112,8 @@ def write_out_files(df,clus_info,clus_members,df_probs,clus_cert,clus_out_dir,sa
     mult_vect   = np.empty((0,len(cmem)),dtype=mult_dtype)
     clus_svs    = df.loc[cmem].copy()
     
-    #sup,dep,cn_r,cn_v,mu_v,sides,av_cov = cluster.get_sv_vals(df,rlen)
-    sup,dep,cn_states,Nvar = cluster.get_sv_vals(df)
+    #sup,dep,cn_r,cn_v,mu_v,sides,av_cov = load_data.get_sv_vals(df,rlen)
+    #sup,dep,cn_states,Nvar = load_data.get_sv_vals(df,no_adjust)
     #TODO: should all be cellular prevalence - do this with SNVs also 
     phis = clus_cert.average_ccf.values
     cns,pvs = cluster.get_most_likely_cn_states(cn_states,sup,dep,phis,pi)

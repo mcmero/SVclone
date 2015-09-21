@@ -25,20 +25,23 @@ def get_outlier_ranges(vals):
     upper = q3 + 1.5*iqr
     return [lower,upper]
 
-def run_simple_filter(df,rlen,insert):
+def run_simple_filter(df,rlen,insert,minsplit,minspan,sizefilter):
     '''
     filter based on presence of supporting reads and > fragment length
     '''
     span = np.array(df.spanning)
     split = np.array(df.bp1_split+df.bp2_split)
     #df_flt = df[(span+split)>=1]
-    df_flt = df[np.logical_and(span>0,split>0)]
+    df_flt = df[np.logical_and(span>=minspan,split>=minsplit)]
+    print('Filtered out %d SVs based on spanning/split read limits' % (len(df) - len(df_flt)))
 
     itx = df_flt['bp1_chr']!=df_flt['bp2_chr']
     frag_len = 2*rlen+insert
-    df_flt = df_flt[ itx | (abs(df_flt['bp1_pos']-df_flt['bp2_pos'])>2*rlen) ]
+    sizefilter = sizefilter if sizefilter>=0 else frag_len
+    df_flt2 = df_flt[ itx | (abs(df_flt['bp1_pos']-df_flt['bp2_pos'])>sizefilter) ]
+    print('Filtered out %d SVs based on size limits' % (len(df_flt) - len(df_flt2)))
     
-    return df_flt
+    return df_flt2
 
 def is_clonal_neutral(gtype):
     if gtype=='': return False
@@ -65,8 +68,30 @@ def is_copynumber_zero(gtype):
             return ((gt[0]==0 and gt[1]==0) or (gt2[0]==0 and gt2[1]==0))
     return False
 
+def get_weighted_cns(gtypes):
+    gtypes_split = [map(methodcaller("split",","),x) for x in map(methodcaller("split","|"),gtypes)]    
+    cn_vals = []
+    for gtype in gtypes_split:
+        cn_val = sum([int(eval(g[0]))+int(eval(g[1]))*float(eval(g[2])) if g!=[''] else 2 for g in gtype])
+        cn_vals.append(cn_val)
+    return np.array(cn_vals)/2
+
+def normalise_wins_by_cn(df_flt):
+    bp1_win = df_flt.bp1_win_norm.map(float).values
+    bp2_win = df_flt.bp2_win_norm.map(float).values
+    
+    bp1_wcn = get_weighted_cns(df_flt.gtype1.values)
+    bp2_wcn = get_weighted_cns(df_flt.gtype2.values)
+
+    bp1_nonzero = np.logical_not(bp1_wcn==0)
+    bp2_nonzero = np.logical_not(bp2_wcn==0)
+    bp1_win[bp1_nonzero] = (bp1_win[bp1_nonzero]/bp1_wcn[bp1_nonzero])
+    bp2_win[bp2_nonzero] = (bp2_win[bp2_nonzero]/bp2_wcn[bp2_nonzero])
+    
+    return bp1_win,bp2_win
+
 def filter_outlying_norm_wins(df_flt):
-    bp1_win, bp2_win = cluster.normalise_wins_by_cn(df_flt)
+    bp1_win, bp2_win = normalise_wins_by_cn(df_flt)
     bp1_ranges = get_outlier_ranges(bp1_win)
     bp2_ranges = get_outlier_ranges(bp2_win)
 
@@ -76,50 +101,70 @@ def filter_outlying_norm_wins(df_flt):
     
     return df_flt
 
-def run_cnv_filter(df_flt,cnv,neutral=False,are_snvs=False):
+def run_cnv_filter(df_flt,cnv,neutral,filter_outliers,are_snvs=False):
     '''
     filter based on either CNV neutral, or presence of CNV vals
     '''
+    n_df = len(df_flt)
     if len(cnv)>0 and neutral:
         # filter out copy-aberrant SVs and outying norm read counts (>1-percentile)
         # major and minor copy-numbers must be 1
         is_neutral = []
         if are_snvs:
+            df_flt = df_flt.fillna('')
+            df_flt = df_flt[df_flt.gtype.values!='']
             is_neutral = map(is_clonal_neutral,df_flt.gtype.values)
-            df_flt = df_flt[is_neutral]
-            depths = df_flt['ref'].values+df_flt['var'].values
-            dep_ranges = get_outlier_ranges(depths)
-            df_flt = df_flt[np.logical_and(depths>dep_ranges[0],depths<dep_ranges[1])]
+            df_flt2 = df_flt[is_neutral]
+            print('Filtered out %d SNVs that were not copy-number neutral' % (n_df - len(df_flt)))
+
+            if filter_outliers:
+                n_df = len(df_flt)
+                depths = df_flt['ref'].values+df_flt['var'].values
+                dep_ranges = get_outlier_ranges(depths)
+                df_flt = df_flt[np.logical_and(depths>dep_ranges[0],depths<dep_ranges[1])]
+                print('Filtered out %d SNVs which had outlying depths' % (n_df - len(df_flt)))
         else: 
             gt1_is_neutral = map(is_clonal_neutral,df_flt.gtype1.values)
             gt2_is_neutral = map(is_clonal_neutral,df_flt.gtype2.values)
             is_neutral = np.logical_and(gt1_is_neutral,gt2_is_neutral)
             df_flt = df_flt[is_neutral] 
-            #df_flt = df_flt[is_neutral & (df_flt.norm_mean<np.percentile(df_flt.norm_mean,perc))] 
-            df_flt = filter_outlying_norm_wins(df_flt)
+            print('Filtered out %d SVs which were not copy-number neutral' % (n_df - len(df_flt)))
+
+            if filter_outliers:
+                n_df = len(df_flt)
+                df_flt = filter_outlying_norm_wins(df_flt)
+                print('Filtered out %d SVs which had outlying depths' % (n_df - len(df_flt)))
+
     elif len(cnv)>0:
         if are_snvs:
+            df_flt = df_flt.fillna('')
             df_flt = df_flt[df_flt.gtype.values!='']
+            print('Filtered out %d SNVs which did not have copy-numbers' % (n_df - len(df_flt)))
 
             # weight ranges by copy-numbers
             depths = df_flt['ref'].values + df_flt['var'].values
-            cns = cluster.get_weighted_cns(df_flt.gtype.values)
+            cns = get_weighted_cns(df_flt.gtype.values)
             cn_nonzero = np.logical_not(cns==0)
             depths[cn_nonzero] = (depths[cn_nonzero]/cns[cn_nonzero])
-
-            dep_ranges = get_outlier_ranges(depths)
-            df_flt = df_flt[np.logical_and(depths>dep_ranges[0],depths<dep_ranges[1])]
+            
+            if filter_outliers:
+                n_df = len(df_flt)
+                dep_ranges = get_outlier_ranges(depths)
+                df_flt = df_flt[np.logical_and(depths>dep_ranges[0],depths<dep_ranges[1])]
+                print('Filtered out %d SNVs which had outlying depths' % (n_df - len(df_flt)))
         else:
             df_flt = df_flt[np.logical_or(df_flt.gtype1.values!='',df_flt.gtype2.values!='')]
             
             gt1_is_zero = np.array(map(is_copynumber_zero,df_flt.gtype1.values))
             gt2_is_zero = np.array(map(is_copynumber_zero,df_flt.gtype2.values))
             df_flt = df_flt[np.logical_and(gt1_is_zero==False,gt2_is_zero==False)]
-            
-            df_flt = filter_outlying_norm_wins(df_flt)
-    if are_snvs:
-        df_flt = df_flt.fillna('')
-        df_flt = df_flt[np.logical_and(df_flt.gtype.values!='',df_flt.chrom.values!='')]
+            print('Filtered out %d SVs which were without copy-numbers or contained 0,0 copy-numbers' % (n_df - len(df_flt)))
+            n_df = len(df_flt)            
+
+            if filter_outliers:
+                df_flt = filter_outlying_norm_wins(df_flt)
+                print('Filtered out %d SVs which had outlying depths' % (n_df - len(df_flt)))
+
     return df_flt
 
 def match_copy_numbers(var_df, cnv_df, bp_fields=['bp1_chr','bp1_pos'], gtype_field='gtype1'):
@@ -133,7 +178,7 @@ def match_copy_numbers(var_df, cnv_df, bp_fields=['bp1_chr','bp1_pos'], gtype_fi
                         if item[0].isdigit() else float('inf'), item))
     
     for bchr in bp_chroms:
-        print('Matching copy-numbers for chrom %s'%bchr)
+        #print('Matching copy-numbers for chrom %s'%bchr)
         gtypes = []
         current_chr = var_df[chrom_field].values==bchr
         sv_tmp = var_df[current_chr]
@@ -151,6 +196,7 @@ def match_copy_numbers(var_df, cnv_df, bp_fields=['bp1_chr','bp1_pos'], gtype_fi
         
         var_indexes = var_df[current_chr].index.values
         var_df.loc[var_indexes,gtype_field] = gtypes
+
     return var_df
 
 def is_same_sv(sv1,sv2):
@@ -163,7 +209,6 @@ def is_same_sv(sv1,sv2):
     return False
 
 def filter_germline(gml_file,sv_df,rlen,insert):
-    #TODO: optimise (avoid using iterrows)
     print("Filtering out germline SVs...")
     df_gml = pd.DataFrame(pd.read_csv(gml_file,delimiter='\t',dtype=None,low_memory=False))
     df_gml = run_simple_filter(df_gml,rlen,insert)
@@ -179,7 +224,7 @@ def filter_germline(gml_file,sv_df,rlen,insert):
                 germline.append(idx_sv)
                 break
 
-    print("Found %d SVs in the germline!" % len(germline))
+    print("Filtered out %d SVs that were found in the germline!" % len(germline))
     return sv_df.drop(germline,axis=0)
 
 
@@ -206,7 +251,7 @@ def adjust_sv_read_counts(sv_df,pi,pl):
     
     # both sides have genotypes, both either subclonal or clonal
     # in this case, just take the simple normal mean of the two sides
-    norm = np.array([ni[si] for ni,si in zip(n,sides)])
+    norm = np.array([float(ni[si]) for ni,si in zip(n,sides)])
     both_gts_same_type = np.logical_and(has_both_gts,one_sc==False)
     norm[both_gts_same_type] = map(np.mean,np.array(n)[both_gts_same_type])
  
@@ -215,9 +260,9 @@ def adjust_sv_read_counts(sv_df,pi,pl):
         # read value adjustments for specific types of events
         # currently the adjustments are quite simple
         sv_classes = sv_df.classification.values
-        invs = [ sv_class in params.inversion_class for sv_class in sv_classes ]
-        dups = [ sv_class in params.dna_gain_class for sv_class in sv_classes ]
-        dels = [ sv_class in params.deletion_class for sv_class in sv_classes ]
+        invs = [ idx in params.inversion_class for idx,sv_class in enumerate(sv_classes) ]
+        dups = [ idx in params.dna_gain_class for idx,sv_class in enumerate(sv_classes) ]
+        dels = [ idx in params.deletion_class for idx,sv_class in enumerate(sv_classes) ]
         
         # inversions have their supporting reads / 2 
         # as each break contains two sets of supporting reads
@@ -226,12 +271,13 @@ def adjust_sv_read_counts(sv_df,pi,pl):
         
         # normal read counts for duplications are adjusted by purity and ploidy
         if sum(dups)>0:
-            non_gain = np.logical_or(dels,invs)
+            #non_gain = np.logical_or(dels,invs)
             # estimate adjustment from normal counts for SV events where there is no gain of DNA
             # if these events don't exist, adjust by normal component + tumour/2 (half tumour normal
             # reads will come from duplication, on one chromosome, so divide by ploidy
-            adjust_factor = np.mean(norm[non_gain])/np.mean(norm[dups]) if sum(non_gain)>0 else (1-pi) + ((pi)/2/pl)    
-            norm[dups] = norm[dups] * adjust_factor
+            ipdb.set_trace()
+            adjust_factor = np.mean(norm[dels])/np.mean(norm[dups]) if sum(non_gain)>0 else (1-pi) + ((pi)/2/pl)
+            norm[dups]    = norm[dups] * adjust_factor
         
     except AttributeError:
         print('Warning, no classifications found. SV read counts cannot be adjusted')
@@ -261,6 +307,10 @@ def run(args):
     insert      = args.insert
     pi          = args.pi
     ploidy      = args.ploidy
+    minsplit    = int(args.minsplit)
+    minspan     = int(args.minspan)
+    sizefilter  = int(args.sizefilter)
+    filter_otl  = args.filter_outliers
    
     def proc_arg(arg,n_args=1,of_type=str):
         arg = str.split(arg,',')
@@ -277,7 +327,7 @@ def run(args):
     insert  = proc_arg(insert,n,float)
     rlen    = proc_arg(rlen,n,int)
     pi      = proc_arg(pi,n,float)
-    ploidy  = proc_arg(ploidy,n,float)
+    ploidy  = proc_arg(ploidy,n,float)    
 
     for p in pi:
         if p<0 or p>1:
@@ -310,7 +360,7 @@ def run(args):
     
         if sv!="":
             sv_df = load_data.load_svs(sv)
-            sv_df = run_simple_filter(sv_df,rlen,insert)
+            sv_df = run_simple_filter(sv_df,rlen,insert,minsplit,minspan,sizefilter)
 
         if gml!="":
             sv_df = filter_germline(gml,sv_df,rlen,insert)
@@ -319,29 +369,35 @@ def run(args):
             cnv_df = load_data.load_cnvs(cnv)
 
             if sv!="":
+                print('Matching copy-numbers for SVs...')
                 sv_df = match_copy_numbers(sv_df,cnv_df) 
                 sv_df = match_copy_numbers(sv_df,cnv_df,['bp2_chr','bp2_pos'],'gtype2') 
-                sv_df = run_cnv_filter(sv_df,cnv,neutral)
+                sv_df = run_cnv_filter(sv_df,cnv,neutral,filter_otl)
+                print('Keeping %d SVs' % len(sv_df))
         
             if snvs!="":
+                print('Matching copy-numbers for SNVs...')
                 snv_df = match_copy_numbers(snv_df,cnv_df,['chrom','pos'],'gtype')
-                snv_df = run_cnv_filter(snv_df,cnv,neutral,are_snvs=True)
+                snv_df = run_cnv_filter(snv_df,cnv,neutral,filter_otl,are_snvs=True)
+                print('Keeping %d SNVs' % len(snv_df))
         else:
 
             if sv!="":
                 print('No Battenberg input defined, assuming all loci are copy-number neutral')
                 sv_df['gtype1'] = '1,1,1.000000'
                 sv_df['gtype2'] = '1,1,1.000000'
-                sv_df = run_cnv_filter(sv_df,cnv,neutral)
+                sv_df = run_cnv_filter(sv_df,cnv,neutral,filter_outliers)
+                print('Retained %d SVs' % len(sv_df))
 
             if snvs!="":
                 snv_df['gtype'] = '1,1,1.000000'
-                snv_df = run_cnv_filter(snv_df,cnv,neutral,True)
+                snv_df = run_cnv_filter(snv_df,cnv,neutral,filter_outliers,are_snvs=True)
+                print('Retained %d SNVs' % len(snv_df))
             
         if len(sv_df)>0: 
             sv_df.index = range(len(sv_df)) #reindex
             sv_df = adjust_sv_read_counts(sv_df,pi,ploidy)
-            sv_df.to_csv('%s/%s_filtered_adjusted_svs.tsv'%(out,sample),sep='\t',index=False,na_rep='')
+            sv_df.to_csv('%s/%s_filtered_svs.tsv'%(out,sample),sep='\t',index=False,na_rep='')
         
         if len(snv_df)>0: 
             snv_df.index = range(len(snv_df)) #reindex
