@@ -293,9 +293,9 @@ def run_clustering(args):
     cocluster       = args.cocluster
     out             = args.outdir
     no_adjust       = args.no_adjust
+    params_file     = args.params_file
 
     purity_ploidy_file = '%s/purity_ploidy.txt' % out
-    read_params_file   = '%s/read_params.txt' % out
 
     pi      = 1.
     pl      = 2. #ploidy
@@ -308,10 +308,12 @@ def run_clustering(args):
    
     rlen    = 100
     insert  = 100
-    if os.path.exists(read_params_file):
-        read_params = pd.read_csv(read_params_file,delimiter='\t',dtype=None,header=0)
+    if params_file=='':
+        params_file = '%s/%s_params.txt' % (out,sample) 
+    if os.path.exists(params_file):
+        read_params = pd.read_csv(params_file,delimiter='\t',dtype=None,header=0)
         rlen        = int(read_params.read_len.values[0])
-        insert      = float(read_params.mean_insert.values[0])
+        insert      = float(read_params.insert_mean.values[0])
     else:
         print('read_params.txt file not found! Assuming read length = 100, mean insert length = 100') 
 

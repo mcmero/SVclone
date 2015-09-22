@@ -490,7 +490,7 @@ def proc_svs(args):
    
     if not (simple or socrates): use_dir = False #vcfs don't have dirs
 
-    db_out = '%s_svinfo.db'%out
+    #db_out = '%s_svinfo.db'%out
     outf = '%s_svinfo.txt'%out
     
     dirname = os.path.dirname(out)

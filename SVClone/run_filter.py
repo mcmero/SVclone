@@ -300,11 +300,10 @@ def run(args):
     gml         = args.germline
     cnvs        = args.cnvs
     out         = args.outdir
-    rlen        = args.rlen
+    params_file = args.params_file 
     snvs        = args.snvs
     snv_format  = args.snv_format
     neutral     = args.neutral
-    insert      = args.insert
     pi          = args.pi
     ploidy      = args.ploidy
     minsplit    = int(args.minsplit)
@@ -324,10 +323,19 @@ def run(args):
     n       = len(sample)
     svs     = proc_arg(svs)
     cnvs    = proc_arg(cnvs)
-    insert  = proc_arg(insert,n,float)
-    rlen    = proc_arg(rlen,n,int)
     pi      = proc_arg(pi,n,float)
     ploidy  = proc_arg(ploidy,n,float)    
+
+    rlen    = 100
+    insert  = 100
+    if params_file=='':
+        params_file = '%s/%s_params.txt' % (out,sample) 
+    if os.path.exists(params_file):
+        read_params = pd.read_csv(params_file,delimiter='\t',dtype=None,header=0)
+        rlen        = int(read_params.read_len.values[0])
+        insert      = float(read_params.insert_mean.values[0])
+    else:
+        print('read_params.txt file not found! Assuming read length = 100, mean insert length = 100') 
 
     for p in pi:
         if p<0 or p>1:
@@ -343,7 +351,7 @@ def run(args):
         print("Multiple sample processing not yet implemented")
         #TODO: processing of multiple samples
     else:
-        sample,sv,cnv,rlen,insert,pi,ploidy = sample[0],svs[0],cnvs[0],rlen[0],insert[0],pi[0],ploidy[0]
+        sample,sv,cnv,pi,ploidy = sample[0],svs[0],cnvs[0],pi[0],ploidy[0]
         sv_df  = pd.DataFrame()
         cnv_df = pd.DataFrame()
         snv_df = pd.DataFrame()
