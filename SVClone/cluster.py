@@ -6,45 +6,70 @@ import ipdb
 from operator import methodcaller
 from . import parameters as param
 
-def get_cn_mu_v(cn):
-    cn_v = [0.,0.]
-    mu_v = [0.,0.]
+#def get_cn_mu_v(cn):
+#    cn_v = [0.,0.]
+#    mu_v = [0.,0.]
+#
+#    c = cn.split(',')
+#    if len(c)<2:
+#        return tuple(cn_v),tuple(mu_v)
+#    if c[0]>1 or c[1]>1:
+#        ipdb.set_trace()
+#    
+#    c = map(float,c)
+#    cn_t = float(c[0]+c[1])
+#    cn_v[0] = float(cn_t)
+#    mu_v[0] = c[0]/cn_t if cn_t!=0 else 0.
+#
+#    if c[0]!=c[1] and c[1]>0:
+#        cn_v[1] = cn_t
+#        mu_v[1] = c[1]/cn_t if cn_t!=0 else 0.
+#    
+#    return tuple(cn_v),tuple(mu_v)
 
-    c = cn.split(',')
-    if len(c)<2:
-        return tuple(cn_v),tuple(mu_v)
+def add_copynumber_combos(combos, var_maj, var_min, ref_cn, subclonal=False):
+    
+    var_total = var_maj + var_min if subclonal else var_maj
+    mu_v = var_maj / var_total if var_total != 0 else 1.
+    combos.append([ref_cn, var_total, mu_v])
 
-    c = map(float,c)
-    cn_t = float(c[0]+c[1])
-    cn_v[0] = float(cn_t)
-    mu_v[0] = c[0]/cn_t if cn_t!=0 else 0.
+    if var_maj > 1:
+        mu_v = (var_maj - 1) / var_total if subclonal else (var_maj - 1) / var_maj
+        combos.append([ref_cn, var_total, mu_v])
 
-    if c[0]!=c[1] and c[1]>0:
-        cn_v[1] = cn_t
-        mu_v[1] = c[1]/cn_t if cn_t!=0 else 0.
+    if var_maj != var_min:
 
-    return tuple(cn_v),tuple(mu_v)
+        var_total = var_total if subclonal else var_min
+        ref_cn = ref_cn if subclonal else var_maj
+        mu_v = var_min / var_total if var_total != 0 else 1.
 
-def get_allele_combos(c):
+        combos.append([ref_cn, var_total, mu_v])
+        if var_min > 1:
+            mu_v = (var_min - 1) / var_total if subclonal else (var_min - 1) / var_min
+            combos.append([ref_cn, var_total, mu_v])
+
+    return combos
+
+def get_allele_combos(cn):
     combos = []
 
-    if len(c) == 0 or c[0]=='':
+    if len(cn) == 0 or cn[0]=='':
         return combos
-    
-    cn1_v,mu1_v = get_cn_mu_v(c[0])
-    cn1 = map(float,c[0].split(',')) if len(c[0])>1 else c[0]
-    cn1_ref_total  = sum(cn1[:2])
-    cn1_r = tuple([cn1_ref_total, cn1_ref_total])
-    combos.extend(zip(cn1_r,cn1_v,mu1_v))
 
-    if len(c) > 1:
-        cn2_v,mu2_v = get_cn_mu_v(c[1])
-        cn2_tmp = map(float,c[1].split(','))
-        cn2_ref_total = cn2_tmp[0]+cn2_tmp[1]
-        cn2_r = tuple([cn2_ref_total, cn2_ref_total])
-        combos[0],combos[1] = zip(cn2_r,cn1_v,mu1_v)
-        combos.extend(zip(cn1_r,cn2_v,mu2_v))
-    
+    if len(cn)>1:
+        # subclonal copy-numbers
+        c1 = map(float,cn[0].split(','))
+        c2 = map(float,cn[1].split(','))
+        major1, minor1, total1 = c1[0], c1[1], c1[0]+c1[1]
+        major2, minor2, total2 = c2[0], c2[1], c2[0]+c2[1]
+
+        combos = add_copynumber_combos(combos, major1, minor1, total2, True)
+        combos = add_copynumber_combos(combos, major2, minor2, total1, True)
+    else:
+        c = map(float,cn[0].split(','))
+        major, minor = c[0], c[1]
+        combos = add_copynumber_combos(combos, major, minor, minor, True)
+
     return filter_cns(combos)
 
 def get_sv_allele_combos(sv):
