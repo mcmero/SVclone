@@ -92,7 +92,8 @@ filter_parser.add_argument("-c","--cnvs",dest="cnvs",default="",
 
 filter_parser.add_argument("--params",dest="params_file",default="",
                     help='''Parameters file from processing step. If not supplied, the default search path 
-                    is <outdir>/<sample>_params.txt''')
+                    is <outdir>/<sample>_params.txt. If the file does not exist, a read length and mean
+                    insert length of 100 will be selected.''')
 
 #filter_parser.add_argument("-r","--readlen",dest="rlen",default="100",
 #                    help='''Read length of samples. May be comma separated per sample. If one value is 

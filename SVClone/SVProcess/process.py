@@ -64,6 +64,16 @@ def is_supporting_split_read(r,pos,max_ins,sc_len):
         return r['ref_start'] > (pos - params.tr) and r['ref_start'] < (pos + params.tr) and \
             (r['align_start'] >= sc_len) and abs(r['ins_len']) < max_ins
 
+def is_supporting_split_read_wdir(bp_dir,r,pos,max_ins,sc_len):
+    if bp_dir=='+':
+        return r['ref_end'] > (pos - params.tr) and r['ref_end'] < (pos + params.tr) and \
+            (r['len'] - r['align_end'] >= sc_len) and abs(r['ins_len']) < max_ins
+    elif bp_dir=='-':
+        return r['ref_start'] > (pos - params.tr) and r['ref_start'] < (pos + params.tr) and \
+            (r['align_start'] >= sc_len) and abs(r['ins_len']) < max_ins
+    else:
+        return False
+
 def is_supporting_split_read_lenient(r,pos):
     '''
     Same as is_supporting_split_read without insert and soft-clip threshold checks
@@ -199,13 +209,12 @@ def windowed_norm_read_count(loc_reads,inserts,min_ins,max_ins):
             cnorm = cnorm + 2
     return cnorm
 
-def get_loc_counts(loc_reads,pos,rc,reproc,split,norm,min_ins,max_ins,sc_len,bp_num=1):
+def get_loc_counts(bp,loc_reads,pos,rc,reproc,split,norm,min_ins,max_ins,sc_len,bp_num=1):
     for idx,x in enumerate(loc_reads):
         if idx+1 >= len(loc_reads):            
             break        
         r1 = loc_reads[idx]
         r2 = loc_reads[idx+1] if (idx+2)<=len(loc_reads) else None
-        
         if is_normal_across_break(x,pos,min_ins,max_ins):
             norm = np.append(norm,r1)            
             split_norm = 'bp%d_split_norm'%bp_num
@@ -216,8 +225,13 @@ def get_loc_counts(loc_reads,pos,rc,reproc,split,norm,min_ins,max_ins,sc_len,bp_
             split = np.append(split,x)            
             split_supp = 'bp%d_split'%bp_num
             split_cnt = 'bp%d_sc_bases'%bp_num
-            rc[split_supp] = rc[split_supp]+1 
-            rc[split_cnt] = rc[split_cnt]+get_sc_bases(x,pos)
+            if 'dir' in bp.dtype.names:
+                if is_supporting_split_read_wdir(bp['dir'],x,pos,max_ins,sc_len):
+                    rc[split_supp] = rc[split_supp]+1 
+                    rc[split_cnt]  = rc[split_cnt]+get_sc_bases(x,pos)
+            else:    
+                rc[split_supp] = rc[split_supp]+1 
+                rc[split_cnt]  = rc[split_cnt]+get_sc_bases(x,pos)
         elif r2!=None and r1['query_name']==r2['query_name'] and is_normal_spanning(r1,r2,pos,min_ins,max_ins):
             norm = np.append(norm,r1)            
             norm = np.append(norm,r2)            
@@ -256,6 +270,21 @@ def get_dir(split,span,loc_reads,pos,sc_len):
         else:
             return '?'
 
+def bp_dir_matches_read_orientation(bp,pos,read):
+    if bp['dir']=='+':
+        return read['ref_start'] < pos and not read['is_reverse']
+    elif bp['dir']=='-':
+        return read['ref_end'] > pos and read['is_reverse']
+
+def validate_spanning_orientation(bp1,bp2,r1,r2):
+    pos1 = (bp1['start'] + bp1['end']) / 2
+    pos2 = (bp2['start'] + bp2['end']) / 2
+    
+    r1_correct = bp_dir_matches_read_orientation(bp1,pos1,r1)
+    r2_correct = bp_dir_matches_read_orientation(bp2,pos2,r2)
+    
+    return r1_correct and r2_correct
+
 def get_sv_read_counts(bp1,bp2,bam,inserts,max_dp,min_ins,max_ins,sc_len,use_dir):
     bamf = pysam.AlignmentFile(bam, "rb")
     pos1 = (bp1['start'] + bp1['end']) / 2
@@ -275,8 +304,8 @@ def get_sv_read_counts(bp1,bp2,bam,inserts,max_dp,min_ins,max_ins,sc_len,use_dir
     split_bp2 = np.empty([0,len(params.read_dtype)],dtype=params.read_dtype)
     norm = np.empty([0,len(params.read_dtype)],dtype=params.read_dtype)
     
-    rc, reproc, split_bp1, norm = get_loc_counts(loc1_reads,pos1,rc,reproc,split_bp1,norm,min_ins,max_ins,sc_len)
-    rc, reproc, split_bp2, norm = get_loc_counts(loc2_reads,pos2,rc,reproc,split_bp2,norm,min_ins,max_ins,sc_len,2)
+    rc, reproc, split_bp1, norm = get_loc_counts(bp1,loc1_reads,pos1,rc,reproc,split_bp1,norm,min_ins,max_ins,sc_len)
+    rc, reproc, split_bp2, norm = get_loc_counts(bp2,loc2_reads,pos2,rc,reproc,split_bp2,norm,min_ins,max_ins,sc_len,2)
     rc['bp1_win_norm'] = windowed_norm_read_count(loc1_reads,inserts,min_ins,max_ins)
     rc['bp2_win_norm'] = windowed_norm_read_count(loc2_reads,inserts,min_ins,max_ins)
     
@@ -304,8 +333,11 @@ def get_sv_read_counts(bp1,bp2,bam,inserts,max_dp,min_ins,max_ins,sc_len,use_dir
         if is_supporting_spanning_pair(r1,r2,bp1,bp2,inserts,max_ins):        
             span_bp1 = np.append(span_bp1,r1)
             span_bp2 = np.append(span_bp2,r2)
-            rc['spanning'] = rc['spanning']+1
-  
+            if 'dir' in bp1.dtype.names:
+                if validate_spanning_orientation(bp1,bp2,r1,r2):
+                    rc['spanning'] = rc['spanning']+1
+            else:
+                rc['spanning'] = rc['spanning']+1
     if use_dir:
         rc['bp1_dir'] = bp1['dir']
         rc['bp2_dir'] = bp2['dir']
@@ -566,14 +598,18 @@ def proc_svs(args):
             else:
                 sv_id = sv_id+1
                 sv_rc['classification'] = row[sv_class]
-            
-            sv_out = [sv_id] + [r for idx,r in enumerate(row) if idx not in [2,5,6]] if use_dir else \
-                     [sv_id] + [r for idx,r in enumerate(row) if idx not in [4]]
-            sv_out.extend([rc for rc in sv_rc[0]])
+        else:
+            sv_id = sv_id+1
+            sv_rc = np.zeros(1,dtype=params.sv_out_dtype)
+            sv_rc['classification'] = 'HIDEP'
 
-            with open('%s_svinfo.txt'%out,'a') as outf:
-                writer = csv.writer(outf,delimiter='\t',quoting=csv.QUOTE_NONE)
-                writer.writerow(sv_out)
+        sv_out = [sv_id] + [r for idx,r in enumerate(row) if idx not in [2,5,6]] if use_dir else \
+                 [sv_id] + [r for idx,r in enumerate(row) if idx not in [4]]
+        sv_out.extend([rc for rc in sv_rc[0]])
+
+        with open('%s_svinfo.txt'%out,'a') as outf:
+            writer = csv.writer(outf,delimiter='\t',quoting=csv.QUOTE_NONE)
+            writer.writerow(sv_out)
 
     if class_field=='':
         #post-process: look for translocations

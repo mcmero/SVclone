@@ -394,12 +394,12 @@ def run(args):
                 print('No Battenberg input defined, assuming all loci are copy-number neutral')
                 sv_df['gtype1'] = '1,1,1.000000'
                 sv_df['gtype2'] = '1,1,1.000000'
-                sv_df = run_cnv_filter(sv_df,cnv,neutral,filter_outliers)
+                sv_df = run_cnv_filter(sv_df,cnv,neutral,filter_otl)
                 print('Retained %d SVs' % len(sv_df))
 
             if snvs!="":
                 snv_df['gtype'] = '1,1,1.000000'
-                snv_df = run_cnv_filter(snv_df,cnv,neutral,filter_outliers,are_snvs=True)
+                snv_df = run_cnv_filter(snv_df,cnv,neutral,filter_otl,are_snvs=True)
                 print('Retained %d SNVs' % len(snv_df))
             
         if len(sv_df)>0: 

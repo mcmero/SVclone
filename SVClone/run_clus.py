@@ -207,11 +207,12 @@ def post_process_clusters(mcmc,sv_df,snv_df,merge_clusts,clus_out_dir,sample,pi,
     clus_info.index = range(len(clus_info))
     print(clus_info)
 
+    dump_out = clus_out_dir
     if len(snv_df)>0 and len(sv_df)==0:
         # snvs only trace output
-        clus_out_dir = '%s/snvs'%clus_out_dir        
+        dump_out_dir = '%s/snvs'%clus_out_dir        
     trace_out = 'premerge' if merge_clusts else ''
-    trace_out = '%s/%s'%(clus_out_dir,trace_out)
+    trace_out = '%s/%s'%(dump_out_dir,trace_out)
     write_output.dump_trace(clus_info,center_trace,trace_out+'phi_trace.txt')
     write_output.dump_trace(clus_info,z_trace,trace_out+'z_trace.txt')
     

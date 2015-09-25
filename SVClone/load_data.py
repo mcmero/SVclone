@@ -1,3 +1,5 @@
+from __future__ import print_function
+
 import pandas as pd
 import numpy as np
 import vcf
@@ -112,8 +114,16 @@ def load_snvs_sanger(snvs):
 
     for record in vcf_reader:
         # get most likely genotypes
-        genotypes = [record.INFO['TG'], record.INFO['SG']]        
+        genotypes = []        
+        broad_syn = False
+        if 'TG' in record.INFO and 'SG' in record.INFO:
+          genotypes = [record.INFO['TG'], record.INFO['SG']]
+        else:
+          genotypes = [x for x in record.INFO.keys() if "/" in x ]
+          broad_syn = True
+
         if len(genotypes)==0:
+            print('Warning: no valid genotypes for variant %s:%d; skipping.'%(record.CHROM,record.POS))
             continue
         if record.FILTER is not None:
             if len(record.FILTER)>0:
@@ -125,8 +135,12 @@ def load_snvs_sanger(snvs):
             if len(genotypes) == 0:
                 break
                 #raise Exception('No more genotypes to find variant_nt in for %s' % variant)
-            gt = genotypes.pop(0)
-            normal_gt, tumour_gt = gt.split('/')
+            if broad_syn:
+                gt = [x for x in genotypes if x.split("/")[0] != x.split("/")[1]][0]
+                tumour_gt, normal_gt = gt.split('/')
+            else:
+                gt = genotypes.pop(0)
+                normal_gt, tumour_gt = gt.split('/')
             if normal_gt[0] == normal_gt[1]:
                 reference_nt = normal_gt[0]
                 variant_set = set(tumour_gt) - set(reference_nt)
