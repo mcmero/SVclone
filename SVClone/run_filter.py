@@ -260,14 +260,14 @@ def adjust_sv_read_counts(sv_df,pi,pl):
         # read value adjustments for specific types of events
         # currently the adjustments are quite simple
         sv_classes = sv_df.classification.values
-        invs = [ idx in params.inversion_class for idx,sv_class in enumerate(sv_classes) ]
+        #invs = [ idx in params.inversion_class for idx,sv_class in enumerate(sv_classes) ]
         dups = [ idx in params.dna_gain_class for idx,sv_class in enumerate(sv_classes) ]
         dels = [ idx in params.deletion_class for idx,sv_class in enumerate(sv_classes) ]
         
         # inversions have their supporting reads / 2 
         # as each break contains two sets of supporting reads
-        if sum(invs)>0:
-            sup[invs] = sup[invs]/2
+        #if sum(invs)>0:
+        #    sup[invs] = sup[invs]/2
         
         # normal read counts for duplications are adjusted by purity and ploidy
         if sum(dups)>0:
@@ -275,7 +275,6 @@ def adjust_sv_read_counts(sv_df,pi,pl):
             # estimate adjustment from normal counts for SV events where there is no gain of DNA
             # if these events don't exist, adjust by normal component + tumour/2 (half tumour normal
             # reads will come from duplication, on one chromosome, so divide by ploidy
-            ipdb.set_trace()
             adjust_factor = np.mean(norm[dels])/np.mean(norm[dups]) if sum(non_gain)>0 else (1-pi) + ((pi)/2/pl)
             norm[dups]    = norm[dups] * adjust_factor
         

@@ -34,7 +34,7 @@ def add_copynumber_combos(combos, var_maj, var_min, ref_cn, subclonal=False):
     combos.append([ref_cn, var_total, mu_v])
 
     if var_maj > 1:
-        mu_v = (var_maj - 1) / var_total if subclonal else (var_maj - 1) / var_maj
+        mu_v = 1 / var_total if subclonal else 1 / var_maj
         combos.append([ref_cn, var_total, mu_v])
 
     if var_maj != var_min:
@@ -45,7 +45,7 @@ def add_copynumber_combos(combos, var_maj, var_min, ref_cn, subclonal=False):
 
         combos.append([ref_cn, var_total, mu_v])
         if var_min > 1:
-            mu_v = (var_min - 1) / var_total if subclonal else (var_min - 1) / var_min
+            mu_v = 1 / var_total if subclonal else 1 / var_min
             combos.append([ref_cn, var_total, mu_v])
 
     return combos
