@@ -66,6 +66,8 @@ process_parser.add_argument("--filter_repeats",dest="filt_repeats",default="",
                     help='''Comma-separated repeat types to filter, if found at both sides of the breakpoint). 
                     SOCRATES INPUT ONLY.''')
 
+process_parser.add_argument("--min_mapq",dest="min_mapq",default=0,
+                    help='''Filter out SVs with lower average MAPQ than this value. SOCRATES INPUT ONLY (default 0)''')
 process_parser.add_argument("--sv_class_field",dest="class_field",default="",
                     help="Use existing classification field, specify the field name")
 

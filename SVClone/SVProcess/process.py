@@ -445,12 +445,13 @@ def load_input_vcf(svin,class_field):
     
     return svs
 
-def load_input_socrates(svin,rlen,use_dir,filt_repeats):
+def load_input_socrates(svin,rlen,use_dir,min_mapq,filt_repeats):
     sv_dtype =  [s for s in params.sv_dtype] if use_dir else [s for i,s in enumerate(params.sv_dtype) if i not in [2,5]]
     
     #TODO: make parsing of socrates input more robust
     soc_in = np.genfromtxt(svin,delimiter='\t',names=True,dtype=None,invalid_raise=False)
     svs = np.empty(0,dtype=sv_dtype)
+    filtered_out = 0
 
     for row in soc_in:
         bp1 = row[params.bp1_pos].split(':')
@@ -458,14 +459,16 @@ def load_input_socrates(svin,rlen,use_dir,filt_repeats):
         bp1_chr, bp1_pos = bp1[0], int(bp1[1]) 
         bp2_chr, bp2_pos = bp2[0], int(bp2[1])
         #classification = row['classification']
-        if not bp1_chr in params.valid_chroms or not bp2_chr in params.valid_chroms:
-            continue
-        if (bp1_chr==bp2_chr and abs(bp1_pos-bp2_pos)<(rlen*2)):
-            continue
-        if row[params.avg_mapq1]<params.min_mapq or row[params.avg_mapq2]<params.min_mapq:
+        #if not bp1_chr in params.valid_chroms or not bp2_chr in params.valid_chroms:            
+        #    continue
+        #if (bp1_chr==bp2_chr and abs(bp1_pos-bp2_pos)<(rlen*2)):
+        #    continue
+        if row[params.avg_mapq1]<min_mapq or row[params.avg_mapq2]<min_mapq:
+            filtered_out += 1
             continue
         if filt_repeats!='' and filt_repeats!=None:       
             if row[params.repeat1] in filt_repeats and row[params.repeat2] in filt_repeats:
+                filtered_out += 1
                 continue
         add_sv = np.empty(0)
         if use_dir:
@@ -476,7 +479,8 @@ def load_input_socrates(svin,rlen,use_dir,filt_repeats):
             add_sv = np.array([(bp1_chr,bp1_pos,bp2_chr,bp2_pos,'')],dtype=sv_dtype)
         
         svs = np.append(svs,add_sv)
-
+    
+    print('Filtered out %d Socrates SVs, keeping %d SVs' % (filtered_out,len(svs)))            
     return remove_duplicates(svs,use_dir)
 
 def load_input_simple(svin,use_dir,class_field):
@@ -515,6 +519,7 @@ def proc_svs(args):
     socrates     = args.socrates
     use_dir      = args.use_dir
     filt_repeats = args.filt_repeats
+    min_mapq    = args.min_mapq
     class_field  = args.class_field
 
     filt_repeats = filt_repeats.split(',') if filt_repeats != '' else filt_repeats
@@ -547,7 +552,7 @@ def proc_svs(args):
     if simple:
         svs = load_input_simple(svin,use_dir,class_field)
     elif socrates:
-        svs = load_input_socrates(svin,rlen,use_dir,filt_repeats)
+        svs = load_input_socrates(svin,rlen,use_dir,min_mapq,filt_repeats)
     else:
         svs = load_input_vcf(svin,class_field)
     print("Extracting data from %d SVs"%len(svs))
