@@ -169,9 +169,6 @@ def reads_to_sam(reads,bam,bp1,bp2,name):
     Takes reads from array, matches them to bam 
     file reads by query name and outputs them to Sam
     '''
-    if len(reads)==0:
-        return None
-
     bamf = pysam.AlignmentFile(bam, "rb")
     loc1 = '%s:%d:%d' % (bp1['chrom'], bp1['start'], bp1['end'])
     loc2 = '%s:%d:%d' % (bp2['chrom'], bp2['start'], bp2['end'])
@@ -182,12 +179,25 @@ def reads_to_sam(reads,bam,bp1,bp2,name):
     loc2 = '%s-%d' % (bp2['chrom'], (bp1['start']+bp1['end'])/2)
     sam_name = '%s_%s-%s' % (name,loc1,loc2)
     bam_out = pysam.AlignmentFile('%s.sam'%sam_name, "w", header=bamf.header)
-    
+        
     for x in iter_loc1:
-        [bam_out.write(x) for r in reads if r['query_name']==x.query_name]
+        if len(reads)==0:
+            break
+        if x.query_name in reads:
+            bam_out.write(x)
+            bam_out.write(bamf.mate(x))
+            idx = int(np.where(reads==x.query_name)[0])
+            reads = np.delete(reads,idx)
+
     for x in iter_loc2:
-        [bam_out.write(x) for r in reads if r['query_name']==x.query_name]
-    
+        if len(reads)==0:
+            break
+        if x.query_name in reads:
+            bam_out.write(x)
+            bam_out.write(bamf.mate(x))
+            idx = int(np.where(reads==x.query_name)[0])
+            reads = np.delete(reads,idx)
+
     bamf.close()
     bam_out.close()
 
@@ -348,6 +358,10 @@ def get_sv_read_counts(bp1,bp2,bam,inserts,max_dp,min_ins,max_ins,sc_len,use_dir
 
     rc['bp1_total_reads'] = len(loc1_reads)
     rc['bp2_total_reads'] = len(loc2_reads)
+
+    # for debugging only
+    #span_reads = np.unique(np.concatenate([span_bp1['query_name'],span_bp2['query_name']]))
+    #reads_to_sam(span_reads,bam,bp1,bp2,'span')
 
     print('processed %d reads at loc1; %d reads at loc2' % (len(loc1_reads),len(loc2_reads)))
     return rc
