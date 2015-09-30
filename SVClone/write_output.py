@@ -153,11 +153,12 @@ def write_out_files(df,clus_info,clus_members,df_probs,clus_cert,clus_out_dir,sa
         var_states = cn_states[idx]
         tot_opts = ','.join(map(str,[int(x[1]) for x in var_states]))
         var_opts = ','.join(map(str,[int(round(x[1]*x[2])) for x in var_states]))
-        #TODO: convert to true probabilities
-        #probs = cluster.calc_lik(var_states,sup[idx],dep[idx],phis[idx],pi)[1]
-        #probs = map(math.exp,probs)
-        #probs = np.array(probs)/sum(probs)
-        probs = [(1/float(len(var_states)))]*len(var_states)
+        #probs = [(1/float(len(var_states)))]*len(var_states)
+        probs = np.array([1.])
+        if len(var_states)>1:
+            probs = cluster.calc_lik(var_states,sup[idx],dep[idx],phis[idx],pi)[1]
+            probs = map(math.exp,probs)
+            probs = np.array(probs)/sum(probs)
         probs = ','.join(map(lambda x: str(round(x,4)),probs))
         mult_new_row = np.array([(bp1_chr,bp1_pos,bp2_chr,bp2_pos,sc_cn,
                                   int(round(freq*sc_cn)),tot_opts,var_opts,probs)],dtype=mult_dtype)

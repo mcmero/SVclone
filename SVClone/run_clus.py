@@ -207,7 +207,7 @@ def post_process_clusters(mcmc,sv_df,snv_df,merge_clusts,clus_out_dir,sample,pi,
     clus_info.index = range(len(clus_info))
     print(clus_info)
 
-    dump_out = clus_out_dir
+    dump_out_dir = clus_out_dir
     if len(snv_df)>0 and len(sv_df)==0:
         # snvs only trace output
         dump_out_dir = '%s/snvs'%clus_out_dir        
@@ -342,7 +342,7 @@ def run_clustering(args):
         
         if cocluster:
             if len(sv_df)>0 and len(snv_df)>0:
-                print("Coclustering SVs & SNVs...")
+                print("Coclustering %d SVs & %d SNVs..." % (len(sv_df),len(snv_df)))
                 sup,dep,cn_states,Nvar = load_data.get_snv_vals(snv_df)
                 sv_sup,sv_dep,sv_cn_states,sv_Nvar = load_data.get_sv_vals(sv_df,no_adjust)
                 
@@ -361,14 +361,14 @@ def run_clustering(args):
                     os.makedirs('%s/snvs'%clus_out_dir)
                 sup,dep,cn_states,Nvar = load_data.get_snv_vals(snv_df)
 
-                print('Clustering SNVs...')
+                print('Clustering %d SNVs...' % len(snv_df))
                 mcmc = cluster.cluster(sup,dep,cn_states,Nvar,pi,rlen,insert,pl,n_iter,burn,thin,beta,use_map)
                 post_process_clusters(mcmc,pd.DataFrame(),snv_df,merge_clusts,clus_out_dir,sample,pi,sup,dep,cn_states,plot)
 
             if len(sv_df)>0:
                 sup,dep,cn_states,Nvar = load_data.get_sv_vals(sv_df,no_adjust)
 
-                print('Clustering SVs...')
+                print('Clustering %d SVs...' % len(sv_df))
                 mcmc = cluster.cluster(sup,dep,cn_states,Nvar,pi,rlen,insert,pl,n_iter,burn,thin,beta,use_map)
                 post_process_clusters(mcmc,sv_df,pd.DataFrame(),merge_clusts,clus_out_dir,sample,pi,sup,dep,cn_states,plot)
 
