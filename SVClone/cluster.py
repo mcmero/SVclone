@@ -137,17 +137,14 @@ def get_most_likely_cn_states(cn_states,s,d,phi,pi):
     #0 probability errors when pv = 1 - look into this bug more
     return most_likely_cn, np.array(most_likely_pv)-0.00000001
 
-#def cluster(sv_df,snv_df,pi,rlen,insert,ploidy,iters,burn,thin,beta,use_map,Ndp=param.clus_limit):
 def cluster(sup,dep,cn_states,Nvar,pi,rlen,insert,pl,iters,burn,thin,beta,use_map,Ndp=param.clus_limit):
     '''
     clustering model using Dirichlet Process
     '''
     sens = 1.0 / ((pi/float(pl))*np.mean(dep))
-    alpha = pm.Gamma('alpha',0.9,1/0.9,value=2)
-    #beta = pm.Gamma('beta',param.beta_shape,param.beta_rate)
-    #beta = pm.Gamma('beta',1,10**(-7))
-    #beta = pm.Uniform('beta', 0.01, 1, value=0.1)
-    #print("Beta value:%f"%beta)
+    beta_a, beta_b, beta_init = map(lambda x: float(eval(x)), beta.split(','))
+    alpha = pm.Gamma('alpha',beta_a,beta_b,value=beta_init)
+    print("Dirichlet concentration gamma values: alpha = %f, beta= %f, init = %f" % (beta_a, beta_b, beta_init))
 
     h = pm.Beta('h', alpha=1, beta=alpha, size=Ndp)
     @pm.deterministic
@@ -163,13 +160,6 @@ def cluster(sup,dep,cn_states,Nvar,pi,rlen,insert,pl,iters,burn,thin,beta,use_ma
     
     @pm.deterministic
     def p_var(z=z,phi_k=phi_k):
-#        ml_cn = [get_most_likely_cn(cn_ri[side],cn_vi[side],mu_vi[side],si,di,phi,pi) \
-#                for cn_ri,cn_vi,mu_vi,si,di,phi,side in zip(cn_r,cn_v,mu_v,sup,dep,phi_k[z],sides)]
-#        cn_rn = [m[0] for m in ml_cn]
-#        cn_vn = [m[1] for m in ml_cn]
-#        mu_vn = [m[2] for m in ml_cn]
-#
-#        return  get_pv(phi_k[z],cn_rn,cn_vn,mu_vn,pi)
         most_lik_cn_states, pvs = get_most_likely_cn_states(cn_states,sup,dep,phi_k[z],pi)
         return pvs
     

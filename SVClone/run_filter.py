@@ -415,7 +415,7 @@ def run(args):
             outf.write('%s\t%f\t%f\n'%(sample,pi,ploidy))
         
         with open('%s/read_params.txt'%out,'w') as outf:
-            outf.write("sample\tread_len\tmean_insert\n")
+            outf.write("sample\tread_len\tinsert_mean\n")
             outf.write('%s\t%f\t%f\n'%(sample,rlen,insert))
         
         #print('Clustering with %d SVs and %d SNVs'%(len(sv_df),len(snv_df)))        

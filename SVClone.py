@@ -68,6 +68,7 @@ process_parser.add_argument("--filter_repeats",dest="filt_repeats",default="",
 
 process_parser.add_argument("--min_mapq",dest="min_mapq",default=0,
                     help='''Filter out SVs with lower average MAPQ than this value. SOCRATES INPUT ONLY (default 0)''')
+
 process_parser.add_argument("--sv_class_field",dest="class_field",default="",
                     help="Use existing classification field, specify the field name")
 
@@ -173,9 +174,10 @@ cluster_parser.add_argument("--thin",dest="thin",default=1,type=int,
 cluster_parser.add_argument("--plot",dest="plot",action="store_true",
                     help="Plot traces and clusters.")
 
-cluster_parser.add_argument("--beta",dest="beta",default="8,1/0.05,0.1",type=str,
-                    help='''Comma separated; first two values etermine the parameters used for
-                    Dirichlet Processes' gamma function. Third value determines the starting value.''')
+cluster_parser.add_argument("--beta",dest="beta",default="0.9,1/0.9,2",type=str,
+                    help='''Comma separated; first two values determine the shape and scale (1/rate) 
+                    parameters used in the Dirichlet Processes' gamma function. The third value is the 
+                    initial value. Default values: "0.9,1/0.9,2" (shape = 0.9, scale = 1/0.9, init = 2)''')
 
 cluster_parser.add_argument("--merge",dest="merge_clusts",action="store_true",
                     help="Set to merge clusters.")
@@ -187,7 +189,8 @@ cluster_parser.add_argument("--cocluster",dest="cocluster",action="store_true",
                     help="Whether to cluster SNVs and SVs together.")
 
 cluster_parser.add_argument("--no_adjust",action="store_true",
-                    help='Do not use adjusted normal reads for duplications, or adjusted supporting reads for inversions') 
+                    help='''Do not use adjusted normal reads for duplications, or adjusted supporting reads 
+                    for inversions''') 
 
 cluster_parser.set_defaults(func=run_clus.run_clustering)
 
