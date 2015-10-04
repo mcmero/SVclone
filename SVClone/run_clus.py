@@ -188,7 +188,7 @@ def post_process_clusters(mcmc,sv_df,snv_df,merge_clusts,clus_out_dir,sample,pi,
     clus_info['phi'] = phis[:,0]
     clus_info['phi_low_conf'] = phis[:,1]
     clus_info['phi_hi_conf'] = phis[:,2]
-    clus_info = clus_info.sort('phi',ascending=False)
+    #clus_info = clus_info.sort('phi',ascending=False)
     
     clus_ids = clus_info.clus_id.values
     clus_members = np.array([np.where(np.array(clus_max_prob)==i)[0] for i in clus_ids])
