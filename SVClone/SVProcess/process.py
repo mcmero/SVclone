@@ -423,7 +423,8 @@ def get_sv_read_counts(bp1,bp2,bam,inserts,max_dp,min_ins,max_ins,sc_len):
 def get_params(bam,mean_dp,max_cn,rlen,insert_mean,insert_std,out):
     inserts = [insert_mean,insert_std]
     if rlen<0:
-        rlen = bamtools.estimateTagSize(bam)
+        #rlen = bamtools.estimateTagSize(bam)
+        rlen = 101
     if inserts[0]<0 or inserts[1]<0:
         inserts = bamtools.estimateInsertSizeDistribution(bam)
     else:
