@@ -91,7 +91,7 @@ def write_out_files_snv(df,clus_info,clus_members,df_probs,clus_cert,clus_out_di
 
 def write_out_files(df,clus_info,clus_members,df_probs,clus_cert,clus_out_dir,sample,pi,sup,dep,cn_states):
     
-    clus_info['phi'] = clus_info.phi.values*pi
+    clus_info['phi'] = clus_info.phi.values#*pi
     clus_info = clus_info[['clus_id','size','phi']]
     rename_cols =  {'clus_id': 'cluster', 'size': 'n_ssms', 'phi': 'proportion'}
 
