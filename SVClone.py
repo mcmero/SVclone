@@ -6,6 +6,7 @@ Commandline input for running SV
 
 from SVClone import run_filter
 from SVClone import run_clus
+from SVClone.SVProcess import preprocess
 from SVClone.SVProcess import process
 
 import argparse
@@ -19,6 +20,44 @@ subparsers = parser.add_subparsers()
 
 ##########################################################################################################
 
+preprocess_parser = subparsers.add_parser('preprocess', help='Extract directions and SV classifications')
+
+preprocess_parser.add_argument("-i","--input",dest="svin",required=True,
+                   help="Structural variants input file. See README for input format")
+
+preprocess_parser.add_argument("-b","--bam",dest="bam",required=True,
+                    help="Corresponding indexed BAM file")
+
+preprocess_parser.add_argument("-o","--out",dest="out",required=True,
+                    help='''Output base name. May contain directories. Will create pre-processed output as 
+                    <name>_svin.txt''')
+
+preprocess_parser.add_argument("-md","--max_dep",dest="max_dep",default=1000,type=int,
+                    help='''Skip all regions with depth higher than this value (default = 1000)''')
+
+preprocess_parser.add_argument("--simple",dest="simple_svs",action="store_true",
+                    help="Whether sv input is in a simple format (see README), otherwise VCF format is assumed.")
+
+preprocess_parser.add_argument("--socrates",dest="socrates",action="store_true",
+                    help="Whether sv input is 'Socrates' SV caller input.")
+
+preprocess_parser.add_argument("--sv_class_field",dest="class_field",default="",
+                    help="Use existing classification field, specify the field name")
+
+preprocess_parser.add_argument("--use_dir",dest="use_dir",action="store_true",
+                    help="Whether to use breakpoint direction in the input file (where it must be supplied).")
+
+preprocess_parser.add_argument("--filter_repeats",dest="filt_repeats",default="",
+                    help='''Comma-separated repeat types to filter, if found at both sides of the breakpoint). 
+                    SOCRATES INPUT ONLY.''')
+
+preprocess_parser.add_argument("--min_mapq",dest="min_mapq",default=0,
+                    help='''Filter out SVs with lower average MAPQ than this value. SOCRATES INPUT ONLY (default 0)''')
+
+preprocess_parser.set_defaults(func=preprocess.preproc_svs)
+
+##########################################################################################################
+
 process_parser = subparsers.add_parser('process', help='Count reads from called structural variations')
 
 process_parser.add_argument("-i","--input",dest="svin",required=True,
@@ -29,7 +68,7 @@ process_parser.add_argument("-b","--bam",dest="bam",required=True,
 
 process_parser.add_argument("-o","--out",dest="out",required=True,
                     help='''Output base name. May contain directories. Will create processed output as 
-                    <name>.txt and database output as <name>.db''')
+                    <name>_svinfo.txt.''')
 
 process_parser.add_argument("-d","--depth",dest="mean_dp",type=float,default=50,
                     help='''Average coverage for BAM file in covered region. May be calculated across 
@@ -53,24 +92,17 @@ process_parser.add_argument("-v","--insert_mean",dest="insert_mean",default=-1.,
 process_parser.add_argument("--insert_std",dest="insert_std",default=-1.,type=float,
                     help="Standard deviation of insert length. If not specified, will be inferred")
 
-process_parser.add_argument("--simple",dest="simple_svs",action="store_true",
-                    help="Whether sv input is in a simple format (see README), otherwise VCF format is assumed.")
+#process_parser.add_argument("--simple",dest="simple_svs",action="store_true",
+#                    help="Whether sv input is in a simple format (see README), otherwise VCF format is assumed.")
 
-process_parser.add_argument("--socrates",dest="socrates",action="store_true",
-                    help="Whether sv input is 'Socrates' SV caller input.")
-
-process_parser.add_argument("--use_dir",dest="use_dir",action="store_true",
-                    help="Whether to use breakpoint direction in the input file (where it must be supplied).")
-
-process_parser.add_argument("--filter_repeats",dest="filt_repeats",default="",
-                    help='''Comma-separated repeat types to filter, if found at both sides of the breakpoint). 
-                    SOCRATES INPUT ONLY.''')
-
-process_parser.add_argument("--min_mapq",dest="min_mapq",default=0,
-                    help='''Filter out SVs with lower average MAPQ than this value. SOCRATES INPUT ONLY (default 0)''')
-
-process_parser.add_argument("--sv_class_field",dest="class_field",default="",
-                    help="Use existing classification field, specify the field name")
+#process_parser.add_argument("--socrates",dest="socrates",action="store_true",
+#                    help="Whether sv input is 'Socrates' SV caller input.")
+#
+#process_parser.add_argument("--use_dir",dest="use_dir",action="store_true",
+#                    help="Whether to use breakpoint direction in the input file (where it must be supplied).")
+#
+#process_parser.add_argument("--sv_class_field",dest="class_field",default="",
+#                    help="Use existing classification field, specify the field name")
 
 process_parser.set_defaults(func=process.proc_svs)
 

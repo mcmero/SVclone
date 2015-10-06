@@ -31,7 +31,8 @@ read_dtype      = [('query_name',       'S150'),
 #                   ('NORMAL',            'S200'),
 #                   ('TUMOUR',            'S200')]
 
-sv_dtype        = [('bp1_chr',          'S20'),
+sv_dtype        = [('ID',            'int64'),
+                   ('bp1_chr',          'S20'),
                    ('bp1_pos',          'int64'),
                    ('bp1_dir',          'S1'),
                    ('bp2_chr',          'S20'),
@@ -40,8 +41,8 @@ sv_dtype        = [('bp1_chr',          'S20'),
                    ('classification',   'S100')] 
 
 # dtypes for SV output file
-sv_out_dtype    = [('bp1_dir',          'S1'),
-                   ('bp2_dir',          'S1'),
+sv_out_dtype    = [#('bp1_dir',          'S1'),
+                   #('bp2_dir',          'S1'),
                    ('bp1_split_norm',   'int64'),
                    ('bp1_norm_olap_bp', 'int64'),
                    ('bp1_span_norm',    'int64'),
@@ -61,8 +62,7 @@ sv_out_dtype    = [('bp1_dir',          'S1'),
                    ('norm2',            'int64'), 
                    ('support',          'int64'),
                    ('vaf1',             float),
-                   ('vaf2',             float),
-                   ('classification',   'S20')]
+                   ('vaf2',             float)]
 
 # Socrates fields
 bp1_pos         = 'C1_anchor'
