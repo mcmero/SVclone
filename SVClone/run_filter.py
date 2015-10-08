@@ -25,15 +25,18 @@ def get_outlier_ranges(vals):
     upper = q3 + 1.5*iqr
     return [lower,upper]
 
-def run_simple_filter(df,rlen,insert,minsplit,minspan,sizefilter):
+def run_simple_filter(df,rlen,insert,minsplit,minspan,sizefilter,min_dep):
     '''
     filter based on presence of supporting reads and > fragment length
-    '''
+    '''    
     span = np.array(df.spanning)
     split = np.array(df.bp1_split+df.bp2_split)
     #df_flt = df[(span+split)>=1]
     df_flt = df[np.logical_and(span>=minspan,split>=minsplit)]
-    print('Filtered out %d SVs based on spanning/split read limits' % (len(df) - len(df_flt)))
+    dep1 = df_flt.support + df_filt.norm1
+    dep2 = df_flt.support + df_filt.norm2
+    df_flt = df_flt[np.logical_and(dep1>=min_dep,dep2>=min_dep)]
+    print('Filtered out %d SVs based on minimum depth and spanning/split read limits' % (len(df) - len(df_flt)))
 
     itx = df_flt['bp1_chr']!=df_flt['bp2_chr']
     frag_len = 2*rlen+insert
@@ -309,6 +312,7 @@ def run(args):
     minspan     = int(args.minspan)
     sizefilter  = int(args.sizefilter)
     filter_otl  = args.filter_outliers
+    min_dep     = args.min_dep
    
     def proc_arg(arg,n_args=1,of_type=str):
         arg = str.split(arg,',')
@@ -362,12 +366,12 @@ def run(args):
                 snv_df = load_data.load_snvs_mutect(snvs,sample)
             elif snv_format == 'mutect_callstats':
                 snv_df = load_data.load_snvs_mutect_callstats(snvs)
-            n = snv_df['ref'].values
-            b = snv_df['var'].values
+            dep = snv_df['ref'] + snv_df['var']            
+            snv_df = snv_df[dep>min_dep]
     
         if sv!="":
             sv_df = load_data.load_svs(sv)
-            sv_df = run_simple_filter(sv_df,rlen,insert,minsplit,minspan,sizefilter)
+            sv_df = run_simple_filter(sv_df,rlen,insert,minsplit,minspan,sizefilter,min_dep)
 
         if gml!="":
             sv_df = filter_germline(gml,sv_df,rlen,insert)

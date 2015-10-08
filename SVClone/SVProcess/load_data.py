@@ -1,5 +1,6 @@
 import vcf
 import numpy as np
+import ipdb
 from . import parameters as params
 
 def remove_duplicates(svs):
@@ -87,6 +88,10 @@ def load_input_socrates(svin,use_dir,min_mapq,filt_repeats):
             bp1_chr, bp1_pos = bp1[0], int(bp1[1]) 
             bp2_chr, bp2_pos = bp2[0], int(bp2[1])
             #classification = row['classification']
+            if 'normal' in row.dtype.names:
+                # has germline info, filter out
+                if row['normal']=='normal':
+                    continue
             if row[params.avg_mapq1]<min_mapq or row[params.avg_mapq2]<min_mapq:
                 filtered_out += 1
                 continue

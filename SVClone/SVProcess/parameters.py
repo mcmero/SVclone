@@ -6,6 +6,7 @@ window          = 500  # base-pairs considered to the left and right of the brea
 norm_overlap    = 10   # minimum basepairs a "normal" read must overlap break to be counted
 valid_chroms    = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '10', '11', '12', \
                    '13', '14', '15', '16', '17', '18', '19', '20', '21', '22', 'X', 'Y']
+bp_dtype        = [('chrom','S20'),('start', int), ('end', int), ('dir', 'S1')]
 
 # parameters extracted for each read from BAMs
 read_dtype      = [('query_name',       'S150'), 
@@ -41,8 +42,14 @@ sv_dtype        = [('ID',            'int64'),
                    ('classification',   'S100')] 
 
 # dtypes for SV output file
-sv_out_dtype    = [#('bp1_dir',          'S1'),
-                   #('bp2_dir',          'S1'),
+sv_out_dtype    = [('ID',               'int64'),
+                   ('bp1_chr',          'S20'),
+                   ('bp1_pos',          'int64'),
+                   ('bp1_dir',          'S1'),
+                   ('bp2_chr',          'S20'),
+                   ('bp2_pos',          'int64'),
+                   ('bp2_dir',          'S1'),
+                   ('classification',   'S100'),
                    ('bp1_split_norm',   'int64'),
                    ('bp1_norm_olap_bp', 'int64'),
                    ('bp1_span_norm',    'int64'),

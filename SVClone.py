@@ -51,7 +51,7 @@ preprocess_parser.add_argument("--filter_repeats",dest="filt_repeats",default=""
                     help='''Comma-separated repeat types to filter, if found at both sides of the breakpoint). 
                     SOCRATES INPUT ONLY.''')
 
-preprocess_parser.add_argument("--min_mapq",dest="min_mapq",default=0,
+preprocess_parser.add_argument("--min_mapq",dest="min_mapq",default=0,type=float,
                     help='''Filter out SVs with lower average MAPQ than this value. SOCRATES INPUT ONLY (default 0)''')
 
 preprocess_parser.set_defaults(func=preprocess.preproc_svs)
@@ -70,7 +70,7 @@ process_parser.add_argument("-o","--out",dest="out",required=True,
                     help='''Output base name. May contain directories. Will create processed output as 
                     <name>_svinfo.txt.''')
 
-process_parser.add_argument("-d","--depth",dest="mean_dp",type=float,default=50,
+process_parser.add_argument("-d","--mean_depth",dest="mean_dp",type=float,default=50,
                     help='''Average coverage for BAM file in covered region. May be calculated across 
                     binned intervals and may be approximate''')
 
@@ -125,18 +125,14 @@ filter_parser.add_argument("-c","--cnvs",dest="cnvs",default="",
                     help='''Phased copy-number states from Battenberg (comma separated if multiple).If 
                     not provided, all SVs assumed copy-neutral.''')
 
+filter_parser.add_argument("--min_depth",dest="min_dep",type=float,default=1,
+                    help='''Filter out any variants with depth below this value (default = 1). Applies to
+                    SVs and SNVs.''')
+
 filter_parser.add_argument("--params",dest="params_file",default="",
                     help='''Parameters file from processing step. If not supplied, the default search path 
                     is <outdir>/<sample>_params.txt. If the file does not exist, a read length and mean
                     insert length of 100 will be selected.''')
-
-#filter_parser.add_argument("-r","--readlen",dest="rlen",default="100",
-#                    help='''Read length of samples. May be comma separated per sample. If one value is 
-#                    given, read len is the same for all samples''')
-
-#filter_parser.add_argument("-v","--insert",dest="insert",default="",
-#                    help='''Mean insert size, where value = fragment size - (2 * read len).
-#                    Comma separated if multuple samples.''')
 
 filter_parser.add_argument("--neutral",dest="neutral",action="store_true",
                     help="Keep only copy-number neutral SVs.")
@@ -165,7 +161,7 @@ filter_parser.add_argument("--minsplit",dest="minsplit",default=1,
 filter_parser.add_argument("--minspan",dest="minspan",default=1,
                     help="Require at least N spanning reads to keep SV (default = 1).")
 
-filter_parser.add_argument("--sizefilter",dest="sizefilter",default=-1,
+filter_parser.add_argument("--sizefilter",dest="sizefilter",default=-1,type=int,
                     help='''Filter out SVs below this size. By default, SVs below read length * 2 + 
                     mean insert size are filtered out''')
 
