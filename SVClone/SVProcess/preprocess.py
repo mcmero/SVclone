@@ -29,6 +29,11 @@ def has_mixed_evidence(loc_reads,pos,sc_len):
 
     return False
 
+def get_dir_span(span):
+    is_rev = np.sum(span['is_reverse'])
+    assign_dir = '+' if is_rev <= len(span)/2 else '-'
+    return assign_dir
+
 def get_dir_split(split,sc_len):
     #align_mean =  np.mean(split['align_start'])    
     #assign_dir = '+' if align_mean < sc_len else '-'

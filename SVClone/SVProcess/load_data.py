@@ -102,7 +102,7 @@ def load_input_socrates(svin,use_dir,min_mapq,filt_repeats):
             add_sv = np.empty(0)
             
             bp1_dir = row[params.bp1_dir] if use_dir else '?'
-            bp2_dir = row[params.bp1_dir] if use_dir else '?'
+            bp2_dir = row[params.bp2_dir] if use_dir else '?'
             
             add_sv = np.array([(sv_id,bp1_chr,bp1_pos,bp1_dir,bp2_chr,bp2_pos,bp2_dir,'')],dtype=sv_dtype)
             svs = np.append(svs,add_sv)

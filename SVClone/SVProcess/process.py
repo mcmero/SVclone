@@ -257,34 +257,6 @@ def get_loc_counts(bp,loc_reads,pos,rc,reproc,split,norm,min_ins,max_ins,sc_len,
             reproc = np.append(reproc,x) #may be spanning support or anomalous
     return rc, reproc, split, norm
 
-def get_dir_split(split,sc_len):
-    align_mean =  np.mean(split['align_start'])
-    assign_dir = '+' if align_mean < sc_len else '-'    
-    return assign_dir
-
-def get_dir_span(span):
-    is_rev = np.sum(span['is_reverse'])
-    assign_dir = '+' if is_rev <= len(span)/2 else '-'
-    return assign_dir
-
-def get_dir(split,loc_reads,pos,sc_len):    
-    # split read direction tends to be more reliable
-    if len(split)>0:
-        dir_split = get_dir_split(split,sc_len)
-        return dir_split        
-    else:
-        split_reads = np.where([is_supporting_split_read_lenient(x,pos) for x in loc_reads])[0]
-        split_all = loc_reads[split_reads]
-        if len(split_all)>0:
-            dir_split = get_dir_split(split_all,sc_len)
-            return dir_split
-        else:
-            return '?'
-            #if len(span)>0:
-            #    dir_span = get_dir_span(span)
-            #    return dir_span 
-            #else:
-
 def bp_dir_matches_read_orientation(bp,pos,read):
     if bp['dir']=='+':
         return read['ref_start'] < pos and not read['is_reverse']
@@ -361,7 +333,7 @@ def get_sv_read_counts(row,bam,inserts,max_dp,min_ins,max_ins,sc_len):
     loc2_reads, err_code2 = get_loc_reads(bp2,bamf,max_dp)    
     bamf.close()
    
-    rc = np.zeros(1,dtype=params.sv_out_dtype)
+    rc = np.zeros(1,dtype=params.sv_out_dtype)[0]
     rc['bp1_chr'],rc['bp1_pos'],rc['bp1_dir']=row[bp1_chr],row[bp1_pos],row[bp1_dir]
     rc['bp2_chr'],rc['bp2_pos'],rc['bp2_dir']=row[bp2_chr],row[bp2_pos],row[bp2_dir]
     rc['ID'],rc['classification']=row[sv_id],row[sv_class]
@@ -372,10 +344,10 @@ def get_sv_read_counts(row,bam,inserts,max_dp,min_ins,max_ins,sc_len):
             rc['classification'] = 'HIDEP' if sv_class=='' else sv_class+';HIDEP' 
             return rc
         elif err_code1 == 2 or err_code2 == 2:
-            rc['classification'] = 'READ_FETCH_FAILED' if sv_class=='' else rc_class+';READ_FETCH_FAILED'
+            rc['classification'] = 'READ_FETCH_FAILED' if sv_class=='' else sv_class+';READ_FETCH_FAILED'
             return rc
         else:
-            rc['classification'] = 'NO_READS' if sv_class=='' else rc_class+';NO_READS'
+            rc['classification'] = 'NO_READS' if sv_class=='' else sv_class+';NO_READS'
             return rc
     
     reproc = np.empty([0,len(params.read_dtype)],dtype=params.read_dtype)    
@@ -443,7 +415,7 @@ def proc_svs(args):
 
     # write header output
     header_out = [h[0] for idx,h in enumerate(params.sv_dtype)]# if idx not in [2,5,6]] #don't include dir fields
-    header_out.extend([h[0] for h in params.sv_out_dtype])
+    #header_out.extend([h[0] for h in params.sv_out_dtype])
     
     with open('%s_svinfo.txt'%out,'w') as outf:        
         writer = csv.writer(outf,delimiter='\t',quoting=csv.QUOTE_NONE)
@@ -459,16 +431,15 @@ def proc_svs(args):
 
         sv_rc = get_sv_read_counts(row,bam,inserts,max_dp,min_ins,max_ins,sc_len)
 
-        if len(sv_rc) > 0:
-            norm1 = int(sv_rc['bp1_split_norm'] + sv_rc['bp1_span_norm'])
-            norm2 = int(sv_rc['bp2_split_norm'] + sv_rc['bp2_span_norm'])
-            support = float(sv_rc['bp1_split'] + sv_rc['bp2_split'] + sv_rc['spanning'])
-        
-            sv_rc['norm1'] = norm1 
-            sv_rc['norm2'] = norm2
-            sv_rc['support'] = support
-            sv_rc['vaf1'] = support / (support + norm1) if support!=0 else 0
-            sv_rc['vaf2'] = support / (support + norm2) if support!=0 else 0            
+        norm1 = int(sv_rc['bp1_split_norm'] + sv_rc['bp1_span_norm'])
+        norm2 = int(sv_rc['bp2_split_norm'] + sv_rc['bp2_span_norm'])
+        support = float(sv_rc['bp1_split'] + sv_rc['bp2_split'] + sv_rc['spanning'])
+    
+        sv_rc['norm1'] = norm1 
+        sv_rc['norm2'] = norm2
+        sv_rc['support'] = support
+        sv_rc['vaf1'] = support / (support + norm1) if support!=0 else 0
+        sv_rc['vaf2'] = support / (support + norm2) if support!=0 else 0            
 
         #sv_out = [sv_id] + [r for idx,r in enumerate(row) if idx not in [3,6,7]]
         #sv_out = [r for idx,r in enumerate(row) if idx not in [3,6,7]]

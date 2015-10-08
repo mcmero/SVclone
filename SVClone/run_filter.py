@@ -33,15 +33,18 @@ def run_simple_filter(df,rlen,insert,minsplit,minspan,sizefilter,min_dep):
     split = np.array(df.bp1_split+df.bp2_split)
     #df_flt = df[(span+split)>=1]
     df_flt = df[np.logical_and(span>=minspan,split>=minsplit)]
-    dep1 = df_flt.support + df_filt.norm1
-    dep2 = df_flt.support + df_filt.norm2
+
+    dep1 = df_flt.support + df_flt.norm1
+    dep2 = df_flt.support + df_flt.norm2
     df_flt = df_flt[np.logical_and(dep1>=min_dep,dep2>=min_dep)]
+
     print('Filtered out %d SVs based on minimum depth and spanning/split read limits' % (len(df) - len(df_flt)))
 
     itx = df_flt['bp1_chr']!=df_flt['bp2_chr']
     frag_len = 2*rlen+insert
     sizefilter = sizefilter if sizefilter>=0 else frag_len
     df_flt2 = df_flt[ itx | (abs(df_flt['bp1_pos']-df_flt['bp2_pos'])>sizefilter) ]
+
     print('Filtered out %d SVs based on size limits' % (len(df_flt) - len(df_flt2)))
     
     return df_flt2
