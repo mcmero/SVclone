@@ -1,6 +1,7 @@
 import vcf
 import numpy as np
 import ipdb
+from collections import OrderedDict
 from . import parameters as params
 
 def remove_duplicates(svs):
@@ -12,7 +13,7 @@ def remove_duplicates(svs):
     return np.unique(svs)
 
 def load_input_vcf(svin,class_field):
-    sv_dtype = [s for i,s in enumerate(params.sv_dtype) if i not in [2,5]]
+    sv_dtype = [s for i,s in enumerate(params.sv_dtype)]
     
     sv_vcf = vcf.Reader(filename=svin)
     sv_dict = OrderedDict()
@@ -63,7 +64,8 @@ def load_input_vcf(svin,class_field):
             sv_class = sv['INFO'][class_field] if class_field!='' else ''
 
             procd = np.append(procd,[sv_id,mate_id])
-            new_sv = np.array([(bp1_chr,bp1_pos,bp2_chr,bp2_pos,sv_class)],dtype=sv_dtype)        
+            new_id = int(sv_id.split('_')[0])
+            new_sv = np.array([(new_id,bp1_chr,bp1_pos,'?',bp2_chr,bp2_pos,'?',sv_class)],dtype=sv_dtype)        
             svs = np.append(svs,new_sv)
         except KeyError:
             print("SV %s improperly paired or missing attributes"%sv_id)
