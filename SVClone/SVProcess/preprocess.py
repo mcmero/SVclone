@@ -202,7 +202,7 @@ def preproc_svs(args):
 
     with open('%s_svin.txt'%out,'w') as outf:
         writer = csv.writer(outf,delimiter='\t',quoting=csv.QUOTE_NONE,quotechar='')
-        header = ['ID','bp1_chr','bp1_pos','bp1_dir','bp2_chr','bp2_pos', 'bp2_dir', 'classification']       
+        header = [field for field,dtype in params.sv_dtype]
         writer.writerow(header)
         for sv_out in svs:
             writer.writerow(sv_out)

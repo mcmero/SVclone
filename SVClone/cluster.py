@@ -79,7 +79,6 @@ def get_sv_allele_combos(sv):
 
     return tuple([combos_bp1,combos_bp2])
 
-
 def fit_and_sample(model, iters, burn, thin, use_map):
     #TODO: suppress warning about using fmin method
     if use_map:

@@ -3,6 +3,7 @@ from __future__ import print_function
 import pandas as pd
 import numpy as np
 import vcf
+import ipdb
 
 from . import cluster
 
@@ -10,6 +11,7 @@ def get_sv_vals(sv_df,no_adjust):
     combos = sv_df.apply(cluster.get_sv_allele_combos,axis=1)
     sides = sv_df.preferred_side.values
     cn_states = [cn[side] for cn,side in zip(combos,sides)]
+    cn_states = pd.DataFrame([[sv] for sv in cn_states])
     if no_adjust:
         sup = sv_df.adjusted_support.map(float).values
         dep = sv_df.adjusted_depth.map(float).values
@@ -30,8 +32,8 @@ def get_snv_vals(df):
     def get_snv_allele_combos(snv):
         return cluster.get_allele_combos(snv.gtype.split('|'))
      
-    combos = df.apply(get_snv_allele_combos,axis=1)
-    return b,(n+b),combos,len(b)
+    cn_states = df.apply(get_snv_allele_combos,axis=1)
+    return b,(n+b),cn_states,len(b)
 
 def load_svs(sv_file):
     dat = pd.read_csv(sv_file,delimiter='\t',dtype=None, low_memory=False)
@@ -39,29 +41,43 @@ def load_svs(sv_file):
     sv_df['norm_mean'] = map(np.mean,zip(sv_df['norm1'].values,sv_df['norm2'].values))
     return sv_df
 
-def load_cnvs(cnv):
-    cnv = pd.read_csv(cnv,delimiter='\t',dtype=None)
+def load_cnvs(cnv_file):
+    cnv = pd.read_csv(cnv_file,delimiter='\t',dtype=None)
     cnv_df = pd.DataFrame(cnv)
-    cnv_df['chr'] = map(str,cnv_df['chr'])
-    
-    try:
-        gtypes = cnv_df['nMaj1_A'].map(str) + ',' + \
-                 cnv_df['nMin1_A'].map(str) + ',' + \
-                 cnv_df['frac1_A'].map(str)
-
-        # join subclonal genotypes
-        subclonal = cnv_df['frac1_A']!=1
-        cnv_sc    = cnv_df[subclonal]
-        gtypes[subclonal] = gtypes[subclonal] + '|' + \
-                            cnv_sc['nMaj2_A'].map(str) + ',' + \
-                            cnv_sc['nMin2_A'].map(str) + ',' + \
-                            cnv_sc['frac2_A'].map(str)
+    if len(cnv_df.columns)==1:
+        # assume caveman csv file
+        col_names = ['chr','startpos','endpos','norm_total','norm_minor','tumour_total','tumour_minor']
+        cnv_df = pd.DataFrame(pd.read_csv(cnv_file,delimiter=',',dtype=None,names=col_names,index_col=0,skip_blank_lines=True))
         
-        cnv_df['gtype'] = gtypes
-        select_cols = ['chr','startpos','endpos','gtype']
-        return cnv_df[select_cols]
+    cnv_df['chr'] = map(str,cnv_df['chr'])
+    try:
+        if 'nMaj1_A' in cnv_df.columns.values:
+            # battenberg input
+            gtypes = cnv_df['nMaj1_A'].map(str) + ',' + \
+                     cnv_df['nMin1_A'].map(str) + ',' + \
+                     cnv_df['frac1_A'].map(str)
+
+            # join subclonal genotypes
+            subclonal = cnv_df['frac1_A']!=1
+            cnv_sc    = cnv_df[subclonal]
+            gtypes[subclonal] = gtypes[subclonal] + '|' + \
+                                cnv_sc['nMaj2_A'].map(str) + ',' + \
+                                cnv_sc['nMin2_A'].map(str) + ',' + \
+                                cnv_sc['frac2_A'].map(str)
+            
+            cnv_df['gtype'] = gtypes
+            select_cols = ['chr','startpos','endpos','gtype']
+            return cnv_df[select_cols]
+        else:
+            #caveman input
+            major = cnv_df.tumour_total.map(int) - cnv_df.tumour_minor.map(int)
+            gtypes = major.map(str) + ',' + cnv_df.tumour_minor.map(str) + ',1.0'
+            cnv_df['gtype'] = gtypes
+            select_cols = ['chr','startpos','endpos','gtype']
+            return cnv_df[select_cols]
     except KeyError:
-        raise Exception('CNV file column names not recognised. Is the input a Battenberg output file?')
+        raise Exception('''CNV file column names not recognised. 
+        Check the input is a battenberg output file (with headers) or an ASCAT caveman CSV.''')
 
 def load_snvs_mutect_callstats(snvs):
     snv_df = pd.DataFrame(pd.read_csv(snvs,delimiter='\t',low_memory=False,dtype=None,comment="#"))

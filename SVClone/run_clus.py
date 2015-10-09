@@ -253,8 +253,8 @@ def post_process_clusters(mcmc,sv_df,snv_df,merge_clusts,clus_out_dir,sample,pi,
         snv_sup  = sup[:len(snv_df)]
         snv_dep  = dep[:len(snv_df)]
         snv_cn_states = cn_states[:len(snv_df)]
-        write_output.write_out_files_snv(snv_df,clus_info,snv_members,
-                snv_probs,snv_ccert,clus_out_dir,sample,pi,snv_sup,snv_dep,snv_cn_states)
+        write_output.write_out_files(snv_df,clus_info,snv_members,
+                snv_probs,snv_ccert,clus_out_dir,sample,pi,snv_sup,snv_dep,snv_cn_states,are_snvs=True)
 
     sv_probs = pd.DataFrame()
     sv_ccert = pd.DataFrame()
@@ -345,10 +345,9 @@ def run_clustering(args):
                 print("Coclustering %d SVs & %d SNVs..." % (len(sv_df),len(snv_df)))
                 sup,dep,cn_states,Nvar = load_data.get_snv_vals(snv_df)
                 sv_sup,sv_dep,sv_cn_states,sv_Nvar = load_data.get_sv_vals(sv_df,no_adjust)
-                
                 sup = np.append(sup,sv_sup)
                 dep = np.append(dep,sv_dep)
-                cn_states = np.append(cn_states,sv_cn_states)
+                cn_states = pd.concat([cn_states,sv_cn_states])[0].values
                 Nvar = Nvar + sv_Nvar
                 
                 mcmc = cluster.cluster(sup,dep,cn_states,Nvar,pi,rlen,insert,pl,n_iter,burn,thin,beta,use_map)

@@ -1,7 +1,7 @@
 import numpy as np
 
 # PREPROCESSING PARAMETERS
-tr              = 5    # "wobble length" tolerance threshold which we allow breaks to be inexact
+tr              = 6    # "wobble length" tolerance threshold which we allow breaks to be inexact
 window          = 500  # base-pairs considered to the left and right of the break
 norm_overlap    = 10   # minimum basepairs a "normal" read must overlap break to be counted
 valid_chroms    = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '10', '11', '12', \
@@ -18,19 +18,6 @@ read_dtype      = [('query_name',       'S150'),
                    ('len',              'int64'), 
                    ('ins_len',          'int64'), 
                    ('is_reverse',       np.bool)]
-
-# dtypes for SV input file
-#sv_vcf_dtype    = [('CHROM',             'S50'),
-#                   ('POS',               'int64'),
-#                   ('ID',                'S50'),
-#                   ('REF',               'S50'),
-#                   ('ALT',               'S500'),
-#                   ('QUAL',              float),
-#                   ('FILTER',            'S200'),
-#                   ('INFO',              'S500'),
-#                   ('FORMAT',            'S200'),
-#                   ('NORMAL',            'S200'),
-#                   ('TUMOUR',            'S200')]
 
 sv_dtype        = [('ID',            'int64'),
                    ('bp1_chr',          'S20'),
@@ -74,8 +61,8 @@ sv_out_dtype    = [('ID',               'int64'),
 # Socrates fields
 bp1_pos         = 'C1_anchor'
 bp1_dir         = 'C1_anchor_dir'
-bp2_pos         = 'C1_realign'
-bp2_dir         = 'C1_realign_dir'
+bp2_pos         = 'C2_anchor'
+bp2_dir         = 'C2_anchor_dir'
 avg_mapq1       = 'C1_avg_realign_mapq'
 avg_mapq2       = 'C2_avg_realign_mapq'
 repeat1         = 'repeat1'

@@ -404,8 +404,6 @@ def proc_svs(args):
     insert_mean  = float(args.insert_mean)
     insert_std   = float(args.insert_std)
 
-    #if not (simple or socrates): use_dir = False #vcfs don't have dirs
-
     outf = '%s_svinfo.txt'%out
     dirname = os.path.dirname(out)
     if dirname!='' and not os.path.exists(dirname):
@@ -414,8 +412,7 @@ def proc_svs(args):
     rlen, inserts, max_dp, max_ins, min_ins = get_params(bam, mean_dp, max_cn, rlen, insert_mean, insert_std, out)
 
     # write header output
-    header_out = [h[0] for idx,h in enumerate(params.sv_dtype)]# if idx not in [2,5,6]] #don't include dir fields
-    #header_out.extend([h[0] for h in params.sv_out_dtype])
+    header_out = [h[0] for idx,h in enumerate(params.sv_out_dtype)]
     
     with open('%s_svinfo.txt'%out,'w') as outf:        
         writer = csv.writer(outf,delimiter='\t',quoting=csv.QUOTE_NONE)
@@ -440,9 +437,6 @@ def proc_svs(args):
         sv_rc['support'] = support
         sv_rc['vaf1'] = support / (support + norm1) if support!=0 else 0
         sv_rc['vaf2'] = support / (support + norm2) if support!=0 else 0            
-
-        #sv_out = [sv_id] + [r for idx,r in enumerate(row) if idx not in [3,6,7]]
-        #sv_out = [r for idx,r in enumerate(row) if idx not in [3,6,7]]
 
         with open('%s_svinfo.txt'%out,'a') as outf:
             writer = csv.writer(outf,delimiter='\t',quoting=csv.QUOTE_NONE)
