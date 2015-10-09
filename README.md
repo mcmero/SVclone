@@ -6,7 +6,7 @@ This package allows the clustering of subclonal structural variations. The packa
 
 Ensure you have the following dependencies installed:
 
-Process module
+Pre-process/Process modules
 
 * [Numpy](http://www.numpy.org/) - install for python 2
 * [PySam](http://pysam.readthedocs.org/en/latest/)
@@ -30,11 +30,62 @@ Install like so:
 
     python setup.py install
 
+### Pre-processing of SVs ###
+
+If your SVs are in VCF or Socrates format, or are lacking direction or classification information, you will have to run them through the _preprocess_ step.  
+
+    ./SVClone.py preprocess -i <svs> -b <indexed_bamfile> -o <output_base_name>
+
+Input is expected in VCF format. Each defined SV must have a matching mate, given in the MATEID value in the INFO section. Input may also be entered in Socrates or simple format. Simple format is as follows:
+
+```
+bp1_chr	bp1_pos	bp2_chr	bp2_pos
+22	18240676	22	18232335
+22	19940482	22	19937820
+22	21383572	22	21382745
+22	21395573	22	21395746
+```
+
+Optionally a classification field may be specified with --sv_class, or directions for each break can be specified, if included in the input file, by specifying --use_dir. 
+
+#### Required Parameters ####
+
+* -i or --input : structural variants input file (see above).
+* -b or --bam : bam file with corresponding index file.
+* -o or --out : output base name. Will create processed output file as <name>_svinfo.txt, parameters output as <name>_params.txt and database output as <name>_svinfo.db
+
+#### Optional Parameters ####
+
+* -md or --max_dep <value> (default = 1000) : maximum depth to consider when extracting direction information. Will skip all locations where there are more than this many reads at the locus. 
+* --simple : run using simple file format type as input (see File Formats section).
+* --socrates : use a Socrates-format style file as SV calls input (the input file must contain headers, these can be specified in the SVClone/SVProcess/parameters.py file).
+* --use_dir : whether to use breakpoint direction in the input file (where it must be supplied).
+* --filter_repeats : Repeat types to filter out (can be a comma-separated list). SOCRATES INPUT ONLY.
+* --sv_class_field : If your SV list has classifications and you would like to use them, specify the field name. 
+* --min_mapq : Filter out SVs with lower average MAPQ than this value. SOCRATES INPUT ONLY (default 0).
+
+
 ### Processing of SVs ###
 
 Run SV processing submodule to obtain read counts around breakpoints on each sample BAM file like so:
 
-    ./SVClone.py process -i <svs> -b <indexed_bamfile> -o <output_base_name> -d <average_coverage> -r <read_len>
+    ./SVClone.py process -i <svs> -b <indexed_bamfile> -o <output_base_name>
+
+The process step expects input in the following format (output from preprocess):
+
+```
+bp1_chr	bp1_pos	bp1_dir	bp2_chr	bp2_pos	bp2_dir	classification
+22	18240676		-	22	18232335	-	INV
+22	19940482		-	22	19937820    +	DEL
+22	21383572		-	22	21382745	+	DUP
+22	21395573		+	22	21395746	+	INV 
+```
+
+The classification strings are not used by the program, except for DNA-gain events (such as duplications). The classification names for these types of SVs should be specified in the SVClone/parameters.py file: 
+
+```
+dna_gain_class = ['DUP','INTDUP']
+```
 
 #### Required Parameters ####
 
@@ -61,23 +112,15 @@ Run SV processing submodule to obtain read counts around breakpoints on each sam
 The package also contains a parameters.py file which has the following hard-coded parameters. Modify these with care.
 
 ```
-tr      = 5    # if soft-clipped by less than these number of bases at this end, is not a "true" soft-clip
+tr      = 6    # if soft-clipped by less than these number of bases at this end, is not a "true" soft-clip
 window  = 500  # base-pair window considered to the left and right of the break when processing reads
 ```
 
 #### File Formats ####
 
-Input is expected in VCF format. Each defined SV must have a matching mate, given in the MATEID value in the INFO section.
 
 Optionally, if you run the program with the --simple argument, you can also provide SVs in a simple text-delimited format as follows:
 
-```
-bp1_chr	bp1_pos	bp1_dir	bp2_chr	bp2_pos	bp2_dir	classification
-22	18240676		-	22	18232335	-	INV
-22	19940482		-	22	19937820    +	DEL
-22	21383572		-	22	21382745	+	DUP
-22	21383573		+	22	21382746	+	INV 
-```
 
 ### Calculating Coverage ###
 

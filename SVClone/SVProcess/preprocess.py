@@ -1,7 +1,6 @@
 import pysam
 import vcf
 import numpy as np
-import ipdb
 import csv
 from . import load_data
 from . import process
@@ -24,7 +23,7 @@ def has_mixed_evidence(loc_reads,pos,sc_len):
     
     if len(split_all)>0:
         pos, total = sum(split_all['align_start'] < sc_len), len(split_all)
-        if pos/float(total) > 0.2 and pos/float(total) < 0.8:
+        if pos/float(total) > 0.1 and pos/float(total) < 0.9:
             return True
 
     return False
@@ -41,7 +40,6 @@ def get_dir_split(split,sc_len):
     assign_dir = '+' if pos/float(total) > 0.5 else '-'
     return assign_dir
 
-#TODO: optimise calling direction
 def get_dir(loc_reads,pos):
     split_reads = np.where([process.is_supporting_split_read_lenient(x,pos) for x in loc_reads])[0]
     split_all = loc_reads[split_reads]
