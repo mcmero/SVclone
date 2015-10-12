@@ -92,18 +92,6 @@ process_parser.add_argument("-v","--insert_mean",dest="insert_mean",default=-1.,
 process_parser.add_argument("--insert_std",dest="insert_std",default=-1.,type=float,
                     help="Standard deviation of insert length. If not specified, will be inferred")
 
-#process_parser.add_argument("--simple",dest="simple_svs",action="store_true",
-#                    help="Whether sv input is in a simple format (see README), otherwise VCF format is assumed.")
-
-#process_parser.add_argument("--socrates",dest="socrates",action="store_true",
-#                    help="Whether sv input is 'Socrates' SV caller input.")
-#
-#process_parser.add_argument("--use_dir",dest="use_dir",action="store_true",
-#                    help="Whether to use breakpoint direction in the input file (where it must be supplied).")
-#
-#process_parser.add_argument("--sv_class_field",dest="class_field",default="",
-#                    help="Use existing classification field, specify the field name")
-
 process_parser.set_defaults(func=process.proc_svs)
 
 ##########################################################################################################
@@ -125,8 +113,8 @@ filter_parser.add_argument("-c","--cnvs",dest="cnvs",default="",
                     help='''Phased copy-number states from Battenberg (comma separated if multiple).If 
                     not provided, all SVs assumed copy-neutral.''')
 
-filter_parser.add_argument("--min_depth",dest="min_dep",type=float,default=1,
-                    help='''Filter out any variants with depth below this value (default = 1). Applies to
+filter_parser.add_argument("--min_depth",dest="min_dep",type=float,default=4,
+                    help='''Filter out any variants with total depth below this value (default = 4). Applies to
                     SVs and SNVs.''')
 
 filter_parser.add_argument("--params",dest="params_file",default="",
@@ -168,6 +156,10 @@ filter_parser.add_argument("--sizefilter",dest="sizefilter",default=-1,type=int,
 filter_parser.add_argument("--filter_outliers",dest="filter_outliers",action="store_true",
                     help='''Filter out SVs with depth values that are considers outliers, based on the 
                     copy-number adjusted distribution of depths.''')
+
+filter_parser.add_argument("--valid_chroms",dest="valid_chrs",action="store_true",
+                    help='''Filters out SVs on non-valid chroms (i.e. mapping to contigs on non-
+                    standard chromosomes. Can be specified in the parameters.py file.''')
 
 filter_parser.set_defaults(func=run_filter.run)
 

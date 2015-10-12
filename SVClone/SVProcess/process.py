@@ -241,13 +241,13 @@ def get_loc_counts(bp,loc_reads,pos,rc,reproc,split,norm,min_ins,max_ins,sc_len,
             split = np.append(split,x)            
             split_supp = 'bp%d_split'%bp_num
             split_cnt = 'bp%d_sc_bases'%bp_num
-            if bp['dir']!='?':
+            if bp['dir'] in ['+','-']:
                 if is_supporting_split_read_wdir(bp['dir'],x,pos,max_ins,sc_len):
                     rc[split_supp] = rc[split_supp]+1 
                     rc[split_cnt]  = rc[split_cnt]+get_sc_bases(x,pos)                    
-            else:    
-                rc[split_supp] = rc[split_supp]+1 
-                rc[split_cnt]  = rc[split_cnt]+get_sc_bases(x,pos)
+            #else:    
+            #    rc[split_supp] = rc[split_supp]+1 
+            #    rc[split_cnt]  = rc[split_cnt]+get_sc_bases(x,pos)
         elif r2!=None and r1['query_name']==r2['query_name'] and is_normal_spanning(r1,r2,pos,min_ins,max_ins):
             norm = np.append(norm,r1)            
             norm = np.append(norm,r2)            
@@ -292,7 +292,6 @@ def get_spanning_counts(reproc,rc,bp1,bp2,inserts,min_ins,max_ins):
         mate = np.array(reproc[idx+1],copy=True)
         r1 = np.array(x,copy=True)
         r2 = np.array(mate,copy=True)
-
         #if read corresponds to bp2 and mate to bp1
         if (bp1['chrom']!=bp2['chrom'] and x['chrom']==bp2['chrom']) or \
             (pos1 > pos2 and bp1['chrom']==bp2['chrom']):
@@ -301,13 +300,13 @@ def get_spanning_counts(reproc,rc,bp1,bp2,inserts,min_ins,max_ins):
         if is_supporting_spanning_pair(r1,r2,bp1,bp2,inserts,max_ins):        
             span_bp1 = np.append(span_bp1,r1)
             span_bp2 = np.append(span_bp2,r2)
-            if bp1['dir']!='?' and bp2['dir']!='?':
+            if bp1['dir'] in ['+','-'] and bp2['dir'] in ['-','+']:
                 if validate_spanning_orientation(bp1,bp2,r1,r2):
                     rc['spanning'] = rc['spanning']+1
                 else:
                     reproc_again = np.append(reproc,x)
-            else:
-                rc['spanning'] = rc['spanning']+1
+            #else:
+            #    rc['spanning'] = rc['spanning']+1
         else:
             reproc_again = np.append(reproc,x)
     return rc,span_bp1,span_bp2,reproc_again
@@ -324,20 +323,26 @@ def recount_split_reads(split_reads,pos,bp_dir,max_ins,sc_len):
 def get_sv_read_counts(row,bam,inserts,max_dp,min_ins,max_ins,sc_len):
     
     sv_id, bp1_chr, bp1_pos, bp1_dir, bp2_chr, bp2_pos, bp2_dir, sv_class = [h[0] for h in params.sv_dtype]    
-    bp1 = np.array((row[bp1_chr],row[bp1_pos]-params.window,row[bp1_pos]+params.window,row[bp1_dir]),dtype=params.bp_dtype)
-    bp2 = np.array((row[bp2_chr],row[bp2_pos]-params.window,row[bp2_pos]+params.window,row[bp2_dir]),dtype=params.bp_dtype)
+    bp1 = np.array((row[bp1_chr],row[bp1_pos]-params.window,
+                    row[bp1_pos]+params.window,row[bp1_dir]),dtype=params.bp_dtype)
+    bp2 = np.array((row[bp2_chr],row[bp2_pos]-params.window,
+                    row[bp2_pos]+params.window,row[bp2_dir]),dtype=params.bp_dtype)
     pos1, pos2 = row[bp1_pos], row[bp2_pos]
+
+    rc = np.zeros(1,dtype=params.sv_out_dtype)[0]
+    rc['bp1_chr'],rc['bp1_pos'],rc['bp1_dir']=row[bp1_chr],row[bp1_pos],row[bp1_dir]
+    rc['bp2_chr'],rc['bp2_pos'],rc['bp2_dir']=row[bp2_chr],row[bp2_pos],row[bp2_dir]
+    rc['ID'],rc['classification']=row[sv_id],row[sv_class]
+   
+    if row[bp1_dir] not in ['+','-'] or row[bp2_dir] not in ['+','-']:
+        #one or both breaks don't have a valid direction
+        return rc
 
     bamf = pysam.AlignmentFile(bam, "rb")
     loc1_reads, err_code1 = get_loc_reads(bp1,bamf,max_dp)    
     loc2_reads, err_code2 = get_loc_reads(bp2,bamf,max_dp)    
     bamf.close()
    
-    rc = np.zeros(1,dtype=params.sv_out_dtype)[0]
-    rc['bp1_chr'],rc['bp1_pos'],rc['bp1_dir']=row[bp1_chr],row[bp1_pos],row[bp1_dir]
-    rc['bp2_chr'],rc['bp2_pos'],rc['bp2_dir']=row[bp2_chr],row[bp2_pos],row[bp2_dir]
-    rc['ID'],rc['classification']=row[sv_id],row[sv_class]
-
     if not (err_code1==0 and err_code2==0) or (len(loc1_reads)==0 or len(loc2_reads)==0):
         sv_class = str(row['classification'])
         if err_code1 == 1 or err_code2 == 1:
@@ -358,8 +363,10 @@ def get_sv_read_counts(row,bam,inserts,max_dp,min_ins,max_ins,sc_len):
     split_bp2 = np.empty([0,len(params.read_dtype)],dtype=params.read_dtype)
     norm = np.empty([0,len(params.read_dtype)],dtype=params.read_dtype)
     
-    rc, reproc, split_bp1, norm = get_loc_counts(bp1,loc1_reads,pos1,rc,reproc,split_bp1,norm,min_ins,max_ins,sc_len)
-    rc, reproc, split_bp2, norm = get_loc_counts(bp2,loc2_reads,pos2,rc,reproc,split_bp2,norm,min_ins,max_ins,sc_len,2)
+    rc, reproc, split_bp1, norm = get_loc_counts(bp1,loc1_reads,pos1,rc,reproc,
+                                                 split_bp1,norm,min_ins,max_ins,sc_len)
+    rc, reproc, split_bp2, norm = get_loc_counts(bp2,loc2_reads,pos2,rc,reproc,
+                                                 split_bp2,norm,min_ins,max_ins,sc_len,2)
     rc['bp1_win_norm'] = windowed_norm_read_count(loc1_reads,inserts,min_ins,max_ins)
     rc['bp2_win_norm'] = windowed_norm_read_count(loc2_reads,inserts,min_ins,max_ins)    
  
@@ -382,7 +389,7 @@ def get_params(bam,mean_dp,max_cn,rlen,insert_mean,insert_std,out):
         inserts[0] = inserts[0]+(rlen*2) #derive fragment size
     
     max_dp = ((mean_dp*(params.window*2))/rlen)*max_cn
-    max_ins = inserts[0]+(2*inserts[1]) #actually the max *fragment* size
+    max_ins = inserts[0]+(3*inserts[1]) #actually the max *fragment* size
     #min_ins = max(rlen*2,inserts[0]-(2*inserts[1])) #actually the min *fragment* size
     min_ins = rlen*2
     

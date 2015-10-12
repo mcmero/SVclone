@@ -25,10 +25,10 @@ def get_outlier_ranges(vals):
     upper = q3 + 1.5*iqr
     return [lower,upper]
 
-def run_simple_filter(df,rlen,insert,minsplit,minspan,sizefilter,min_dep):
+def run_simple_filter(df,rlen,insert,minsplit,minspan,sizefilter,min_dep,valid_chrs):
     '''
     filter based on presence of supporting reads and > fragment length
-    '''    
+    ''' 
     span = np.array(df.spanning)
     split = np.array(df.bp1_split+df.bp2_split)
     #df_flt = df[(span+split)>=1]
@@ -47,6 +47,14 @@ def run_simple_filter(df,rlen,insert,minsplit,minspan,sizefilter,min_dep):
 
     print('Filtered out %d SVs based on size limits' % (len(df_flt) - len(df_flt2)))
     
+    if valid_chrs:
+        chr1 = np.array([chrom in params.valid_chroms for chrom in df_flt2.bp1_chr])
+        chr2 = np.array([chrom in params.valid_chroms for chrom in df_flt2.bp2_chr])
+        df_flt3 = df_flt2[np.logical_and(chr1,chr2)]
+        
+        print('Filtered out %d SVs that had non-standard chromosomes' % (len(df_flt2) - len(df_flt3)))
+        df_flt2 = pd.DataFrame(df_flt3,copy=True)
+
     return df_flt2
 
 def is_clonal_neutral(gtype):
@@ -147,13 +155,13 @@ def run_cnv_filter(df_flt,cnv,neutral,filter_outliers,are_snvs=False):
             df_flt = df_flt[df_flt.gtype.values!='']
             print('Filtered out %d SNVs which did not have copy-numbers' % (n_df - len(df_flt)))
 
-            # weight ranges by copy-numbers
-            depths = df_flt['ref'].values + df_flt['var'].values
-            cns = get_weighted_cns(df_flt.gtype.values)
-            cn_nonzero = np.logical_not(cns==0)
-            depths[cn_nonzero] = (depths[cn_nonzero]/cns[cn_nonzero])
-            
             if filter_outliers:
+                # weight ranges by copy-numbers
+                depths = df_flt['ref'].values + df_flt['var'].values
+                cns = get_weighted_cns(df_flt.gtype.values)
+                cn_nonzero = np.logical_not(cns==0)
+                depths[cn_nonzero] = (depths[cn_nonzero]/cns[cn_nonzero])
+            
                 n_df = len(df_flt)
                 dep_ranges = get_outlier_ranges(depths)
                 df_flt = df_flt[np.logical_and(depths>dep_ranges[0],depths<dep_ranges[1])]
@@ -217,7 +225,7 @@ def is_same_sv(sv1,sv2):
 def filter_germline(gml_file,sv_df,rlen,insert):
     print("Filtering out germline SVs...")
     df_gml = pd.DataFrame(pd.read_csv(gml_file,delimiter='\t',dtype=None,low_memory=False))
-    df_gml = run_simple_filter(df_gml,rlen,insert)
+    #df_gml = run_simple_filter(df_gml,rlen,insert)
     germline = []
     
     for idx_sv,sv in sv_df.iterrows():
@@ -316,6 +324,7 @@ def run(args):
     sizefilter  = int(args.sizefilter)
     filter_otl  = args.filter_outliers
     min_dep     = args.min_dep
+    valid_chrs  = args.valid_chrs
    
     def proc_arg(arg,n_args=1,of_type=str):
         arg = str.split(arg,',')
@@ -370,12 +379,12 @@ def run(args):
             elif snv_format == 'mutect_callstats':
                 snv_df = load_data.load_snvs_mutect_callstats(snvs)
             dep = snv_df['ref'] + snv_df['var']            
-            snv_df = snv_df[dep>min_dep]
+            snv_df = snv_df[dep>=min_dep]
     
         if sv!="":
             sv_df = load_data.load_svs(sv)
-            sv_df = run_simple_filter(sv_df,rlen,insert,minsplit,minspan,sizefilter,min_dep)
-
+            sv_df = run_simple_filter(sv_df,rlen,insert,minsplit,minspan,sizefilter,min_dep,valid_chrs)
+        
         if gml!="":
             sv_df = filter_germline(gml,sv_df,rlen,insert)
        

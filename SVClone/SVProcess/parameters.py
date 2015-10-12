@@ -4,8 +4,6 @@ import numpy as np
 tr              = 6    # "wobble length" tolerance threshold which we allow breaks to be inexact
 window          = 500  # base-pairs considered to the left and right of the break
 norm_overlap    = 10   # minimum basepairs a "normal" read must overlap break to be counted
-valid_chroms    = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '10', '11', '12', \
-                   '13', '14', '15', '16', '17', '18', '19', '20', '21', '22', 'X', 'Y']
 bp_dtype        = [('chrom','S20'),('start', int), ('end', int), ('dir', 'S1')]
 
 # parameters extracted for each read from BAMs

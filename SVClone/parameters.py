@@ -5,6 +5,9 @@ tr      = 5    # "wobble length" tolerance threshold which we allow breaks to be
 window  = 500  # base-pairs considered to the left and right of the break
 gl_th   = 10   # SVs considered germline if matching by at least this many bp, when comparing set of breaks to germline
 
+valid_chroms    = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '10', '11', '12', \
+                   '13', '14', '15', '16', '17', '18', '19', '20', '21', '22', 'X', 'Y']
+
 # parameters extracted for each read from BAMs
 read_dtype = [('query_name', 'S150'), ('chrom', 'S50'), ('ref_start', int), ('ref_end', int), \
               ('align_start', int), ('align_end', int), ('len', int), ('ins_len', int), ('is_reverse', np.bool)]

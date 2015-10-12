@@ -11,7 +11,7 @@ def get_sv_vals(sv_df,no_adjust):
     combos = sv_df.apply(cluster.get_sv_allele_combos,axis=1)
     sides = sv_df.preferred_side.values
     cn_states = [cn[side] for cn,side in zip(combos,sides)]
-    cn_states = pd.DataFrame([[sv] for sv in cn_states])
+    cn_states = pd.DataFrame([[sv] for sv in cn_states])[0].values
     if no_adjust:
         sup = sv_df.adjusted_support.map(float).values
         dep = sv_df.adjusted_depth.map(float).values
