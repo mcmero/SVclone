@@ -242,22 +242,28 @@ def filter_germline(gml_file,sv_df,rlen,insert):
     return sv_df.drop(germline,axis=0)
 
 
-def adjust_sv_read_counts(sv_df,pi,pl):
+def adjust_sv_read_counts(sv_df,pi,pl,min_dep):
     n = zip(np.array(sv_df.norm1.values),np.array(sv_df.norm2.values))
     s = np.array(sv_df.bp1_split.values+sv_df.bp2_split.values)
     d = np.array(sv_df.spanning.values)
     sup = np.array(d+s,dtype=float)
     Nvar = len(sv_df)
 
-    combos = sv_df.apply(cluster.get_sv_allele_combos,axis=1)
+    # if low normal depth on one side only, pick other side 
     sides = np.zeros(Nvar,dtype=int)
-    sides[sv_df.gtype1.values==''] = 1 #no genotype for bp1, use bp2
+    low_norm_dep = np.logical_xor(sv_df.norm1.values<min_dep,sv_df.norm2.values<min_dep)
+    low_norm_vals = zip(sv_df.norm1.values[low_norm_dep],sv_df.norm2.values[low_norm_dep])
+    sides[low_norm_dep] = [ 0 if n1 < min_dep else 1 for n1, n2 in low_norm_vals ]
+    
+    # if one side doesn't have CNV data, pick the other side
+    sides[sv_df.gtype1.values==''] = 1 
 
     # prefer sides with subclonal genotype data    
     gt1_sc = np.array(map(len,map(methodcaller("split","|"),sv_df.gtype1.values)))>1
     gt2_sc = np.array(map(len,map(methodcaller("split","|"),sv_df.gtype1.values)))>1    
     one_sc = np.logical_xor(gt1_sc,gt2_sc)
 
+    combos = sv_df.apply(cluster.get_sv_allele_combos,axis=1)
     exclusive_subclones = zip(sv_df.gtype1.values[one_sc],sv_df.gtype2.values[one_sc]) 
     sides[one_sc] = [0 if gt1!='' else 1 for gt1,gt2 in exclusive_subclones]
     has_both_gts = np.logical_and(sv_df.gtype1.values!='',sv_df.gtype2.values!='')
@@ -268,15 +274,15 @@ def adjust_sv_read_counts(sv_df,pi,pl):
     norm = np.array([float(ni[si]) for ni,si in zip(n,sides)])
     both_gts_same_type = np.logical_and(has_both_gts,one_sc==False)
     norm[both_gts_same_type] = map(np.mean,np.array(n)[both_gts_same_type])
- 
+
     try:
 
         # read value adjustments for specific types of events
         # currently the adjustments are quite simple
         sv_classes = sv_df.classification.values
         #invs = [ idx in params.inversion_class for idx,sv_class in enumerate(sv_classes) ]
-        dups = [ idx in params.dna_gain_class for idx,sv_class in enumerate(sv_classes) ]
-        dels = [ idx in params.deletion_class for idx,sv_class in enumerate(sv_classes) ]
+        dups = np.array([ sv_class in params.dna_gain_class for idx,sv_class in enumerate(sv_classes) ])
+        dels = np.array([ sv_class in params.deletion_class for idx,sv_class in enumerate(sv_classes) ])
         
         # inversions have their supporting reads / 2 
         # as each break contains two sets of supporting reads
@@ -289,11 +295,11 @@ def adjust_sv_read_counts(sv_df,pi,pl):
             # estimate adjustment from normal counts for SV events where there is no gain of DNA
             # if these events don't exist, adjust by normal component + tumour/2 (half tumour normal
             # reads will come from duplication, on one chromosome, so divide by ploidy
-            adjust_factor = np.mean(norm[dels])/np.mean(norm[dups]) if sum(non_gain)>0 else (1-pi) + ((pi)/2/pl)
+            adjust_factor = np.mean(norm[dels])/np.mean(norm[dups]) if sum(dels)>0 else (1-float(pi)) + (float(pi)/2/pl)
             norm[dups]    = norm[dups] * adjust_factor
         
     except AttributeError:
-        print('Warning, no classifications found. SV read counts cannot be adjusted')
+        print('Warning, no valid classifications found. SV read counts cannot be adjusted')
 
     sv_df['adjusted_norm']      = norm
     sv_df['adjusted_support']   = sup
@@ -419,7 +425,7 @@ def run(args):
             
         if len(sv_df)>0: 
             sv_df.index = range(len(sv_df)) #reindex
-            sv_df = adjust_sv_read_counts(sv_df,pi,ploidy)
+            sv_df = adjust_sv_read_counts(sv_df,pi,ploidy,min_dep)
             sv_df.to_csv('%s/%s_filtered_svs.tsv'%(out,sample),sep='\t',index=False,na_rep='')
         
         if len(snv_df)>0: 
