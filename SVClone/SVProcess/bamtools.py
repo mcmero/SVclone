@@ -59,7 +59,7 @@ def isPaired(bamfile, alignments=1000):
 
 
 def estimateInsertSizeDistribution(bamfile,
-                                   alignments=1000):
+                                   alignments=5000):
     '''estimate insert size from first alignments in bam file.
 
     returns mean and stddev of insert sizes.

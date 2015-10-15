@@ -2,6 +2,7 @@ import pysam
 import vcf
 import numpy as np
 import csv
+import ipdb
 from . import load_data
 from . import process
 from . import parameters as params
@@ -49,20 +50,38 @@ def get_dir(loc_reads,pos):
     else:
         return '?'
 
+def get_consensus_align(loc_reads,pos):
+    split_reads = np.where([process.is_supporting_split_read_lenient(x,pos) for x in loc_reads])[0]
+    split_all = loc_reads[split_reads]
+   
+    if len(split_all)!=0:
+        ref_starts = [x for x in split_all['ref_start']]
+        ref_ends   = [x for x in split_all['ref_end']  ]
+        
+        consensus_align_right = max(set(ref_ends), key=ref_ends.count)
+        consensus_align_left  = max(set(ref_starts), key=ref_starts.count)
+
+        return consensus_align_right, consensus_align_left+1
+    else:
+        return 0,0
+
 def get_bp_dir(sv,loc_reads,pos,sc_len,bp_num):
 
     bp_dir = 'bp%d_dir' % bp_num
     sv_class = str(sv['classification'])
-
+    ca_right, ca_left = 0,0
     if has_mixed_evidence(loc_reads,pos,sc_len):
         sv[bp_dir] = '?'
         sv['classification'] = 'MIXED' if sv_class=='' else sv_class+';MIXED'
+        ca_right, ca_left = get_consensus_align(loc_reads,pos)
+        ca_right = ca_right if (ca_right-5 < pos and ca_right+5 > pos) else 0
+        ca_left = ca_left if (ca_left-5 < pos and ca_left+5 > pos) else 0
     else:
         sv[bp_dir] = get_dir(loc_reads,pos)
         if sv[bp_dir] == '?':
             sv['classification'] = 'UNKNOWN_DIR' if sv_class=='' else sv_class+';UNKNOWN_DIR'
 
-    return sv
+    return sv, ca_right, ca_left
 
 def get_dir_info(row,bam,max_dep):
 
@@ -86,11 +105,12 @@ def get_dir_info(row,bam,max_dep):
         sv['classification'] = 'READ_FETCH_FAILED' if sv_class=='' else sv_class+';READ_FETCH_FAILED'
         return sv
 
-    sv = get_bp_dir(sv,loc1_reads,sv['bp1_pos'],params.tr,1)
-    sv = get_bp_dir(sv,loc2_reads,sv['bp2_pos'],params.tr,2)
+    sv, bp1_ca_right, bp1_ca_left = get_bp_dir(sv,loc1_reads,sv['bp1_pos'],params.tr,1)
+    sv, bp2_ca_right, bp2_ca_left = get_bp_dir(sv,loc2_reads,sv['bp2_pos'],params.tr,2)
+    consens_aligns = (bp1_ca_right,bp1_ca_left,bp2_ca_right,bp2_ca_left)
 
-    return sv
-    
+    return sv, consens_aligns
+
 #def mixed_svs_remain(svs):
 #    sv_classes = map(lambda x: x.split(';'),svs['classification'])
 #    sv_classes [svc for svc in sv_classes]
@@ -113,39 +133,86 @@ def get_dir_info(row,bam,max_dep):
 #        which_matches.append(matches)
 #    return sv_matches,which_matches
 
-def set_dir_class(sv,bp1_dir,bp2_dir,sv_class):
+def set_dir_class(sv,bp1_dir,bp2_dir,sv_class,new_pos1,new_pos2):
     sv['bp1_dir'] = bp1_dir
     sv['bp2_dir'] = bp2_dir
     sv['classification'] = sv_class
+    if new_pos1!=0:
+        sv['bp1_pos'] = new_pos1
+    if new_pos2!=0:
+        sv['bp2_pos'] = new_pos2
     return sv
 
-def split_mixed_svs(svs):
+def is_same_sv(sv1,sv2,threshold=params.tr):
+    sv1_chr1, sv1_bp1, sv1_dir1, sv1_chr2, sv1_bp2, sv1_dir2 = sv1
+    sv2_chr1, sv2_bp1, sv2_dir1, sv2_chr2, sv2_bp2, sv2_dir2 = sv2
+
+    if sv1_chr1==sv2_chr1 and sv1_chr2==sv2_chr2 and sv1_dir1 == sv2_dir1 and sv2_dir2 == sv2_dir2:
+        if abs(sv1_bp1-sv2_bp1)<threshold and abs(sv1_bp2-sv2_bp2)<threshold:
+            return True
+    if sv1_chr2==sv2_chr1 and sv1_chr1==sv2_chr2 and sv1_dir2 == sv2_dir1 and sv2_dir1 == sv2_dir2:
+        if abs(sv1_bp2-sv2_bp1)<threshold and abs(sv1_bp1-sv2_bp2)<threshold:
+            return True
+    return False
+
+def remove_duplicates(svs):
+    to_delete = []    
+    for idx1,sv1 in enumerate(svs):
+        if idx1+1 == len(svs): break
+        for idx2,sv2 in enumerate(svs[idx1+1:]):
+            if idx1!=idx2:
+                sv1_tmp = (sv1['bp1_chr'],sv1['bp1_pos'],sv1['bp1_dir'],\
+                           sv1['bp2_chr'],sv1['bp2_pos'],sv1['bp2_dir'])
+                sv2_tmp = (sv2['bp1_chr'],sv2['bp1_pos'],sv2['bp1_dir'],\
+                           sv2['bp2_chr'],sv2['bp2_pos'],sv1['bp2_dir'])
+                if is_same_sv(sv1_tmp,sv2_tmp):
+                    to_delete.append(idx1)
+    svs = np.delete(svs,np.array(to_delete))
+    return svs
+
+def split_mixed_svs(svs,ca):
     for idx,row in enumerate(svs):
         sv_class = np.array(row['classification'].split(';'))
-        if 'MIXED' in sv_class:
+        if 'MIXED' in sv_class: 
             if 'UNKNOWN_DIR' in sv_class:
                 svs[idx]['classification'] = 'UNKNOWN_DIR'
                 continue #can't fix this if one direction is unknown
             if len(sv_class)>1 and sv_class[0]=='MIXED' and sv_class[1]=='MIXED':
                 #likely an inversion
                 #set dirs to + and create new sv with - dirs 
-                svs[idx] = set_dir_class(svs[idx],'-','-','')
-                new_sv = np.array(svs[idx],copy=True)
-                new_sv = set_dir_class(new_sv,'+','+','')
+                new_sv = svs[idx].copy()
+                new_pos1, new_pos2 = ca[idx]['bp1_ca_right'],ca[idx]['bp2_ca_right']
+                new_sv = set_dir_class(new_sv,'+','+','',new_pos1, new_pos2)                
+                new_sv['ID'] = svs[len(svs)-1]['ID']+1
                 svs = np.append(svs,new_sv)
+
+                new_pos1, new_pos2 = ca[idx]['bp1_ca_left'],ca[idx]['bp2_ca_left']
+                svs[idx] = set_dir_class(svs[idx],'-','-','',new_pos1,new_pos2)                
+
             elif row['bp1_dir']!='?':
                 #set dir to -, create new sv with dir set to +
-                svs[idx]['bp2_dir'] = '-'
-                new_sv = np.array(svs[idx],copy=True)
-                new_sv = set_dir_class(new_sv,row['bp1_dir'],'+','')
+                new_sv = svs[idx].copy()
+                new_pos2 = ca[idx]['bp2_ca_right']
+                new_sv = set_dir_class(new_sv,row['bp1_dir'],'+','',0,new_pos2)
                 svs = np.append(svs,new_sv)
+
+                new_pos2 = ca[idx]['bp2_ca_left']
+                svs[idx] = set_dir_class(svs[idx],row['bp1_dir'],'-','',0,new_pos2)
+
             elif row['bp2_dir']!='?':
                 #set dir to -, create new sv with dir set to +
-                svs[idx]['bp1_dir'] = '-'
-                new_sv = np.array(svs[idx],copy=True)
-                new_sv = set_dir_class(new_sv,'+',row['bp2_dir'],'')
+                new_sv = svs[idx].copy()
+                new_pos1 = ca[idx]['bp1_ca_right']
+                new_sv = set_dir_class(new_sv,'+',row['bp2_dir'],'',new_pos1,0)
                 svs = np.append(svs,new_sv)
-    return np.unique(svs)
+                
+                svs[idx] = set_dir_class(svs[idx],'-',row['bp2_dir'],'',new_pos1,0)
+
+            else:
+                svs[idx]['classification'] = 'UNKNOWN_DIR'
+    
+    svs = remove_duplicates(svs)
+    return svs
 
 def preproc_svs(args):
     
@@ -172,11 +239,14 @@ def preproc_svs(args):
         svs = load_data.load_input_socrates(svin,use_dir,min_mapq,filt_repeats)
     else:
         svs = load_data.load_input_vcf(svin,class_field)
-    
+   
+    consens_dtype = [('bp1_ca_right',int),('bp1_ca_left',int),('bp2_ca_right',int),('bp2_ca_left',int)]
+    ca = np.zeros(len(svs),dtype=consens_dtype)
+                        
     if not use_dir:
         for idx,sv in enumerate(svs):
-            svs[idx] = get_dir_info(sv,bam,max_dep)
-        svs = split_mixed_svs(svs)
+            svs[idx], ca[idx]  = get_dir_info(sv,bam,max_dep)            
+        svs = split_mixed_svs(svs,ca)
 
     sv_id = 0
     svd_prevResult, prevSV = None, None

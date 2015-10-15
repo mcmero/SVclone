@@ -213,12 +213,15 @@ def match_copy_numbers(var_df, cnv_df, bp_fields=['bp1_chr','bp1_pos'], gtype_fi
 
     return var_df
 
-def is_same_sv(sv1,sv2):
+def is_same_sv_germline(sv1,sv2):
     sv1_chr1, sv1_bp1, sv1_chr2, sv1_bp2 = sv1
     sv2_chr1, sv2_bp1, sv2_chr2, sv2_bp2 = sv2
 
     if sv1_chr1==sv2_chr1 and sv1_chr2==sv2_chr2:
         if abs(sv1_bp1-sv2_bp1)<params.gl_th and abs(sv1_bp2-sv2_bp2)<params.gl_th:
+            return True
+    if sv1_chr2==sv2_chr1 and sv1_chr1==sv2_chr2:
+        if abs(sv1_bp2-sv2_bp1)<params.gl_th and abs(sv1_bp1-sv2_bp2)<params.gl_th:
             return True
     return False
 
@@ -234,7 +237,7 @@ def filter_germline(gml_file,sv_df,rlen,insert):
         df_gml_tmp = df_gml[same_chrs]
         for idx_gml,sv_gml in df_gml_tmp.iterrows():
             sv_loc_gml = [str(sv_gml.bp1_chr),int(sv_gml.bp1_pos),str(sv_gml.bp2_chr),int(sv_gml.bp2_pos)]
-            if sv_gml.support>0 and is_same_sv(sv_loc,sv_loc_gml):
+            if sv_gml.support>0 and is_same_sv_germline(sv_loc,sv_loc_gml):
                 germline.append(idx_sv)
                 break
 
