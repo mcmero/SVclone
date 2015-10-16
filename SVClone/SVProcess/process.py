@@ -75,16 +75,16 @@ def is_supporting_split_read_wdir(bp_dir,read,pos,max_ins,sc_len):
     else:
         return False
 
-def is_supporting_split_read_lenient(read,pos):
+def is_supporting_split_read_lenient(read,pos,threshold=params.tr):
     '''
     Same as is_supporting_split_read without insert and soft-clip threshold checks
     '''
-    if read['align_start'] < (params.tr): #a "soft" threshold if it is soft-clipped at the other end        
-        return (read['len'] - read['align_end'] >= params.tr) and read['ref_end'] > (pos - params.tr) and \
-                read['ref_end'] < (pos + params.tr)
+    if read['align_start'] < 5: #a "soft" threshold if it is soft-clipped at the other end        
+        return (read['len'] - read['align_end'] >= threshold) and read['ref_end'] > (pos - threshold) and \
+                read['ref_end'] < (pos + threshold)
     else:
-        return (read['align_start'] >= params.tr) and read['ref_start'] > (pos - params.tr) and \
-                read['ref_start'] < (pos + params.tr)
+        return (read['align_start'] >= threshold) and read['ref_start'] > (pos - threshold) and \
+                read['ref_start'] < (pos + threshold)
 
 def get_sc_bases(read,pos):
     '''

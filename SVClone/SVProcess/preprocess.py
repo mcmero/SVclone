@@ -19,7 +19,8 @@ def classify_event(sv,sv_id,svd_prevResult,prevSV):
     return classification, sv_id, svd_prevResult, prevSV
 
 def has_mixed_evidence(loc_reads,pos,sc_len):
-    split_reads = np.where([process.is_supporting_split_read_lenient(x,pos) for x in loc_reads])[0]
+
+    split_reads = np.where([process.is_supporting_split_read_lenient(x,pos,params.tr*2) for x in loc_reads])[0]
     split_all = loc_reads[split_reads]
     
     if len(split_all)>0:
@@ -51,7 +52,7 @@ def get_dir(loc_reads,pos):
         return '?'
 
 def get_consensus_align(loc_reads,pos):
-    split_reads = np.where([process.is_supporting_split_read_lenient(x,pos) for x in loc_reads])[0]
+    split_reads = np.where([process.is_supporting_split_read_lenient(x,pos,params.tr*2) for x in loc_reads])[0]
     split_all = loc_reads[split_reads]
    
     if len(split_all)!=0:
@@ -69,13 +70,17 @@ def get_bp_dir(sv,loc_reads,pos,sc_len,bp_num):
 
     bp_dir = 'bp%d_dir' % bp_num
     sv_class = str(sv['classification'])
-    ca_right, ca_left = 0,0
-    if has_mixed_evidence(loc_reads,pos,sc_len):
+    
+    ca_right, ca_left = get_consensus_align(loc_reads,pos)
+    ca_right = ca_right if (ca_right-params.tr*2 < pos and ca_right+params.tr*2 > pos) else 0
+    ca_left  = ca_left  if (ca_left-params.tr*2 < pos  and ca_left+params.tr*2 > pos)  else 0
+
+    mixed_right = has_mixed_evidence(loc_reads,ca_right,sc_len) if ca_right != 0 else False
+    mixed_left = has_mixed_evidence(loc_reads,ca_right,sc_len) if ca_right != 0 else False
+    
+    if has_mixed_evidence(loc_reads,pos,sc_len) or mixed_right or mixed_left:
         sv[bp_dir] = '?'
         sv['classification'] = 'MIXED' if sv_class=='' else sv_class+';MIXED'
-        ca_right, ca_left = get_consensus_align(loc_reads,pos)
-        ca_right = ca_right if (ca_right-5 < pos and ca_right+5 > pos) else 0
-        ca_left = ca_left if (ca_left-5 < pos and ca_left+5 > pos) else 0
     else:
         sv[bp_dir] = get_dir(loc_reads,pos)
         if sv[bp_dir] == '?':
@@ -89,8 +94,8 @@ def get_dir_info(row,bam,max_dep):
     bp_dtype = [('chrom','S20'),('start', int), ('end', int), ('dir', 'S1')]
     
     sv_id, bp1_chr, bp1_pos, bp1_dir, bp2_chr, bp2_pos, bp2_dir, sv_class = [h[0] for h in params.sv_dtype]
-    bp1 = np.array((sv[bp1_chr],sv[bp1_pos]-params.tr,sv[bp1_pos]+params.tr,sv[bp1_dir]),dtype=bp_dtype)
-    bp2 = np.array((sv[bp2_chr],sv[bp2_pos]-params.tr,sv[bp2_pos]+params.tr,sv[bp2_dir]),dtype=bp_dtype)
+    bp1 = np.array((sv[bp1_chr],sv[bp1_pos]-(params.tr*2),sv[bp1_pos]+(params.tr*2),sv[bp1_dir]),dtype=bp_dtype)
+    bp2 = np.array((sv[bp2_chr],sv[bp2_pos]-(params.tr*2),sv[bp2_pos]+(params.tr*2),sv[bp2_dir]),dtype=bp_dtype)
     
     bamf = pysam.AlignmentFile(bam, "rb")
     loc1_reads, err_code1 = process.get_loc_reads(bp1,bamf,max_dep)    
