@@ -136,12 +136,12 @@ def get_most_likely_cn_states(cn_states,s,d,phi,pi):
     #0 probability errors when pv = 1 - look into this bug more
     return most_likely_cn, np.array(most_likely_pv)-0.00000001
 
-def cluster(sup,dep,cn_states,Nvar,pi,rlen,insert,pl,iters,burn,thin,beta,use_map,Ndp=param.clus_limit):
+def cluster(sup,dep,cn_states,Nvar,sparams,cparams,Ndp=param.clus_limit):
     '''
     clustering model using Dirichlet Process
     '''
-    sens = 1.0 / ((pi/float(pl))*np.mean(dep))
-    beta_a, beta_b, beta_init = map(lambda x: float(eval(x)), beta.split(','))
+    sens = 1.0 / ((sparams['pi']/float(sparams['ploidy']))*np.mean(dep))
+    beta_a, beta_b, beta_init = map(lambda x: float(eval(x)), cparams['beta'].split(','))
     alpha = pm.Gamma('alpha',beta_a,beta_b,value=beta_init)
     print("Dirichlet concentration gamma values: alpha = %f, beta= %f, init = %f" % (beta_a, beta_b, beta_init))
 
@@ -159,11 +159,11 @@ def cluster(sup,dep,cn_states,Nvar,pi,rlen,insert,pl,iters,burn,thin,beta,use_ma
     
     @pm.deterministic
     def p_var(z=z,phi_k=phi_k):
-        most_lik_cn_states, pvs = get_most_likely_cn_states(cn_states,sup,dep,phi_k[z],pi)
+        most_lik_cn_states, pvs = get_most_likely_cn_states(cn_states,sup,dep,phi_k[z],sparams['pi'])
         return pvs
     
     cbinom = pm.Binomial('cbinom', dep, p_var, observed=True, value=sup)
 
     model = pm.Model([alpha,h,p,phi_k,z,p_var,cbinom])
-    mcmc = fit_and_sample(model,iters,burn,thin,use_map)
+    mcmc = fit_and_sample(model,cparams['n_iter'],cparams['burn'],cparams['thin'],cparams['use_map'])
     return mcmc
