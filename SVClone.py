@@ -32,8 +32,8 @@ preprocess_parser.add_argument("-o","--out",dest="out",required=True,
                     help='''Output base name. May contain directories. Will create pre-processed output as 
                     <name>_svin.txt''')
 
-preprocess_parser.add_argument("-md","--max_dep",dest="max_dep",default=1000,type=int,
-                    help='''Skip all regions with depth higher than this value (default = 1000)''')
+preprocess_parser.add_argument("-md","--max_dep",dest="max_dep",default=5000,type=int,
+                    help='''Skip all regions with depth higher than this value (default = 5000)''')
 
 preprocess_parser.add_argument("--simple",dest="simple_svs",action="store_true",
                     help="Whether sv input is in a simple format (see README), otherwise VCF format is assumed.")

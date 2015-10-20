@@ -203,10 +203,30 @@ def match_copy_numbers(var_df, cnv_df, bp_fields=['bp1_chr','bp1_pos'], gtype_fi
 
         for pos in sv_tmp[pos_field].values:
             #print("Checking overlaps for pos %d\n" %pos)
-            overlaps = np.logical_and(pos >= cnv_tmp.startpos.values, pos <= cnv_tmp.endpos.values)
-            match = cnv_tmp[overlaps]
-            gtype = match.loc[match.index[0]].gtype if len(match)>0 else '' 
-            gtypes.append(gtype)
+            cnv_start_list = cnv_tmp.startpos.values
+            cnv_end_list   = cnv_tmp.endpos.values
+            overlaps = np.logical_and(pos >= cnv_start_list, pos <= cnv_end_list)
+
+            match = cnv_tmp[overlaps]            
+            if len(match)==0:
+                # TODO: matching of SV/CNV boundaries
+                # right now just takes the position that's 
+                # the closest CNV value less than the SV 
+                # position or the first more than if there 
+                # are no CNV segments that are less than
+                if np.any(pos >= cnv_end_list):
+                    greater_than = cnv_tmp[pos >= cnv_end_list].index
+                    closest = greater_than[len(greater_than)-1]                    
+                    gtypes.append(cnv_tmp.loc[closest].gtype)
+                elif np.any(pos <= cnv_start_list):
+                    less_than = cnv_tmp[pos <= cnv_start_list].index
+                    closest = less_than[0]
+                    gtypes.append(cnv_tmp.loc[closest].gtype)
+                else:
+                    gtypes.append('')
+            else:
+                gtype = match.loc[match.index[0]].gtype
+                gtypes.append(gtype)
         
         var_indexes = var_df[current_chr].index.values
         var_df.loc[var_indexes,gtype_field] = gtypes
@@ -401,28 +421,28 @@ def run(args):
         if cnv!="":
             cnv_df = load_data.load_cnvs(cnv)
 
-            if sv!="":
+            if len(sv_df)>0:
                 print('Matching copy-numbers for SVs...')
                 sv_df = match_copy_numbers(sv_df,cnv_df) 
                 sv_df = match_copy_numbers(sv_df,cnv_df,['bp2_chr','bp2_pos'],'gtype2') 
                 sv_df = run_cnv_filter(sv_df,cnv,neutral,filter_otl)
                 print('Keeping %d SVs' % len(sv_df))
         
-            if snvs!="":
+            if len(snv_df)>0:
                 print('Matching copy-numbers for SNVs...')
                 snv_df = match_copy_numbers(snv_df,cnv_df,['chrom','pos'],'gtype')
                 snv_df = run_cnv_filter(snv_df,cnv,neutral,filter_otl,are_snvs=True)
                 print('Keeping %d SNVs' % len(snv_df))
         else:
 
-            if sv!="":
+            if len(sv_df)>0:
                 print('No Battenberg input defined, assuming all loci are copy-number neutral')
                 sv_df['gtype1'] = '1,1,1.000000'
                 sv_df['gtype2'] = '1,1,1.000000'
                 sv_df = run_cnv_filter(sv_df,cnv,neutral,filter_otl)
                 print('Retained %d SVs' % len(sv_df))
 
-            if snvs!="":
+            if len(snv_df)>0:
                 snv_df['gtype'] = '1,1,1.000000'
                 snv_df = run_cnv_filter(snv_df,cnv,neutral,filter_otl,are_snvs=True)
                 print('Retained %d SNVs' % len(snv_df))
@@ -444,9 +464,6 @@ def run(args):
             outf.write("sample\tread_len\tinsert_mean\n")
             outf.write('%s\t%f\t%f\n'%(sample,rlen,insert))
         
-        #print('Clustering with %d SVs and %d SNVs'%(len(sv_df),len(snv_df)))        
-        #run_clus.infer_subclones(sample,sv_df,pi,rlen,insert,ploidy,out,n_runs,num_iters,burn,thin,beta,snv_df,merge_clusts,use_map,cocluster)
-
         # pr.disable()
         # s = StringIO.StringIO()
         # sortby = 'cumulative'
