@@ -352,15 +352,7 @@ def run(args):
 
     rlen    = 100
     insert  = 100
-    if params_file=='':
-        params_file = '%s/%s_params.txt' % (out,sample) 
-    if os.path.exists(params_file):
-        read_params = pd.read_csv(params_file,delimiter='\t',dtype=None,header=0)
-        rlen        = int(read_params.read_len.values[0])
-        insert      = float(read_params.insert_mean.values[0])
-    else:
-        print('read_params.txt file not found! Assuming read length = 100, mean insert length = 100') 
-
+    
     for p in pi:
         if p<0 or p>1:
             raise ValueError("Tumour purity value not between 0 and 1!")
@@ -380,6 +372,15 @@ def run(args):
         cnv_df = pd.DataFrame()
         snv_df = pd.DataFrame()
        
+        if params_file=='':
+            params_file = '%s/%s_params.txt' % (out,sample) 
+        if os.path.exists(params_file):
+            read_params = pd.read_csv(params_file,delimiter='\t',dtype=None,header=0)
+            rlen        = int(read_params.read_len.values[0])
+            insert      = float(read_params.insert_mean.values[0])
+        else:
+            print('%s/%s_params.txt file not found! Assuming read length = 100, mean insert length = 100' % (out,sample)) 
+
         if snvs!="":
             if snv_format == 'sanger':
                 snv_df = load_data.load_snvs_sanger(snvs)

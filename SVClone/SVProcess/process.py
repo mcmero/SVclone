@@ -385,6 +385,7 @@ def get_params(bam,mean_dp,max_cn,rlen,insert_mean,insert_std,out):
         rlen = bamtools.estimateTagSize(bam)
     if inserts[0]<0 or inserts[1]<0:
         inserts = bamtools.estimateInsertSizeDistribution(bam)
+        inserts[0] = max(rlen*2,inserts[0])
     else:
         inserts[0] = inserts[0]+(rlen*2) #derive fragment size
     

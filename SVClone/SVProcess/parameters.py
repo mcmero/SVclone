@@ -59,8 +59,8 @@ sv_out_dtype    = [('ID',               'int64'),
 # Socrates fields
 bp1_pos         = 'C1_anchor'
 bp1_dir         = 'C1_anchor_dir'
-bp2_pos         = 'C2_anchor'
-bp2_dir         = 'C2_anchor_dir'
+bp2_pos         = 'C1_realign'
+bp2_dir         = 'C1_realign_dir'
 avg_mapq1       = 'C1_avg_realign_mapq'
 avg_mapq2       = 'C2_avg_realign_mapq'
 repeat1         = 'repeat1'

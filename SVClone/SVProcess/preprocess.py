@@ -105,10 +105,10 @@ def get_dir_info(row,bam,max_dep):
     sv_class = str(sv['classification'])
     if err_code1 == 1 or err_code2 == 1:
         sv['classification'] = 'HIDEP' if sv_class=='' else sv_class+';HIDEP' 
-        return sv
+        return sv, (0,0,0,0)
     elif err_code1 == 2 or err_code2 == 2:
         sv['classification'] = 'READ_FETCH_FAILED' if sv_class=='' else sv_class+';READ_FETCH_FAILED'
-        return sv
+        return sv, (0,0,0,0)
 
     sv, bp1_ca_right, bp1_ca_left = get_bp_dir(sv,loc1_reads,sv['bp1_pos'],params.tr,1)
     sv, bp2_ca_right, bp2_ca_left = get_bp_dir(sv,loc2_reads,sv['bp2_pos'],params.tr,2)
@@ -247,7 +247,7 @@ def preproc_svs(args):
    
     consens_dtype = [('bp1_ca_right',int),('bp1_ca_left',int),('bp2_ca_right',int),('bp2_ca_left',int)]
     ca = np.zeros(len(svs),dtype=consens_dtype)
-                        
+        
     if not use_dir:
         for idx,sv in enumerate(svs):
             svs[idx], ca[idx]  = get_dir_info(sv,bam,max_dep)            
