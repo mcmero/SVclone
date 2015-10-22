@@ -107,7 +107,8 @@ filter_parser.add_argument("-i","--input",default="",dest="procd_svs",
                     help="Required: Processed structural variation input (comma separated if multiple).")
 
 filter_parser.add_argument("-g","--germline",dest="germline",default="",
-                    help="Germline SVs. If not provided, will assume all SVs are somatic.")
+                    help='''Germline SVs in output format from process step. If not provided, will 
+                    assume all SVs are somatic.''')
 
 filter_parser.add_argument("-c","--cnvs",dest="cnvs",default="",
                     help='''Phased copy-number states from Battenberg (comma separated if multiple).If 

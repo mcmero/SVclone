@@ -172,7 +172,7 @@ def run_cnv_filter(df_flt,cnv,neutral,filter_outliers,are_snvs=False):
             gt1_is_zero = np.array(map(is_copynumber_zero,df_flt.gtype1.values))
             gt2_is_zero = np.array(map(is_copynumber_zero,df_flt.gtype2.values))
             df_flt = df_flt[np.logical_and(gt1_is_zero==False,gt2_is_zero==False)]
-            print('Filtered out %d SVs which were without copy-numbers or contained 0,0 copy-numbers' % (n_df - len(df_flt)))
+            print('Filtered out %d SVs without copy-numbers or with 0,0 copy-numbers' % (n_df - len(df_flt)))
             n_df = len(df_flt)            
 
             if filter_outliers:
@@ -195,13 +195,13 @@ def match_copy_numbers(var_df, cnv_df, bp_fields=['bp1_chr','bp1_pos'], gtype_fi
         #print('Matching copy-numbers for chrom %s'%bchr)
         gtypes = []
         current_chr = var_df[chrom_field].values==bchr
-        sv_tmp = var_df[current_chr]
+        var_tmp = var_df[current_chr]
         cnv_tmp = cnv_df[cnv_df['chr']==bchr]
         
         if len(cnv_tmp)==0:
             continue
 
-        for pos in sv_tmp[pos_field].values:
+        for pos in var_tmp[pos_field].values:
             #print("Checking overlaps for pos %d\n" %pos)
             cnv_start_list = cnv_tmp.startpos.values
             cnv_end_list   = cnv_tmp.endpos.values
@@ -230,7 +230,6 @@ def match_copy_numbers(var_df, cnv_df, bp_fields=['bp1_chr','bp1_pos'], gtype_fi
         
         var_indexes = var_df[current_chr].index.values
         var_df.loc[var_indexes,gtype_field] = gtypes
-
     return var_df
 
 def is_same_sv_germline(sv1,sv2):
@@ -271,7 +270,7 @@ def adjust_sv_read_counts(sv_df,pi,pl,min_dep):
     d = np.array(sv_df.spanning.values)
     sup = np.array(d+s,dtype=float)
     Nvar = len(sv_df)
-
+    
     # if low normal depth on one side only, pick other side 
     sides = np.zeros(Nvar,dtype=int)
     low_norm_dep = np.logical_xor(sv_df.norm1.values<min_dep,sv_df.norm2.values<min_dep)
@@ -280,6 +279,7 @@ def adjust_sv_read_counts(sv_df,pi,pl,min_dep):
     
     # if one side doesn't have CNV data, pick the other side
     sides[sv_df.gtype1.values==''] = 1 
+    sides[sv_df.gtype2.values==''] = 0
 
     # prefer sides with subclonal genotype data    
     gt1_sc = np.array(map(len,map(methodcaller("split","|"),sv_df.gtype1.values)))>1
@@ -307,14 +307,8 @@ def adjust_sv_read_counts(sv_df,pi,pl,min_dep):
         dups = np.array([ sv_class in params.dna_gain_class for idx,sv_class in enumerate(sv_classes) ])
         dels = np.array([ sv_class in params.deletion_class for idx,sv_class in enumerate(sv_classes) ])
         
-        # inversions have their supporting reads / 2 
-        # as each break contains two sets of supporting reads
-        #if sum(invs)>0:
-        #    sup[invs] = sup[invs]/2
-        
         # normal read counts for duplications are adjusted by purity and ploidy
         if sum(dups)>0:
-            #non_gain = np.logical_or(dels,invs)
             # estimate adjustment from normal counts for SV events where there is no gain of DNA
             # if these events don't exist, adjust by normal component + tumour/2 (half tumour normal
             # reads will come from duplication, on one chromosome, so divide by ploidy
