@@ -116,27 +116,30 @@ def get_dir_info(row,bam,max_dep):
 
     return sv, consens_aligns
 
-#def mixed_svs_remain(svs):
-#    sv_classes = map(lambda x: x.split(';'),svs['classification'])
-#    sv_classes [svc for svc in sv_classes]
-#    return 'MIXED' in sv_classes:
-#
-#def does_break_match(chr1,pos1,chr2,pos2):
-#    return chr1==chr2 and (pos1 + params.tr) > pos2 and (pos1 - params.tr) < pos2:
-#
-#def get_matching_svs(bp_chr,bp_pos,svs):
-#    sv_matches = np.empty(0,dtype=params.sv_dtype)
-#    which_matches = []
-#    for idx,row in enumerate(svs):
-#        matches = []
-#        if not np.all(row==sv) and does_break_match(bp_chr,bp_pos,row['bp1_chr'],row['bp1_pos']):
-#            sv_matches = np.append(sv_matches,row)
-#            matches.append([idx,1])
-#        if not np.all(row==sv) and does_break_match(bp_chr,bp_pos,row['bp2_chr'],row['bp2_pos']):
-#            sv_matches = np.append(sv_matches,row)
-#            matches.append([idx,2])
-#        which_matches.append(matches)
-#    return sv_matches,which_matches
+def mixed_svs_remain(svs):
+    sv_classes = map(lambda x: x.split(';'),svs['classification'])
+    sv_classes = np.array([sv for svc in sv_classes for sv in svc])
+    return 'MIXED' in sv_classes
+
+def does_break_match(chr1,pos1,chr2,pos2):
+    return chr1==chr2 and (pos1 + params.tr) > pos2 and (pos1 - params.tr) < pos2
+
+def get_matching_svs(sv,bp_chr,bp_pos,svs,mixed=False):
+    sv_matches = np.empty(0,dtype=params.sv_dtype)
+    which_matches = []
+    for idx,row in enumerate(svs):
+        if mixed and row['classification']!='MIXED;MIXED':
+            continue
+        matches = []
+        if not np.all(row==sv) and does_break_match(bp_chr,bp_pos,row['bp1_chr'],row['bp1_pos']):
+            sv_matches = np.append(sv_matches,row)
+            matches.append(1)
+        if not np.all(row==sv) and does_break_match(bp_chr,bp_pos,row['bp2_chr'],row['bp2_pos']):
+            sv_matches = np.append(sv_matches,row)
+            matches.append(2)
+        if len(matches)>0:
+            which_matches.append(matches)
+    return sv_matches,which_matches
 
 def set_dir_class(sv,bp1_dir,bp2_dir,sv_class,new_pos1,new_pos2):
     sv['bp1_dir'] = bp1_dir
@@ -175,24 +178,111 @@ def remove_duplicates(svs):
     svs = np.delete(svs,np.array(to_delete))
     return svs
 
+def get_sv_pos_ranks(sv_list):
+    ''' 
+    return ranks for the positions of a list of svs (in order of pos and sv)
+    returns an empty list if the svs are not all on the same chromosome
+    '''
+    chr_list = [ [x['bp1_chr'],x['bp2_chr']] for x in sv_list ]
+    pos_list = [ [x['bp1_pos'],x['bp2_pos']] for x in sv_list ]
+
+    ranks = []
+    if len(set([c for chrom in chr_list for c in chrom]))==1:
+
+        all_pos = [p for pos in pos_list for p in pos]
+        uniq_pos = []
+        for idx,pos in enumerate(all_pos):
+            if not np.any(abs(all_pos[idx+1:]-pos)<=params.tr):
+                uniq_pos.append(pos)
+        uniq_pos = np.sort(np.array(uniq_pos))
+
+        for pos in pos_list:
+            rank1 = int(np.where(min(abs(uniq_pos-pos[0]))==abs(uniq_pos-pos[0]))[0]+1)
+            rank2 = int(np.where(min(abs(uniq_pos-pos[1]))==abs(uniq_pos-pos[1]))[0]+1)
+            ranks.append([rank1,rank2])
+
+    return ranks
+
+def split_dirs_dual_mixed_sv(svs,row,idx,ca):
+
+    bp1_svmatch,bp1_which = get_matching_svs(svs[idx],svs[idx]['bp1_chr'],svs[idx]['bp1_pos'],svs,mixed=True)
+    bp2_svmatch,bp2_which = get_matching_svs(svs[idx],svs[idx]['bp2_chr'],svs[idx]['bp2_pos'],svs,mixed=True)
+
+    if len(bp1_svmatch)>0 and len(bp2_svmatch)>0:
+        
+        other_idx1 = int(bp1_svmatch[0]['ID'])
+        other_idx2 = int(bp2_svmatch[0]['ID'])
+
+        if len(bp1_svmatch)>1 or len(bp2_svmatch)>1:
+            indexes = [int(sv_match['ID']) for sv_match in bp1_svmatch] + [row['ID']]
+            indexes = [int(sv_match['ID']) for sv_match in bp2_svmatch] + indexes
+
+            for tmp_idx in indexes:                            
+                svs[tmp_idx]['classification'] = 'COMPLEX'
+            
+            return svs
+
+        if bp1_svmatch[0] == bp2_svmatch[0]:
+            # likely an inversion - both sides match same break
+            # set one SV to + dirs, the other to - dirs
+
+            new_pos1, new_pos2 = ca[idx]['bp1_ca_right'],ca[idx]['bp2_ca_right']
+            svs[idx] = set_dir_class(new_sv,'+','+','',new_pos1, new_pos2)
+
+            new_pos1, new_pos2 = ca[idx]['bp1_ca_left'],ca[idx]['bp2_ca_left']
+            svs[other_idx1] = set_dir_class(svs[idx],'-','-','',new_pos1,new_pos2)
+
+        elif len(bp1_which[0])==1 and len(bp2_which[0])==1:
+            # break partners differ, 1 side matched - check for translocation
+            
+            sv1,sv2,sv3 = row,bp1_svmatch[0],bp2_svmatch[0]
+            sv_list = [sv1,sv2,sv3]
+            
+            def contains_all_ranks(ranks_to_test,ranks):
+                return np.all([np.any(np.all(np.array(ranks)==rank,axis=1)) for rank in ranks_to_test])
+
+            ranks = get_sv_pos_ranks(sv_list)
+            indexes = [idx,other_idx1,other_idx2]
+            transloc_ranks = [[1,2],[2,3],[1,3]]
+
+            if len(ranks)>0 and contains_all_ranks(transloc_ranks,ranks):
+                # translocation signature - adjust points
+                for rank,sv,idxs in zip(ranks,sv_list,indexes):
+                    dirs = ['-','+'] if rank==[1,3] else ['+','-']
+                    new_pos1 = ca[idxs]['bp1_ca_right'] if dirs[0]=='+' else ca[idxs]['bp1_ca_left']
+                    new_pos2 = ca[idxs]['bp2_ca_right'] if dirs[1]=='+' else ca[idxs]['bp2_ca_left']
+                    svs[idxs] = set_dir_class(sv,dirs[0],dirs[1],'',new_pos1,new_pos2)
+
+    elif len(bp1_svmatch)==0 and len(bp2_svmatch)==0:
+        # probably an inversion that has no partner - not called by SV caller?
+        new_pos1, new_pos2 = ca[idx]['bp1_ca_left'],ca[idx]['bp2_ca_left']
+        svs[idx] = set_dir_class(svs[idx],'-','-','',new_pos1,new_pos2)                
+       
+        # create a new entry for the inversion partner
+        new_sv = svs[idx].copy()                    
+        new_pos1, new_pos2 = ca[idx]['bp1_ca_right'],ca[idx]['bp2_ca_right']
+        new_sv = set_dir_class(new_sv,'+','+','',new_pos1, new_pos2)                                    
+        new_sv['ID'] = svs[len(svs)-1]['ID']+1
+        svs = np.append(svs,new_sv)
+
+    else:
+        # multiple matching events or only one matched - don't know how to deal with this
+        svs[idx]['classification'] = 'UNKNOWN_DIR'
+
+    return svs
+
 def split_mixed_svs(svs,ca):
     for idx,row in enumerate(svs):
         sv_class = np.array(row['classification'].split(';'))
+
         if 'MIXED' in sv_class: 
+
             if 'UNKNOWN_DIR' in sv_class:
                 svs[idx]['classification'] = 'UNKNOWN_DIR'
-                continue #can't fix this if one direction is unknown
-            if len(sv_class)>1 and sv_class[0]=='MIXED' and sv_class[1]=='MIXED':
-                #likely an inversion
-                #set dirs to + and create new sv with - dirs 
-                new_sv = svs[idx].copy()
-                new_pos1, new_pos2 = ca[idx]['bp1_ca_right'],ca[idx]['bp2_ca_right']
-                new_sv = set_dir_class(new_sv,'+','+','',new_pos1, new_pos2)                
-                new_sv['ID'] = svs[len(svs)-1]['ID']+1
-                svs = np.append(svs,new_sv)
+                break #can't fix this if one direction is unknown
 
-                new_pos1, new_pos2 = ca[idx]['bp1_ca_left'],ca[idx]['bp2_ca_left']
-                svs[idx] = set_dir_class(svs[idx],'-','-','',new_pos1,new_pos2)                
+            if len(sv_class)>1 and sv_class[0]=='MIXED' and sv_class[1]=='MIXED':
+                svs = split_dirs_dual_mixed_sv(svs,row,idx,ca)
 
             elif row['bp1_dir']!='?':
                 #set dir to -, create new sv with dir set to +
@@ -215,8 +305,9 @@ def split_mixed_svs(svs,ca):
 
             else:
                 svs[idx]['classification'] = 'UNKNOWN_DIR'
-    
-    svs = remove_duplicates(svs)
+            
+            break #can only fix one set at a time
+
     return svs
 
 def preproc_svs(args):
@@ -251,7 +342,9 @@ def preproc_svs(args):
     if not use_dir:
         for idx,sv in enumerate(svs):
             svs[idx], ca[idx]  = get_dir_info(sv,bam,max_dep)            
-        svs = split_mixed_svs(svs,ca)
+        while mixed_svs_remain(svs):
+            svs = split_mixed_svs(svs,ca)
+            print('%d dual mixed classifications remain'%sum(svs['classification']=='MIXED;MIXED'))
 
     sv_id = 0
     svd_prevResult, prevSV = None, None
@@ -271,8 +364,12 @@ def preproc_svs(args):
             svs[idx-1]['classification'] = intins_label
             translocs = svd.detectTransloc(idx,svs)
             if len(translocs)>0:
-                for i in translocs: svs[i]['classification'] = trx_label
+                new_idx = idx-1
+                for i in translocs:
+                    svs[i]['classification'] = trx_label
+                    svs[i]['ID'] = new_idx
 
+    svs = remove_duplicates(svs)
     with open('%s_svin.txt'%out,'w') as outf:
         writer = csv.writer(outf,delimiter='\t',quoting=csv.QUOTE_NONE,quotechar='')
         header = [field for field,dtype in params.sv_dtype]

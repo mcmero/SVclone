@@ -5,6 +5,8 @@ Created on Jan 8, 2014
 
 @author: HELE
 '''
+import ipdb
+from . import parameters as params
 
 blurbp1=15 #for difference of breakpoint loci between c1 and c2. 10pb
 blurbp2=100 #for difference of breakpoint loci between two continuous lines. 150bp
@@ -203,26 +205,28 @@ def detect (prevSV,prevResult,sv):
     return [result,[startPoint,endPoint]]
 
 def detectTransloc(idx,sv_info):
-    tolerance=5 #tolerance for blunt.
+    tolerance=params.tr #tolerance for blunt.
     #find the mobile part. r:[interInserType,[p1,p2,p3,p4]]
     if idx-1 < 0:
-        return []
+        return []    
     sv1 = sv_info[idx-1]
     sv2 = sv_info[idx]
     p1 = int(sv1['bp1_pos'])
-    p2 = int(sv1['bp2_pos'])
-    p3 = int(sv2['bp1_pos'])
+    p2 = int(sv2['bp1_pos'])
+    p3 = int(sv1['bp2_pos'])
     p4 = int(sv2['bp2_pos'])
-    mobilePart=[p1,p2] if abs(int(p1)-int(p2))>tolerance else [p3,p4]
+    mobilePart = [p1,p2] if abs(p2-p1) > tolerance else [p3,p4]
+    # flip coords if loc1 > loc2
+    mobilePart = mobilePart if mobilePart[0]<mobilePart[1] else [mobilePart[1],mobilePart[0]]
     # try to find if the mobile part is deleted. If so, it is translocation.
-    translocs = []    
+    translocs = []
     for i,sv in enumerate(sv_info):
         if sv['classification']==getResultType([SVtypes.deletion]):
             p1 = int(sv['bp1_pos'])
             p2 = int(sv['bp2_pos'])
             if abs(mobilePart[0]-p1)<tolerance and abs(mobilePart[1]-p2)<tolerance:
-                translocs.append(i)
-    translocs = [idx-1]+[idx]+[translocs] if len(translocs)>0 else []
+                translocs = [idx-1,idx,i]
+                break
     return translocs
     
 def realignLoci(line):
