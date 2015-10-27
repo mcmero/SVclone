@@ -38,6 +38,8 @@ def get_snv_vals(df):
 def load_svs(sv_file):
     dat = pd.read_csv(sv_file,delimiter='\t',dtype=None, low_memory=False)
     sv_df = pd.DataFrame(dat)
+    sv_df.bp1_chr = sv_df.bp1_chr.map(str)
+    sv_df.bp2_chr = sv_df.bp1_chr.map(str)
     sv_df['norm_mean'] = map(np.mean,zip(sv_df['norm1'].values,sv_df['norm2'].values))
     return sv_df
 
@@ -50,6 +52,8 @@ def load_cnvs(cnv_file):
         cnv_df = pd.DataFrame(pd.read_csv(cnv_file,delimiter=',',dtype=None,names=col_names,index_col=0,skip_blank_lines=True))
         
     cnv_df['chr'] = map(str,cnv_df['chr'])
+    cnv_df['nMaj1_A'] = map(float,cnv_df['nMaj1_A'])
+    cnv_df['nMin1_A'] = map(float,cnv_df['nMin1_A'])
     try:
         if 'nMaj1_A' in cnv_df.columns.values:
             # battenberg input

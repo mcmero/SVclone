@@ -28,24 +28,34 @@ from . import parameters as param
 #    return tuple(cn_v),tuple(mu_v)
 
 def add_copynumber_combos(combos, var_maj, var_min, ref_cn, subclonal=False):
-    
+    # ref_cn = total reference (non-variant) copy-number
+    # var_total = total variant copy-number 
+    # mu_v = copies containing variant / var_total
+
+    # var takes on CN total of maj + minor of this subclone, otherwise
+    # if CN clonal, assume CN lies entirely on major allele for this combo
+    # assume reference CN is the minor allele if clonal
     var_total = var_maj + var_min if subclonal else var_maj
-    mu_v = var_maj / var_total if var_total != 0 else 1.
+    mu_v = var_maj / var_total if var_total != 0 else 0.
+    ref_cn = ref_cn if subclonal else var_min
     combos.append([ref_cn, var_total, mu_v])
 
+    # if major allele is > 1, we can add a 1 / major CN state
+    # (the variant may lie on only one copy of the major allele)
     if var_maj > 1:
-        mu_v = 1 / var_total if subclonal else 1 / var_maj
+        mu_v = 1. / var_total if subclonal else 1. / var_maj
         combos.append([ref_cn, var_total, mu_v])
 
     if var_maj != var_min:
-
+        # do the exact same thing as above, swapping
+        # the major allele for the minor
         var_total = var_total if subclonal else var_min
         ref_cn = ref_cn if subclonal else var_maj
-        mu_v = var_min / var_total if var_total != 0 else 1.
-
+        mu_v = var_min / var_total if var_total != 0 else 0.
         combos.append([ref_cn, var_total, mu_v])
+
         if var_min > 1:
-            mu_v = 1 / var_total if subclonal else 1 / var_min
+            mu_v = 1. / var_total if subclonal else 1. / var_min
             combos.append([ref_cn, var_total, mu_v])
 
     return combos
@@ -57,7 +67,7 @@ def get_allele_combos(cn):
         return combos
 
     if len(cn)>1:
-        # subclonal copy-numbers
+        # split subclonal copy-numbers
         c1 = map(float,cn[0].split(','))
         c2 = map(float,cn[1].split(','))
         major1, minor1, total1 = c1[0], c1[1], c1[0]+c1[1]
@@ -92,8 +102,8 @@ def get_pv(phi,cn_r,cn_v,mu,pi):
     rem = 1.0 - phi
     rem = rem.clip(min=0)
     pn =  (1.0 - pi) * 2            #proportion of normal reads coming from normal cells
-    pr =  pi * rem * cn_r           #proportion of normal reads coming from other clusters
-    pv =  pi * phi * cn_v           #proportion of variant + normal reads coming from this cluster
+    pr =  pi * rem * cn_r           #proportion of normal reads coming from other (reference) clusters
+    pv =  pi * phi * cn_v           #proportion of variant + normal reads coming from this (the variant) cluster
 
     norm_const = pn + pr + pv
     pv = pv / norm_const
