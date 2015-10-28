@@ -46,6 +46,8 @@ bp1_chr	bp1_pos	bp2_chr	bp2_pos
 22	21395573	22	21395746
 ```
 
+Input MUST BE SORTED for Socrates and simple input methods. (bp1 < bp2 position and bp1s should be in chromosome/position order.)
+
 Optionally a classification field may be specified with --sv_class, or directions for each break can be specified, if included in the input file, by specifying --use_dir. 
 
 #### Required Parameters ####
@@ -99,7 +101,7 @@ dna_gain_class = ['DUP','INTDUP']
 * -sc or --softclip <value> (default = 25) : reads must overlap by this many basepairs to be counted as supporting the break, or being a non-supporting normal read lying across the break.
 * -cn or --max_cn <value> (default = 15) : maximum expected copy-number. Will skip any areas with more average depth higher than <depth> * <max_cn>
 * -r or --read_len <value> (automatically inferred if not supplied) :  specify if the read length is known, otherwise the program will infer this through the supplied bam file. If you have varying read sizes, we suggest you trim these reads to a constant size. The program will likely crash if it detects different read sizes, unless this parameter is supplied. 
-* -v or --insert_mean <value> (automatically inferred if not supplied) : specify if the insert length is known, otherwise the program will infer this through the supplied bam file.
+* -v or --insert_mean <value> (automatically inferred if not supplied) : the average fragment or template length. Specify if known, otherwise the program will infer this through the first 50,000 reads in the supplied bam file.
 * --insert_std <value> (automatically inferred if not supplied) : specify if the insert standard deviation is known, otherwise the program will infer this through the supplied bam file.
 * --simple : run using simple file format type as input (see File Formats section).
 * --socrates : use a Socrates-format style file as SV calls input (the input file must contain headers).
@@ -172,6 +174,7 @@ Note that read length and insert sizes used by the filter step are provided as o
 * --minspan <value> (default = 1) : Require at least N spanning reads to keep SV.
 * --sizefilter <value> (default (readlen * 2) + insert_mean) : Filter out SVs below this size; the default minimum size is the fragment size. 
 * --filter_outliers <value> : Filter out SVs with depth values that are considers outliers, based on the copy-number adjusted distribution of depths.
+* --valid_chroms : Filter out SVs not on standard chromosomes (i.e. mapping to contigs). The list of valid chromosomes is specified in the SVClone/parameters.py file. 
 
 ### Clustering SVs ###
 

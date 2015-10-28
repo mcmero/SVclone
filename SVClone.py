@@ -54,6 +54,11 @@ preprocess_parser.add_argument("--filter_repeats",dest="filt_repeats",default=""
 preprocess_parser.add_argument("--min_mapq",dest="min_mapq",default=0,type=float,
                     help='''Filter out SVs with lower average MAPQ than this value. SOCRATES INPUT ONLY (default 0)''')
 
+preprocess_parser.add_argument("--trust_sc_pos",dest="trust_sc_pos",action="store_true",
+                    help='''Use specified breaks without checking for differing soft-clip consensus position. 
+                    Cannot be skipped if directionality must be inferred. If your SV caller offsets 
+                    breaks due to micro-homology, e.g. Socrates, using this option is not recommended.''')
+
 preprocess_parser.set_defaults(func=preprocess.preproc_svs)
 
 ##########################################################################################################
@@ -87,7 +92,8 @@ process_parser.add_argument("-r","--read_len",dest="rlen",default=-1,type=int,
                     help="Read length. If not specified, will be inferred")
 
 process_parser.add_argument("-v","--insert_mean",dest="insert_mean",default=-1.,type=float,
-                    help="Mean insert length between paired reads. If not specified, will be inferred")
+                    help='''Mean insert length (this is the fragment length or template length). 
+                    If not specified, will be inferred''')
 
 process_parser.add_argument("--insert_std",dest="insert_std",default=-1.,type=float,
                     help="Standard deviation of insert length. If not specified, will be inferred")

@@ -88,9 +88,7 @@ def get_bp_dir(sv,loc_reads,pos,sc_len,bp_num):
 
     return sv, ca_right, ca_left
 
-def get_dir_info(row,bam,max_dep):
-
-    sv = np.array(row,copy=True)
+def retrieve_loc_reads(sv,bam,max_dep):
     bp_dtype = [('chrom','S20'),('start', int), ('end', int), ('dir', 'S1')]
     
     sv_id, bp1_chr, bp1_pos, bp1_dir, bp2_chr, bp2_pos, bp2_dir, sv_class = [h[0] for h in params.sv_dtype]
@@ -105,9 +103,15 @@ def get_dir_info(row,bam,max_dep):
     sv_class = str(sv['classification'])
     if err_code1 == 1 or err_code2 == 1:
         sv['classification'] = 'HIDEP' if sv_class=='' else sv_class+';HIDEP' 
-        return sv, (0,0,0,0)
     elif err_code1 == 2 or err_code2 == 2:
         sv['classification'] = 'READ_FETCH_FAILED' if sv_class=='' else sv_class+';READ_FETCH_FAILED'
+
+    return sv, loc1_reads, loc2_reads, err_code1, err_code2
+
+def get_dir_info(row,bam,max_dep):
+    
+    sv, loc1_reads, loc2_reads, err_code1, err_code2 = retrieve_loc_reads(row.copy(),bam,max_dep)
+    if err_code1 != 0 or err_code2 != 0:
         return sv, (0,0,0,0)
 
     sv, bp1_ca_right, bp1_ca_left = get_bp_dir(sv,loc1_reads,sv['bp1_pos'],params.tr,1)
@@ -155,10 +159,11 @@ def is_same_sv(sv1,sv2,threshold=params.tr):
     sv1_chr1, sv1_bp1, sv1_dir1, sv1_chr2, sv1_bp2, sv1_dir2 = sv1
     sv2_chr1, sv2_bp1, sv2_dir1, sv2_chr2, sv2_bp2, sv2_dir2 = sv2
 
-    if sv1_chr1==sv2_chr1 and sv1_chr2==sv2_chr2 and sv1_dir1 == sv2_dir1 and sv2_dir2 == sv2_dir2:
+    if sv1_chr1==sv2_chr1 and sv1_chr2==sv2_chr2 and sv1_dir1 == sv2_dir1 and sv1_dir2 == sv2_dir2:
         if abs(sv1_bp1-sv2_bp1)<threshold and abs(sv1_bp2-sv2_bp2)<threshold:
             return True
-    if sv1_chr2==sv2_chr1 and sv1_chr1==sv2_chr2 and sv1_dir2 == sv2_dir1 and sv2_dir1 == sv2_dir2:
+    # same SVs with the order flipped
+    if sv1_chr2==sv2_chr1 and sv1_chr1==sv2_chr2 and sv1_dir2 == sv2_dir1 and sv1_dir1 == sv2_dir2:
         if abs(sv1_bp2-sv2_bp1)<threshold and abs(sv1_bp1-sv2_bp2)<threshold:
             return True
     return False
@@ -322,6 +327,7 @@ def preproc_svs(args):
     min_mapq     = args.min_mapq
     class_field  = args.class_field
     filt_repeats = args.filt_repeats
+    trust_sc_pos = args.trust_sc_pos
     
     filt_repeats = filt_repeats.split(',') if filt_repeats != '' else filt_repeats
     filt_repeats = [rep for rep in filt_repeats if rep!='']    
@@ -342,9 +348,31 @@ def preproc_svs(args):
     if not use_dir:
         for idx,sv in enumerate(svs):
             svs[idx], ca[idx]  = get_dir_info(sv,bam,max_dep)            
+        
         while mixed_svs_remain(svs):
             svs = split_mixed_svs(svs,ca)
             print('%d dual mixed classifications remain'%sum(svs['classification']=='MIXED;MIXED'))
+        
+        print('Removing duplicate SVs...')
+        svs = remove_duplicates(svs)
+
+    elif not trust_sc_pos:
+        # use directions, but recheck the consensus alignments
+        for idx,sv in enumerate(svs):
+            sv_tmp, loc1_reads, loc2_reads, err_code1, err_code2 = retrieve_loc_reads(sv.copy(),bam,max_dep)
+            
+            if err_code1 != 0 or err_code2 != 0:
+                continue
+
+            ca_right, ca_left = get_consensus_align(loc1_reads,sv['bp1_pos'])  
+            new_align = ca_right if sv['bp1_dir']=='+' else ca_left
+            if new_align!=0:
+                svs[idx]['bp1_pos'] = new_align
+
+            ca_right, ca_left = get_consensus_align(loc2_reads,sv['bp2_pos'])
+            new_align = ca_right if sv['bp2_dir']=='+' else ca_left
+            if new_align!=0:
+                svs[idx]['bp2_pos'] = new_align
 
     sv_id = 0
     svd_prevResult, prevSV = None, None
@@ -369,7 +397,6 @@ def preproc_svs(args):
                     svs[i]['classification'] = trx_label
                     svs[i]['ID'] = new_idx
 
-    svs = remove_duplicates(svs)
     with open('%s_svin.txt'%out,'w') as outf:
         writer = csv.writer(outf,delimiter='\t',quoting=csv.QUOTE_NONE,quotechar='')
         header = [field for field,dtype in params.sv_dtype]

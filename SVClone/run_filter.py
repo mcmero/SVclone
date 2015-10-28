@@ -210,11 +210,11 @@ def match_copy_numbers(var_df, cnv_df, bp_fields=['bp1_chr','bp1_pos'], gtype_fi
 
             match = cnv_tmp[overlaps]        
             if len(match)==0:
-                # TODO: matching of SV/CNV boundaries
-                # right now just takes the position that's 
-                # the closest CNV value less than the SV 
-                # position or the first more than if there 
+                # just takes the position that's the closest
+                # CNV value less than the SV position, or the 
+                # first position greater than, if there 
                 # are no CNV segments that are less than
+                # we do the CNV matching reprocessing downstream
                 if np.any(pos >= cnv_end_list):
                     greater_than = cnv_tmp[pos >= cnv_end_list].index
                     closest = greater_than[len(greater_than)-1]                    

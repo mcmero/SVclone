@@ -27,36 +27,35 @@ from . import parameters as param
 #    
 #    return tuple(cn_v),tuple(mu_v)
 
-def add_copynumber_combos(combos, var_maj, var_min, ref_cn, subclonal=False):
-    # ref_cn = total reference (non-variant) copy-number
-    # var_total = total variant copy-number 
-    # mu_v = copies containing variant / var_total
-
-    # var takes on CN total of maj + minor of this subclone, otherwise
-    # if CN clonal, assume CN lies entirely on major allele for this combo
-    # assume reference CN is the minor allele if clonal
-    var_total = var_maj + var_min if subclonal else var_maj
+def add_copynumber_combos(combos, var_maj, var_min, ref_cn):
+    '''
+    ref_cn = total reference (non-variant) copy-number
+    var_total = total variant copy-number 
+    mu_v = copies containing variant / var_total
+    
+    possible copynumber states for variant are:
+        - major / var total
+        - minor / var_total, and 
+        - 1 / var_total (if neither alleles are 1)
+    '''
+    var_total = float(var_maj + var_min)
     mu_v = var_maj / var_total if var_total != 0 else 0.
-    ref_cn = ref_cn if subclonal else var_min
     combos.append([ref_cn, var_total, mu_v])
 
-    # if major allele is > 1, we can add a 1 / major CN state
-    # (the variant may lie on only one copy of the major allele)
-    if var_maj > 1:
-        mu_v = 1. / var_total if subclonal else 1. / var_maj
+    if not 1 in [var_maj,var_min] and var_total > 1:
+        mu_v = 1. / var_total
         combos.append([ref_cn, var_total, mu_v])
 
+    # add combos for the minor allele being the variant allele
     if var_maj != var_min:
         # do the exact same thing as above, swapping
         # the major allele for the minor
-        var_total = var_total if subclonal else var_min
-        ref_cn = ref_cn if subclonal else var_maj
         mu_v = var_min / var_total if var_total != 0 else 0.
         combos.append([ref_cn, var_total, mu_v])
 
-        if var_min > 1:
-            mu_v = 1. / var_total if subclonal else 1. / var_min
-            combos.append([ref_cn, var_total, mu_v])
+        #if var_min > 1:
+        #    mu_v = 1. / var_total
+        #    combos.append([ref_cn, var_total, mu_v])
 
     return combos
 
@@ -72,13 +71,14 @@ def get_allele_combos(cn):
         c2 = map(float,cn[1].split(','))
         major1, minor1, total1 = c1[0], c1[1], c1[0]+c1[1]
         major2, minor2, total2 = c2[0], c2[1], c2[0]+c2[1]
-
-        combos = add_copynumber_combos(combos, major1, minor1, total2, True)
-        combos = add_copynumber_combos(combos, major2, minor2, total1, True)
+        
+        # generate copynumbers for each subclone being the potential variant pop 
+        combos = add_copynumber_combos(combos, major1, minor1, total2)
+        combos = add_copynumber_combos(combos, major2, minor2, total1)
     else:
         c = map(float,cn[0].split(','))
         major, minor = c[0], c[1]
-        combos = add_copynumber_combos(combos, major, minor, minor, True)
+        combos = add_copynumber_combos(combos, major, minor, major + minor)
 
     return filter_cns(combos)
 

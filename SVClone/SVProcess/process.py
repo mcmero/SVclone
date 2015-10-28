@@ -387,16 +387,15 @@ def get_params(bam,mean_dp,max_cn,rlen,insert_mean,insert_std,out):
         inserts = bamtools.estimateInsertSizeDistribution(bam)
         inserts = (max(rlen*2,inserts[0]),inserts[1])
     else:
-        inserts[0] = inserts[0]+(rlen*2) #derive fragment size
+        inserts[0] = inserts[0]
     
     max_dp = ((mean_dp*(params.window*2))/rlen)*max_cn
-    max_ins = inserts[0]+(3*inserts[1]) #actually the max *fragment* size
-    #min_ins = max(rlen*2,inserts[0]-(2*inserts[1])) #actually the min *fragment* size
+    max_ins = inserts[0]+(3*inserts[1]) #max fragment size = mean fragment len + (fragment std * 3)
     min_ins = rlen*2
     
     with open('%s_params.txt'%out,'w') as outp:
         outp.write('read_len\tinsert_mean\tinsert_std\tinsert_min\tinsert_max\tmax_dep\n')
-        outp.write('%d\t%f\t%f\t%f\t%f\t%d'%(rlen,inserts[0]-(rlen*2),inserts[1],min_ins-(rlen*2),max_ins-(rlen*2),max_dp))
+        outp.write('%d\t%f\t%f\t%f\t%f\t%d'%(rlen,inserts[0],inserts[1],min_ins,max_ins,max_dp))
 
     return rlen, inserts, max_dp, max_ins, min_ins
 
