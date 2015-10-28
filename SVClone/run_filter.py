@@ -182,12 +182,13 @@ def run_cnv_filter(df_flt,cnv,neutral,filter_outliers,are_snvs=False):
     return df_flt
 
 
-def match_copy_numbers(var_df, cnv_df, bp_fields=['bp1_chr','bp1_pos'], gtype_field='gtype1'):
+def match_copy_numbers(var_df, cnv_df, bp_fields=['bp1_chr','bp1_pos','bp1_dir'], gtype_field='gtype1'):
     
     var_df[gtype_field] = ''
-    chrom_field, pos_field = bp_fields
+    chrom_field, pos_field, dir_field = bp_fields
     var_df[chrom_field] = map(str,var_df[chrom_field].values)
     var_df[pos_field] = map(int,var_df[pos_field].values)
+    var_df[dir_field] = map(str,var_df[dir_field].values)
     bp_chroms = np.unique(var_df[chrom_field].values)
     bp_chroms = sorted(bp_chroms, key=lambda item: (int(item.partition(' ')[0]) \
                         if item[0].isdigit() else float('inf'), item))
@@ -202,12 +203,13 @@ def match_copy_numbers(var_df, cnv_df, bp_fields=['bp1_chr','bp1_pos'], gtype_fi
         if len(cnv_tmp)==0:
             continue
 
-        for pos in var_tmp[pos_field].values:
-            #print("Checking overlaps for pos %d\n" %pos)
+        for pos,direct in zip(var_tmp[pos_field].values,var_tmp[dir_field]):
+            adjpos = pos-50000 if direct == '-' else pos+50000
             cnv_start_list = cnv_tmp.startpos.values
             cnv_end_list   = cnv_tmp.endpos.values
-            overlaps = np.logical_and(pos >= cnv_start_list, pos <= cnv_end_list)
-
+            #print("Checking overlaps for pos %d\n" %adjpos)
+            overlaps = np.logical_and(adjpos >= cnv_start_list, adjpos <= cnv_end_list)
+            #print(overlaps)
             match = cnv_tmp[overlaps]        
             if len(match)==0:
                 # just takes the position that's the closest
@@ -520,7 +522,7 @@ def run(args):
             if len(sv_df)>0:
                 print('Matching copy-numbers for SVs...')
                 sv_df = match_copy_numbers(sv_df,cnv_df) 
-                sv_df = match_copy_numbers(sv_df,cnv_df,['bp2_chr','bp2_pos'],'gtype2') 
+                sv_df = match_copy_numbers(sv_df,cnv_df,['bp2_chr','bp2_pos','bp2_dir'],'gtype2') 
                 sv_df = reprocess_unmatched_cnvs(sv_df,cnv_df)
                 sv_df = run_cnv_filter(sv_df,cnv,neutral,filter_otl)
                 print('Keeping %d SVs' % len(sv_df))
