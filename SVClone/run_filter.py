@@ -182,24 +182,25 @@ def run_cnv_filter(df_flt,cnv,neutral,filter_outliers,are_snvs=False):
     return df_flt
 
 
-def match_copy_numbers(var_df, cnv_df, bp_fields=['bp1_chr','bp1_pos','bp1_dir'], gtype_field='gtype1'):
+def match_copy_numbers(var_df, cnv_df, bp_fields=['bp1_chr','bp1_pos','bp1_dir','classification','bp2_pos'], gtype_field='gtype1'):
     
     var_df[gtype_field] = ''
-    chrom_field, pos_field, dir_field = bp_fields
+    chrom_field, pos_field, dir_field, class_field, other_pos_field = bp_fields
     var_df[chrom_field] = map(str,var_df[chrom_field].values)
     var_df[pos_field] = map(int,var_df[pos_field].values)
+    var_df[other_pos_field] = map(int,var_df[other_pos_field].values)
     if dir_field=='':
         # create a dummy dir field (for snvs)
         var_df['dir'] = '.'
         dir_field = 'dir'
     else:
         var_df[dir_field] = map(str,var_df[dir_field].values)
+        var_df[class_field] = map(str,var_df[class_field].values)
     bp_chroms = np.unique(var_df[chrom_field].values)
     bp_chroms = sorted(bp_chroms, key=lambda item: (int(item.partition(' ')[0]) \
                         if item[0].isdigit() else float('inf'), item))
     
     for bchr in bp_chroms:
-        #print('Matching copy-numbers for chrom %s'%bchr)
         gtypes = []
         current_chr = var_df[chrom_field].values==bchr
         var_tmp = var_df[current_chr]
@@ -209,9 +210,21 @@ def match_copy_numbers(var_df, cnv_df, bp_fields=['bp1_chr','bp1_pos','bp1_dir']
             continue
 
         sv_offset = params.sv_offset
-        for pos,direct in zip(var_tmp[pos_field].values,var_tmp[dir_field]):
-            adjpos = pos-sv_offset if direct == '-' else pos+sv_offset
-            adjpos = 0 if direct=='.' else adjpos
+        for pos,direct,classification,otherpos in zip(var_tmp[pos_field].values,var_tmp[dir_field],var_tmp[class_field],var_tmp[other_pos_field]):
+            if classification=='DEL':
+                adjpos = pos-sv_offset if gtype_field == 'gtype1' else pos+sv_offset
+            elif classification=='INV':
+                adjpos = pos
+            elif classification=='DUP':
+                adjpos = pos-sv_offset if gtype_field == 'gtype1' else pos+sv_offset
+            elif classification=='INTDUP':
+                adjpos = pos-sv_offset if gtype_field == 'gtype1' else otherpos-sv_offset
+            elif classification=='INTRX':
+                adjpos = pos+sv_offset if direct == '-' else pos-sv_offset
+            else:
+                adjpos = pos
+            
+            adjpos = -1 if direct=='.' else adjpos
             cnv_start_list = cnv_tmp.startpos.values
             cnv_end_list   = cnv_tmp.endpos.values
             #print("Checking overlaps for pos %d\n" %adjpos)
@@ -543,8 +556,8 @@ def run(args):
             if len(sv_df)>0:
                 print('Matching copy-numbers for SVs...')
                 sv_df = match_copy_numbers(sv_df,cnv_df) 
-                sv_df = match_copy_numbers(sv_df,cnv_df,['bp2_chr','bp2_pos','bp2_dir'],'gtype2') 
-                sv_df = reprocess_unmatched_cnvs(sv_df,cnv_df)
+                sv_df = match_copy_numbers(sv_df,cnv_df,['bp2_chr','bp2_pos','bp2_dir','classification','bp1_pos'],'gtype2') 
+                #sv_df = reprocess_unmatched_cnvs(sv_df,cnv_df)
                 sv_df = run_cnv_filter(sv_df,cnv,neutral,filter_otl)
                 print('Keeping %d SVs' % len(sv_df))
         

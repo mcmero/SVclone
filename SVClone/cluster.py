@@ -101,14 +101,15 @@ def fit_and_sample(model, iters, burn, thin, use_map):
 def get_pv(phi,cn_r,cn_v,mu,pi):
     rem = 1.0 - phi
     rem = rem.clip(min=0)
-    pn =  (1.0 - pi) * 2            #proportion of normal reads coming from normal cells
-    pr =  pi * rem * cn_r           #proportion of normal reads coming from other (reference) clusters
-    pv =  pi * phi * cn_v           #proportion of variant + normal reads coming from this (the variant) cluster
+    pn =  (1.0 - pi) * 2.0            #proportion of normal reads coming from normal cells
+    #pr =  pi * rem * cn_r           #proportion of normal reads coming from other (reference) clusters
+    pv =  pi * cn_v           #proportion of variant + normal reads coming from this (the variant) cluster
 
-    norm_const = pn + pr + pv
+
+    norm_const = pn + pv
     pv = pv / norm_const
 
-    return pv * mu
+    return phi * pv * mu
 
 def filter_cns(cn_states):
     cn_str = [','.join(map(str,cn)) for cn in cn_states if cn[2]!=0 and cn[1]!=0]
@@ -152,7 +153,7 @@ def cluster(sup,dep,cn_states,Nvar,sparams,cparams,Ndp=param.clus_limit):
     '''
     sens = 1.0 / ((sparams['pi']/float(sparams['ploidy']))*np.mean(dep))
     beta_a, beta_b, beta_init = map(lambda x: float(eval(x)), cparams['beta'].split(','))
-    alpha = pm.Gamma('alpha',beta_a,beta_b,value=beta_init)
+    alpha = pm.Gamma('alpha',beta_a,beta_b)#,value=beta_init)
     print("Dirichlet concentration gamma values: alpha = %f, beta= %f, init = %f" % (beta_a, beta_b, beta_init))
 
     h = pm.Beta('h', alpha=1, beta=alpha, size=Ndp)
@@ -165,7 +166,7 @@ def cluster(sup,dep,cn_states,Nvar,sparams,cparams,Ndp=param.clus_limit):
 
     z = pm.Categorical('z', p=p, size=Nvar, value=np.zeros(Nvar))
     #phi_init = (np.mean(sup/dep)/pi)*2
-    phi_k = pm.Uniform('phi_k', lower=sens, upper=2, size=Ndp)#, value=[phi_init]*Ndp)
+    phi_k = pm.Uniform('phi_k', lower=sens, upper=1.4, size=Ndp)#, value=[phi_init]*Ndp)
     
     @pm.deterministic
     def p_var(z=z,phi_k=phi_k):
