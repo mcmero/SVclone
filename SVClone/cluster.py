@@ -39,24 +39,31 @@ def add_copynumber_combos(combos, var_maj, var_min, ref_cn):
         - 1 / var_total (if neither alleles are 1)
     '''
     var_total = float(var_maj + var_min)
-    mu_v = var_maj / var_total if var_total != 0 else 0.
-    combos.append([ref_cn, var_total, mu_v])
-
-    if not 1 in [var_maj,var_min] and var_total > 1:
-        mu_v = 1. / var_total
-        combos.append([ref_cn, var_total, mu_v])
+    if var_total == 0.:
+        mu_v = 0.
+        #combos.append([ref_cn, var_total, mu_v])
+    #elif var_maj == 1.:
+    #    mu_v = 1. / var_total
+    #    combos.append([ref_cn, var_total, mu_v])
+    #elif var_maj == var_min:
+    #    mu_v = var_maj / var_total
+    #    combos.append([ref_cn, var_total, mu_v])
+    else:
+        for i in range(1,int(var_maj+1)):
+            mu_v = 1.0*i / var_total
+            combos.append([ref_cn, var_total, mu_v])
 
     # add combos for the minor allele being the variant allele
-    if var_maj != var_min:
+    #if var_maj != var_min:
         # do the exact same thing as above, swapping
         # the major allele for the minor
-        mu_v = var_min / var_total if var_total != 0 else 0.
-        combos.append([ref_cn, var_total, mu_v])
+    #    mu_v = var_min / var_total if var_total != 0 else 0.
+    #    combos.append([ref_cn, var_total, mu_v])
 
         #if var_min > 1:
         #    mu_v = 1. / var_total
         #    combos.append([ref_cn, var_total, mu_v])
-
+    #print(combos)
     return combos
 
 def get_allele_combos(cn):
@@ -104,8 +111,6 @@ def get_pv(phi,cn_r,cn_v,mu,pi):
     pn =  (1.0 - pi) * 2.0            #proportion of normal reads coming from normal cells
     #pr =  pi * rem * cn_r           #proportion of normal reads coming from other (reference) clusters
     pv =  pi * cn_v           #proportion of variant + normal reads coming from this (the variant) cluster
-
-
     norm_const = pn + pv
     pv = pv / norm_const
 
@@ -166,7 +171,7 @@ def cluster(sup,dep,cn_states,Nvar,sparams,cparams,Ndp=param.clus_limit):
 
     z = pm.Categorical('z', p=p, size=Nvar, value=np.zeros(Nvar))
     #phi_init = (np.mean(sup/dep)/pi)*2
-    phi_k = pm.Uniform('phi_k', lower=sens, upper=1.4, size=Ndp)#, value=[phi_init]*Ndp)
+    phi_k = pm.Uniform('phi_k', lower=sens, upper=2, size=Ndp)#, value=[phi_init]*Ndp)
     
     @pm.deterministic
     def p_var(z=z,phi_k=phi_k):
