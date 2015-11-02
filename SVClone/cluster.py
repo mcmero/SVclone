@@ -144,9 +144,10 @@ def get_most_likely_cn_states(cn_states,s,d,phi,pi):
         else:
             return [float('nan'), float('nan'), float('nan')]
     
-    cn_ll = [ calc_lik(cn_states[i],s[i],d[i],phi[i],pi) for i in range(len(cn_states)) ]
-    most_likely_pv = [ get_most_likely_pv(cn_lik) for i,cn_lik in enumerate(cn_ll)]
+    cn_ll = [ calc_lik(cn_states[i],s[i],d[i],np.array(1),pi) for i in range(len(cn_states)) ]
     most_likely_cn = [ get_most_likely_cn(cn_lik,i) for i,cn_lik in enumerate(cn_ll)]
+    cn_ll = [ calc_lik(cn_states[i],s[i],d[i],phi[i],pi) for i in range(len(most_likely_cn)) ]
+    most_likely_pv = [ get_most_likely_pv(cn_lik) for i,cn_lik in enumerate(cn_ll)]
 
     #TODO: currently using precision fudge factor to get around 
     #0 probability errors when pv = 1 - look into this bug more
