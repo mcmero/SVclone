@@ -4,7 +4,7 @@ import pymc as pm
 import ipdb
 
 from operator import methodcaller
-from . import parameters as param
+from . import parameters as params
 
 #def get_cn_mu_v(cn):
 #    cn_v = [0.,0.]
@@ -106,11 +106,11 @@ def fit_and_sample(model, iters, burn, thin, use_map):
     return mcmc
 
 def get_pv(phi,cn_r,cn_v,mu,pi):
-    rem = 1.0 - phi
-    rem = rem.clip(min=0)
-    pn =  (1.0 - pi) * 2.0            #proportion of normal reads coming from normal cells
-    #pr =  pi * rem * cn_r           #proportion of normal reads coming from other (reference) clusters
-    pv =  pi * cn_v           #proportion of variant + normal reads coming from this (the variant) cluster
+    #rem = 1.0 - phi
+    #rem = rem.clip(min=0)
+    #pr =  pi * rem * cn_r    #proportion of normal reads coming from other (reference) clusters
+    pn = (1.0 - pi) * 2.0    #proportion of normal reads coming from normal cells
+    pv = pi * cn_v           #proportion of variant + normal reads coming from this (the variant) cluster
     norm_const = pn + pv
     pv = pv / norm_const
 
@@ -152,7 +152,7 @@ def get_most_likely_cn_states(cn_states,s,d,phi,pi):
     #0 probability errors when pv = 1 - look into this bug more
     return most_likely_cn, np.array(most_likely_pv)-0.00000001
 
-def cluster(sup,dep,cn_states,Nvar,sparams,cparams,Ndp=param.clus_limit):
+def cluster(sup,dep,cn_states,Nvar,sparams,cparams,Ndp=params.clus_limit):
     '''
     clustering model using Dirichlet Process
     '''
@@ -171,7 +171,7 @@ def cluster(sup,dep,cn_states,Nvar,sparams,cparams,Ndp=param.clus_limit):
 
     z = pm.Categorical('z', p=p, size=Nvar, value=np.zeros(Nvar))
     #phi_init = (np.mean(sup/dep)/pi)*2
-    phi_k = pm.Uniform('phi_k', lower=sens, upper=2, size=Ndp)#, value=[phi_init]*Ndp)
+    phi_k = pm.Uniform('phi_k', lower=sens, upper=params.phi_limit, size=Ndp)#, value=[phi_init]*Ndp)
     
     @pm.deterministic
     def p_var(z=z,phi_k=phi_k):
@@ -179,7 +179,6 @@ def cluster(sup,dep,cn_states,Nvar,sparams,cparams,Ndp=param.clus_limit):
         return pvs
     
     cbinom = pm.Binomial('cbinom', dep, p_var, observed=True, value=sup)
-
     model = pm.Model([alpha,h,p,phi_k,z,p_var,cbinom])
     mcmc = fit_and_sample(model,cparams['n_iter'],cparams['burn'],cparams['thin'],cparams['use_map'])
     return mcmc

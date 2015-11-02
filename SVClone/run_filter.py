@@ -181,21 +181,57 @@ def run_cnv_filter(df_flt,cnv,neutral,filter_outliers,are_snvs=False):
 
     return df_flt
 
+def match_snv_copy_numbers(snv_df, cnv_df):
+    bp_chroms = np.unique(snv_df['chrom'].values)
+    bp_chroms = sorted(bp_chroms, key=lambda item: (int(item.partition(' ')[0]) \
+                        if item[0].isdigit() else float('inf'), item))
+    
+    for bchr in bp_chroms:
+        gtypes = []
+        current_chr = snv_df['chrom'].values==bchr
+        var_tmp = snv_df[current_chr]
+        cnv_tmp = cnv_df[cnv_df['chr']==bchr]
+        
+        if len(cnv_tmp)==0:
+            continue
+
+        sv_offset = params.sv_offset
+        for pos in var_tmp['pos']:
+            cnv_start_list = cnv_tmp.startpos.values
+            cnv_end_list   = cnv_tmp.endpos.values
+            overlaps = np.logical_and(pos >= cnv_start_list, pos <= cnv_end_list)
+            match = cnv_tmp[overlaps]        
+            
+            if len(match)==0:
+                # assign closest CNV state with closest boundary to SNV
+                closest_start = min(abs(cnv_start_list-pos))
+                closest_end   = min(abs(cnv_end_list-pos))
+                cnv_gtype = ''
+            
+                if closest_start < closest_end:
+                    cnv_gtype = cnv_tmp[closest_start==abs(cnv_start_list-pos)].gtype.values[0]
+                else:
+                    cnv_gtype = cnv_tmp[closest_end==abs(cnv_end_list-pos)].gtype.values[0]
+
+                gtypes.append(cnv_gtype)
+            else:
+                gtype = match.loc[match.index[0]].gtype
+                gtypes.append(gtype)
+        
+        snv_indexes = snv_df[current_chr].index.values
+        snv_df.loc[snv_indexes,'gtype'] = gtypes
+    return snv_df
 
 def match_copy_numbers(var_df, cnv_df, bp_fields=['bp1_chr','bp1_pos','bp1_dir','classification','bp2_pos'], gtype_field='gtype1'):
     
-    var_df[gtype_field] = ''
     chrom_field, pos_field, dir_field, class_field, other_pos_field = bp_fields
+
     var_df[chrom_field] = map(str,var_df[chrom_field].values)
     var_df[pos_field] = map(int,var_df[pos_field].values)
+    var_df[dir_field] = map(str,var_df[dir_field].values)
+    var_df[class_field] = map(str,var_df[class_field].values)
     var_df[other_pos_field] = map(int,var_df[other_pos_field].values)
-    if dir_field=='':
-        # create a dummy dir field (for snvs)
-        var_df['dir'] = '.'
-        dir_field = 'dir'
-    else:
-        var_df[dir_field] = map(str,var_df[dir_field].values)
-        var_df[class_field] = map(str,var_df[class_field].values)
+
     bp_chroms = np.unique(var_df[chrom_field].values)
     bp_chroms = sorted(bp_chroms, key=lambda item: (int(item.partition(' ')[0]) \
                         if item[0].isdigit() else float('inf'), item))
@@ -210,7 +246,8 @@ def match_copy_numbers(var_df, cnv_df, bp_fields=['bp1_chr','bp1_pos','bp1_dir',
             continue
 
         sv_offset = params.sv_offset
-        for pos,direct,classification,otherpos in zip(var_tmp[pos_field].values,var_tmp[dir_field],var_tmp[class_field],var_tmp[other_pos_field]):
+        sv_info = zip(var_tmp[pos_field],var_tmp[dir_field],var_tmp[class_field],var_tmp[other_pos_field])
+        for pos,direct,classification,otherpos in sv_info:
             if classification=='DEL':
                 adjpos = pos-sv_offset if gtype_field == 'gtype1' else pos+sv_offset
             elif classification=='INV':
@@ -232,21 +269,17 @@ def match_copy_numbers(var_df, cnv_df, bp_fields=['bp1_chr','bp1_pos','bp1_dir',
             #print(overlaps)
             match = cnv_tmp[overlaps]        
             if len(match)==0:
-                # just takes the position that's the closest
-                # CNV value less than the SV position, or the 
-                # first position greater than, if there 
-                # are no CNV segments that are less than
-                # we do the CNV matching reprocessing downstream
-                if np.any(pos >= cnv_end_list):
-                    greater_than = cnv_tmp[pos >= cnv_end_list].index
-                    closest = greater_than[len(greater_than)-1]                    
-                    gtypes.append(cnv_tmp.loc[closest].gtype)
-                elif np.any(pos <= cnv_start_list):
-                    less_than = cnv_tmp[pos <= cnv_start_list].index
-                    closest = less_than[0]
-                    gtypes.append(cnv_tmp.loc[closest].gtype)
+                # assign closest CNV state with closest boundary to SNV
+                closest_start = min(abs(cnv_start_list-pos))
+                closest_end   = min(abs(cnv_end_list-pos))
+                cnv_gtype = ''
+            
+                if closest_start < closest_end:
+                    cnv_gtype = cnv_tmp[closest_start==abs(cnv_start_list-pos)].gtype.values[0]
                 else:
-                    gtypes.append('')
+                    cnv_gtype = cnv_tmp[closest_end==abs(cnv_end_list-pos)].gtype.values[0]
+
+                gtypes.append(cnv_gtype)
             else:
                 gtype = match.loc[match.index[0]].gtype
                 gtypes.append(gtype)
@@ -422,7 +455,8 @@ def adjust_sv_read_counts(sv_df,pi,pl,min_dep):
     gt1_sc = np.array(map(len,map(methodcaller("split","|"),sv_df.gtype1.values)))>1
     gt2_sc = np.array(map(len,map(methodcaller("split","|"),sv_df.gtype1.values)))>1    
     one_sc = np.logical_xor(gt1_sc,gt2_sc)
-    print(one_sc)
+    #print(one_sc)
+
     combos = sv_df.apply(cluster.get_sv_allele_combos,axis=1)
     exclusive_subclones = zip(sv_df.gtype1.values[one_sc],sv_df.gtype2.values[one_sc]) 
     sides[one_sc] = [0 if gt1!='' else 1 for gt1,gt2 in exclusive_subclones]
@@ -563,7 +597,7 @@ def run(args):
         
             if len(snv_df)>0:
                 print('Matching copy-numbers for SNVs...')
-                snv_df = match_copy_numbers(snv_df,cnv_df,['chrom','pos',''],'gtype')
+                snv_df = match_snv_copy_numbers(snv_df,cnv_df)
                 snv_df = run_cnv_filter(snv_df,cnv,neutral,filter_otl,are_snvs=True)
                 print('Keeping %d SNVs' % len(snv_df))
         else:
