@@ -2,7 +2,6 @@ import numpy as np
 import pandas as pd
 import os
 import ipdb
-import math
 from . import parameters as params
 from operator import methodcaller
 
@@ -13,16 +12,6 @@ def dump_trace(clus_info,center_trace,outf):
     traces = np.array([center_trace[:,cid] for cid in clus_info.clus_id.values])
     df_traces = pd.DataFrame(np.transpose(traces),columns=clus_info.clus_id)
     df_traces.to_csv(outf,sep='\t',index=False)
-
-def get_probs(var_states,s,d,phi,pi):
-    #probs = [(1/float(len(var_states)))]*len(var_states)
-    probs = np.array([1.])
-    if len(var_states)>1:
-        probs = cluster.calc_lik(var_states,s,d,phi,pi)[1]
-        probs = map(math.exp,probs)
-        probs = np.array(probs)/sum(probs)
-    probs = ','.join(map(lambda x: str(round(x,4)),probs))
-    return probs
 
 def write_out_files(df,clus_info,clus_members,df_probs,clus_cert,clus_out_dir,sample,pi,sup,dep,cn_states,are_snvs=False):
     if are_snvs:
@@ -86,7 +75,7 @@ def write_out_files(df,clus_info,clus_members,df_probs,clus_cert,clus_out_dir,sa
             var_states = cn_states[idx]
             tot_opts = ','.join(map(str,[int(x[1]) for x in var_states]))
             var_opts = ','.join(map(str,[int(round(x[1]*x[2])) for x in var_states]))
-            probs =  get_probs(var_states,sup[idx],dep[idx],phis[idx],pi)
+            probs =  cluster.get_probs(var_states,sup[idx],dep[idx],phis[idx],pi)
             
             mult_new_row = np.array([(bp1_chr,bp1_pos,bp2_chr,bp2_pos,sc_cn,
                                      int(round(freq*sc_cn)),tot_opts,var_opts,probs)],dtype=mult_dtype)

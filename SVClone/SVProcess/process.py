@@ -14,9 +14,6 @@ from . import bamtools
 from . import svDetectFuncs as svd
 from . import load_data
 
-#TODO: remove after testing
-import ipdb
-
 def read_to_array(x,bamf):
     chrom = bamf.getrname(x.reference_id)
     try:

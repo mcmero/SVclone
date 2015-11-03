@@ -1,8 +1,10 @@
 import numpy as np
 import pandas as pd
 import pymc as pm
+import math
 import ipdb
 
+from scipy import stats
 from operator import methodcaller
 from . import parameters as params
 
@@ -126,6 +128,20 @@ def calc_lik(combo,si,di,phi_i,pi):
     lls = [ pm.binomial_like(si,di,pvs[i]) for i,c in enumerate(combo)]
     return (pvs, lls)
 
+def get_probs(var_states,s,d,phi,pi):
+    #probs = [(1/float(len(var_states)))]*len(var_states)
+    llik = calc_lik(var_states,s,d,phi,pi)[1]
+    probs = get_probs_from_llik(llik)
+    probs = ','.join(map(lambda x: str(round(x,4)),probs))
+    return probs
+
+def get_probs_from_llik(cn_lik):
+    probs = np.array([1.])
+    if len(cn_lik)>1:        
+        probs = map(math.exp,cn_lik)
+        probs = np.array(probs)/sum(probs)
+    return probs
+
 def get_most_likely_cn_states(cn_states,s,d,phi,pi):
     '''
     Obtain the copy-number states which maximise the binomial likelihood
@@ -138,14 +154,34 @@ def get_most_likely_cn_states(cn_states,s,d,phi,pi):
         else:
             return 0.0000001
 
-    def get_most_likely_cn(cn_lik,i):
-        if len(cn_lik[0])>0:
-            return cn_states[i][np.where(np.nanmax(cn_lik[1])==cn_lik[1])[0][0]] 
-        else:
-            return [float('nan'), float('nan'), float('nan')]
+    def get_most_likely_cn(cn_states,cn_lik,i):
+        '''
+        use the most likely clonal state (phi = 1),
+        unless p < cutoff when compared to regular phi likelihood,
+        (log likelihood ratio test) - in this case, pick the most CN
+        state with the highest regular phi likelihood
+        '''
+        lr_cutoff = 0.5
+        cn_lik_clonal, cn_lik_phi = cn_lik
+
+        #reinstitute hack - uncomment below
+        #cn_lik_phi = cn_lik_clonal
     
-    cn_ll = [ calc_lik(cn_states[i],s[i],d[i],np.array(1),pi) for i in range(len(cn_states)) ]
-    most_likely_cn = [ get_most_likely_cn(cn_lik,i) for i,cn_lik in enumerate(cn_ll)]
+        if len(cn_lik_clonal)==0:
+            return [float('nan'), float('nan'), float('nan')]
+
+        #p_vals = np.array([ stats.chisqprob(2 * (max(cn_lik_clonal) - phi_lik),1) for phi_lik in cn_lik_phi])
+        log_ratios = np.array([ phi_lik/max(cn_lik_clonal) for phi_lik in cn_lik_phi])
+        if np.any(log_ratios < lr_cutoff):
+            return cn_states[i][np.where(np.nanmax(cn_lik_phi)==cn_lik_phi)[0][0]] 
+        else:
+            return cn_states[i][np.where(np.nanmax(cn_lik_clonal)==cn_lik_clonal)[0][0]] 
+    
+    cn_ll_clonal = [ calc_lik(cn_states[i],s[i],d[i],np.array(1),pi)[1] for i in range(len(cn_states)) ]
+    cn_ll_phi = [ calc_lik(cn_states[i],s[i],d[i],phi[i],pi)[1] for i in range(len(cn_states)) ]
+    cn_ll_combined = zip(cn_ll_clonal,cn_ll_phi)
+    
+    most_likely_cn = [ get_most_likely_cn(cn_states,cn_lik,i) for i,cn_lik in enumerate(cn_ll_combined)]
     cn_ll = [ calc_lik(cn_states[i],s[i],d[i],phi[i],pi) for i in range(len(most_likely_cn)) ]
     most_likely_pv = [ get_most_likely_pv(cn_lik) for i,cn_lik in enumerate(cn_ll)]
 

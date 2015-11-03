@@ -169,9 +169,9 @@ def run_cnv_filter(df_flt,cnv,neutral,filter_outliers,are_snvs=False):
         else:
             df_flt = df_flt[np.logical_or(df_flt.gtype1.values!='',df_flt.gtype2.values!='')]
             
-            gt1_is_zero = np.array(map(is_copynumber_zero,df_flt.gtype1.values))
-            gt2_is_zero = np.array(map(is_copynumber_zero,df_flt.gtype2.values))
-            df_flt = df_flt[np.logical_and(gt1_is_zero==False,gt2_is_zero==False)]
+            #gt1_is_zero = np.array(map(is_copynumber_zero,df_flt.gtype1.values))
+            #gt2_is_zero = np.array(map(is_copynumber_zero,df_flt.gtype2.values))
+            #df_flt = df_flt[np.logical_and(gt1_is_zero==False,gt2_is_zero==False)]
             print('Filtered out %d SVs without copy-numbers or with 0,0 copy-numbers' % (n_df - len(df_flt)))
             n_df = len(df_flt)            
 
@@ -243,6 +243,8 @@ def match_copy_numbers(var_df, cnv_df, bp_fields=['bp1_chr','bp1_pos','bp1_dir',
         cnv_tmp = cnv_df[cnv_df['chr']==bchr]
         
         if len(cnv_tmp)==0:
+            var_indexes = var_df[current_chr].index.values
+            var_df.loc[var_indexes,gtype_field] = ''
             continue
 
         sv_offset = params.sv_offset
@@ -286,6 +288,7 @@ def match_copy_numbers(var_df, cnv_df, bp_fields=['bp1_chr','bp1_pos','bp1_dir',
         
         var_indexes = var_df[current_chr].index.values
         var_df.loc[var_indexes,gtype_field] = gtypes
+    
     return var_df
 
 
@@ -490,12 +493,13 @@ def adjust_sv_read_counts(sv_df,pi,pl,min_dep):
     except AttributeError:
         print('Warning, no valid classifications found. SV read counts cannot be adjusted')
 
-    sv_df['adjusted_norm']      = norm
-    sv_df['adjusted_support']   = sup
-    sv_df['adjusted_depth']     = norm+sup
-    sv_df['preferred_side']     = sides
-    sv_df['raw_mean_vaf']       = (s+d)/(s+d+map(float,sv_df.norm_mean.values))
-    sv_df['adjusted_vaf']       = map(float,sup)/(norm+sup)
+    all_indexes = sv_df.index.values
+    sv_df.loc[all_indexes,'adjusted_norm']      = norm
+    sv_df.loc[all_indexes,'adjusted_support']   = sup
+    sv_df.loc[all_indexes,'adjusted_depth']     = norm+sup
+    sv_df.loc[all_indexes,'preferred_side']     = sides
+    sv_df.loc[all_indexes,'raw_mean_vaf']       = (s+d)/(s+d+map(float,sv_df.norm_mean.values))
+    sv_df.loc[all_indexes,'adjusted_vaf']       = map(float,sup)/(norm+sup)
 
     return sv_df
 
