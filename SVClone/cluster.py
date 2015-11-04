@@ -126,7 +126,10 @@ def filter_cns(cn_states):
 def calc_lik(combo,si,di,phi_i,pi):
     pvs = [ get_pv(phi_i,c[0],c[1],c[2],pi) for c in combo ]
     lls = [ pm.binomial_like(si,di,pvs[i]) for i,c in enumerate(combo)]
-    return (pvs, lls)
+    #currently using precision fudge factor to get 
+    #around 0 probability errors when pv = 1
+    #TODO: investigate look this bug more
+    return (pvs, np.array(lls)-0.00000001)
 
 def get_probs(var_states,s,d,phi,pi):
     #probs = [(1/float(len(var_states)))]*len(var_states)
@@ -161,7 +164,7 @@ def get_most_likely_cn_states(cn_states,s,d,phi,pi):
         (log likelihood ratio test) - in this case, pick the most CN
         state with the highest regular phi likelihood
         '''
-        lr_cutoff = 0.5
+        pval_cutoff = 0.20
         cn_lik_clonal, cn_lik_phi = cn_lik
 
         #reinstitute hack - uncomment below
@@ -170,9 +173,9 @@ def get_most_likely_cn_states(cn_states,s,d,phi,pi):
         if len(cn_lik_clonal)==0:
             return [float('nan'), float('nan'), float('nan')]
 
-        #p_vals = np.array([ stats.chisqprob(2 * (max(cn_lik_clonal) - phi_lik),1) for phi_lik in cn_lik_phi])
-        log_ratios = np.array([ phi_lik/max(cn_lik_clonal) for phi_lik in cn_lik_phi])
-        if np.any(log_ratios < lr_cutoff):
+        log_ratios = np.array([ 2 * (-max(cn_lik_clonal) + phi_lik) for phi_lik in cn_lik_phi])
+        p_vals     = np.array([stats.chisqprob(lr,1) for lr in log_ratios])
+        if np.any(p_vals < pval_cutoff):
             return cn_states[i][np.where(np.nanmax(cn_lik_phi)==cn_lik_phi)[0][0]] 
         else:
             return cn_states[i][np.where(np.nanmax(cn_lik_clonal)==cn_lik_clonal)[0][0]] 
@@ -185,9 +188,7 @@ def get_most_likely_cn_states(cn_states,s,d,phi,pi):
     cn_ll = [ calc_lik(cn_states[i],s[i],d[i],phi[i],pi) for i in range(len(most_likely_cn)) ]
     most_likely_pv = [ get_most_likely_pv(cn_lik) for i,cn_lik in enumerate(cn_ll)]
 
-    #TODO: currently using precision fudge factor to get around 
-    #0 probability errors when pv = 1 - look into this bug more
-    return most_likely_cn, np.array(most_likely_pv)-0.00000001
+    return most_likely_cn, most_likely_pv
 
 def cluster(sup,dep,cn_states,Nvar,sparams,cparams,Ndp=params.clus_limit):
     '''
