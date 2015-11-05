@@ -164,7 +164,7 @@ def get_most_likely_cn_states(cn_states,s,d,phi,pi):
         (log likelihood ratio test) - in this case, pick the most CN
         state with the highest regular phi likelihood
         '''
-        pval_cutoff = 0.20
+        pval_cutoff = 0.05
         cn_lik_clonal, cn_lik_phi = cn_lik
 
         #reinstitute hack - uncomment below
@@ -173,8 +173,9 @@ def get_most_likely_cn_states(cn_states,s,d,phi,pi):
         if len(cn_lik_clonal)==0:
             return [float('nan'), float('nan'), float('nan')]
 
-        log_ratios = np.array([ 2 * (-max(cn_lik_clonal) + phi_lik) for phi_lik in cn_lik_phi])
+        log_ratios = np.array([ 2 * (max(cn_lik_clonal) - phi_lik) for phi_lik in cn_lik_phi])
         p_vals     = np.array([stats.chisqprob(lr,1) for lr in log_ratios])
+        p_vals[np.isnan(p_vals)]=1
         if np.any(p_vals < pval_cutoff):
             return cn_states[i][np.where(np.nanmax(cn_lik_phi)==cn_lik_phi)[0][0]] 
         else:
