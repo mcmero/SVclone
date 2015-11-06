@@ -159,10 +159,9 @@ def get_most_likely_cn_states(cn_states,s,d,phi,pi):
 
     def get_most_likely_cn(cn_states,cn_lik,i):
         '''
-        use the most likely clonal state (phi = 1),
-        unless p < cutoff when compared to regular phi likelihood,
-        (log likelihood ratio test) - in this case, pick the most CN
-        state with the highest regular phi likelihood
+        use the most likely phi state, unless p < cutoff when compared to the 
+        most likely clonal (phi=1) case (log likelihood ratio test) 
+        - in this case, pick the most CN state with the highest clonal likelihood
         '''
         pval_cutoff = 0.05
         cn_lik_clonal, cn_lik_phi = cn_lik
@@ -172,14 +171,18 @@ def get_most_likely_cn_states(cn_states,s,d,phi,pi):
     
         if len(cn_lik_clonal)==0:
             return [float('nan'), float('nan'), float('nan')]
+    
+        #log_ratios = np.array([ 2 * (np.nanmax(cn_lik_phi) - clon_lik) for clon_lik in cn_lik_clonal])
+        #p_vals     = np.array([stats.chisqprob(lr,1) for lr in log_ratios])
+        #p_vals[np.isnan(p_vals)]=1
 
-        log_ratios = np.array([ 2 * (max(cn_lik_clonal) - phi_lik) for phi_lik in cn_lik_phi])
-        p_vals     = np.array([stats.chisqprob(lr,1) for lr in log_ratios])
-        p_vals[np.isnan(p_vals)]=1
-        if np.any(p_vals < pval_cutoff):
-            return cn_states[i][np.where(np.nanmax(cn_lik_phi)==cn_lik_phi)[0][0]] 
-        else:
+        # log likelihood ratio test; null hypothesis = likelihood under phi
+        LLR   = 2 * (np.nanmax(cn_lik_clonal) - np.nanmax(cn_lik_phi))
+        p_val = stats.chisqprob(LLR,1) if not np.isnan(LLR) else 1
+        if p_val < pval_cutoff:
             return cn_states[i][np.where(np.nanmax(cn_lik_clonal)==cn_lik_clonal)[0][0]] 
+        else:
+            return cn_states[i][np.where(np.nanmax(cn_lik_phi)==cn_lik_phi)[0][0]] 
     
     cn_ll_clonal = [ calc_lik(cn_states[i],s[i],d[i],np.array(1),pi)[1] for i in range(len(cn_states)) ]
     cn_ll_phi = [ calc_lik(cn_states[i],s[i],d[i],phi[i],pi)[1] for i in range(len(cn_states)) ]
