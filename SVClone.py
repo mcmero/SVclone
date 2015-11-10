@@ -162,7 +162,8 @@ filter_parser.add_argument("--sizefilter",dest="sizefilter",default=-1,type=int,
 
 filter_parser.add_argument("--filter_outliers",dest="filter_outliers",action="store_true",
                     help='''Filter out SVs with depth values that are considers outliers, based on the 
-                    copy-number adjusted distribution of depths.''')
+                    copy-number adjusted distribution of depths. Use with caution, as this may filter 
+                    out real subclonal SV events.''')
 
 filter_parser.add_argument("--valid_chroms",dest="valid_chrs",action="store_true",
                     help='''Filters out SVs on non-valid chroms (i.e. mapping to contigs on non-

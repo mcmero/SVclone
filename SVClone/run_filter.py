@@ -617,7 +617,7 @@ def run(args):
                 snv_df['gtype'] = '1,1,1.000000'
                 snv_df = run_cnv_filter(snv_df,cnv,neutral,filter_otl,are_snvs=True)
                 print('Retained %d SNVs' % len(snv_df))
-            
+        
         if len(sv_df)>0: 
             sv_df.index = range(len(sv_df)) #reindex
             sv_df = adjust_sv_read_counts(sv_df,pi,ploidy,min_dep)
