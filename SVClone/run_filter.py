@@ -231,13 +231,16 @@ def match_copy_numbers(var_df, cnv_df, bp_fields=['bp1_chr','bp1_pos','bp1_dir',
     var_df[dir_field] = map(str,var_df[dir_field].values)
     var_df[class_field] = map(str,var_df[class_field].values)
     var_df[other_pos_field] = map(int,var_df[other_pos_field].values)
-
+    
     bp_chroms = np.unique(var_df[chrom_field].values)
     bp_chroms = sorted(bp_chroms, key=lambda item: (int(item.partition(' ')[0]) \
                         if item[0].isdigit() else float('inf'), item))
-    
+   
+    adj_cnv_field   = '%s_adjacent' % gtype_field
+    cnv_dist_field  = '%s_cnv_dist' % gtype_field
+
     for bchr in bp_chroms:
-        gtypes = []
+        gtypes, cnv_dists, adj_cnvs = [],[],[]
         current_chr = var_df[chrom_field].values==bchr
         var_tmp = var_df[current_chr]
         cnv_tmp = cnv_df[cnv_df['chr']==bchr]
@@ -245,11 +248,15 @@ def match_copy_numbers(var_df, cnv_df, bp_fields=['bp1_chr','bp1_pos','bp1_dir',
         if len(cnv_tmp)==0:
             var_indexes = var_df[current_chr].index.values
             var_df.loc[var_indexes,gtype_field] = ''
+            var_df.loc[var_indexes,adj_cnv_field] = ''
+            var_df.loc[var_indexes,cnv_dist_field] = float('nan')
             continue
-
+        
         sv_offset = params.sv_offset
         sv_info = zip(var_tmp[pos_field],var_tmp[dir_field],var_tmp[class_field],var_tmp[other_pos_field])
         for pos,direct,classification,otherpos in sv_info:
+            cnv_gtype,adj_cnv = '',''
+
             if classification=='DEL':
                 adjpos = pos-sv_offset if gtype_field == 'gtype1' else pos+sv_offset
             elif classification=='INV':
@@ -266,35 +273,56 @@ def match_copy_numbers(var_df, cnv_df, bp_fields=['bp1_chr','bp1_pos','bp1_dir',
             adjpos = -1 if direct=='.' else adjpos
             cnv_start_list = cnv_tmp.startpos.values
             cnv_end_list   = cnv_tmp.endpos.values
-            #print("Checking overlaps for pos %d\n" %adjpos)
+            
+            closest_start  = min(abs(cnv_start_list-pos))
+            closest_end    = min(abs(cnv_end_list-pos))
+            cnv_dist    = closest_start if closest_start < closest_end else closest_end
+            
+            cnv_dists.append(cnv_dist)
+
+            #print("Checking overlaps for pos %d\n" %adjpos)            
             overlaps = np.logical_and(adjpos >= cnv_start_list, adjpos <= cnv_end_list)
+
             #print(overlaps)
             match = cnv_tmp[overlaps]        
             if len(match)==0:
                 # assign closest CNV state with closest boundary to SNV
-                closest_start = min(abs(cnv_start_list-pos))
-                closest_end   = min(abs(cnv_end_list-pos))
-                cnv_gtype = ''
-            
                 if closest_start < closest_end:
-                    cnv_gtype = cnv_tmp[closest_start==abs(cnv_start_list-pos)].gtype.values[0]
+                    start_match = closest_start==abs(cnv_start_list-pos)
+                    cnv_gtype   = cnv_tmp[start_match].gtype.values[0]
+                    cnv_pos     = cnv_tmp[start_match].startpos.values[0]
+                    adj_cnv     = get_adjacent_cnv(cnv_tmp,start_match,pos,cnv_pos,False).gtype.values[0]
                 else:
-                    cnv_gtype = cnv_tmp[closest_end==abs(cnv_end_list-pos)].gtype.values[0]
+                    end_match   = closest_end==abs(cnv_end_list-pos)
+                    cnv_gtype   = cnv_tmp[end_match].gtype.values[0]
+                    cnv_pos     = cnv_tmp[end_match].endpos.values[0]
+                    adj_cnv     = get_adjacent_cnv(cnv_tmp,end_match,pos,cnv_pos).gtype.values[0]
 
                 gtypes.append(cnv_gtype)
+                adj_cnvs.append(adj_cnv)
             else:
-                gtype = match.loc[match.index[0]].gtype
-                gtypes.append(gtype)
+                cnv_gtype = match.loc[match.index[0]].gtype
+                gtypes.append(cnv_gtype)
+
+                cnv_pos = match.loc[match.index[0]].startpos
+                next_cnv = closest_start > closest_end
+                if next_cnv: 
+                    cnv_pos = match.loc[match.index[0]].endpos
+
+                cnv_match = match.index[0]==cnv_tmp.index.values
+                adj_cnv = get_adjacent_cnv(cnv_tmp,cnv_match,pos,cnv_pos,next_cnv).gtype.values[0]
+                adj_cnvs.append(adj_cnv)
         
         var_indexes = var_df[current_chr].index.values
-        var_df.loc[var_indexes,gtype_field] = gtypes
+        var_df.loc[var_indexes,gtype_field]   = gtypes
+        var_df.loc[var_indexes,adj_cnv_field] = adj_cnvs
+        var_df.loc[var_indexes,cnv_dist_field] = cnv_dists
     
     return var_df
 
 
-def get_adjacent_cnv(cnv,match,pos,cnv_pos):
-
-    next_cnv = cnv_pos <= pos
+def get_adjacent_cnv(cnv,match,pos,cnv_pos,next_cnv=True):
+    
     if not np.any(match):
         return np.empty(0)
 
