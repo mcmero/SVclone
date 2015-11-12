@@ -484,7 +484,7 @@ def adjust_sv_read_counts(sv_df,pi,pl,min_dep):
 
     # prefer sides with subclonal genotype data    
     gt1_sc = np.array(map(len,map(methodcaller("split","|"),sv_df.gtype1.values)))>1
-    gt2_sc = np.array(map(len,map(methodcaller("split","|"),sv_df.gtype1.values)))>1    
+    gt2_sc = np.array(map(len,map(methodcaller("split","|"),sv_df.gtype2.values)))>1    
     one_sc = np.logical_xor(gt1_sc,gt2_sc)
     #print(one_sc)
 
@@ -493,7 +493,7 @@ def adjust_sv_read_counts(sv_df,pi,pl,min_dep):
     sides[one_sc] = [0 if gt1!='' else 1 for gt1,gt2 in exclusive_subclones]
     has_both_gts = np.logical_and(sv_df.gtype1.values!='',sv_df.gtype2.values!='')
     cn_states = [cn[side] for cn,side in zip(combos,sides)]
-    
+   
 #    # both sides have genotypes, both either subclonal or clonal
 #    # in this case, just take the simple normal mean of the two sides
 #    both_gts_same_type = np.logical_and(has_both_gts,one_sc==False)
@@ -516,7 +516,8 @@ def adjust_sv_read_counts(sv_df,pi,pl,min_dep):
             # if these events don't exist, adjust by normal component + tumour/2 (half tumour normal
             # reads will come from duplication, on one chromosome, so divide by ploidy
             adjust_factor = np.mean(norm[dels])/np.mean(norm[dups]) if sum(dels)>0 else (1-float(pi)) + (float(pi)/2/pl)
-            norm[dups]    = norm[dups] * adjust_factor
+            if adjust_factor < 1:
+                norm[dups] = norm[dups] * adjust_factor
         
     except AttributeError:
         print('Warning, no valid classifications found. SV read counts cannot be adjusted')
