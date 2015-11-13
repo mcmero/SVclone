@@ -168,10 +168,9 @@ def get_most_likely_cn_states(cn_states,s,d,phi,pi):
 
         #reinstitute hack - uncomment below
         #cn_lik_phi = cn_lik_clonal
-    
         if len(cn_lik_clonal)==0:
             return [float('nan'), float('nan'), float('nan')]
-    
+   
         #log_ratios = np.array([ 2 * (np.nanmax(cn_lik_phi) - clon_lik) for clon_lik in cn_lik_clonal])
         #p_vals     = np.array([stats.chisqprob(lr,1) for lr in log_ratios])
         #p_vals[np.isnan(p_vals)]=1
