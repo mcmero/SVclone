@@ -127,6 +127,12 @@ def detect (prevSV,prevResult,sv):
     #anchor_chrom,c1_anchor,c1_anchor_dir,realign_chrom,c1_realign,c1_realign_dir = sv
     anchor_chrom,c1_anchor,c1_anchor_dir = sv['bp1_chr'],sv['bp1_pos'],sv['bp1_dir']
     realign_chrom,c1_realign,c1_realign_dir = sv['bp2_chr'],sv['bp2_pos'],sv['bp2_dir']
+
+    if realign_chrom == anchor_chrom:
+        if c1_realign < c1_anchor:
+            anchor_chrom,c1_anchor,c1_anchor_dir = sv['bp2_chr'],sv['bp2_pos'],sv['bp2_dir']
+            realign_chrom,c1_realign,c1_realign_dir = sv['bp1_chr'],sv['bp1_pos'],sv['bp1_dir']
+
 #    line=line.strip().split(delimeter) 
 #    c1_realign=line[0].split(':')[1]
 #    c1_realign_dir=line[1]
@@ -179,10 +185,14 @@ def detect (prevSV,prevResult,sv):
         else:
             result=SVtypes.error
         
-        #if two lines, interspersed insertion = del + tandem
+        #if two lines, interspersed duplication = del + tandem
         if prevSV:
             panchor_chrom,pc1_anchor,pc1_anchor_dir = prevSV['bp1_chr'],prevSV['bp1_pos'],prevSV['bp1_dir']
             prealign_chrom,pc1_realign,pc1_realign_dir = prevSV['bp2_chr'],prevSV['bp2_pos'],prevSV['bp2_dir']
+            if prealign_chrom == anchor_chrom:
+                if pc1_realign < pc1_anchor:
+                    anchor_chrom,pc1_anchor,pc1_anchor_dir = prevSV['bp2_chr'],prevSV['bp2_pos'],prevSV['bp2_dir']
+                    prealign_chrom,pc1_realign,pc1_realign_dir = prevSV['bp1_chr'],prevSV['bp1_pos'],prevSV['bp1_dir']
             distance1 = pc1_realign-int(c1_realign)
             distance2 = pc1_anchor-int(c1_anchor)
             if abs(distance1)<blurbp2 or abs(distance2)<blurbp2:#if this two events are nearby.
