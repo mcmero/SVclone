@@ -509,7 +509,8 @@ def adjust_sv_read_counts(sv_df,pi,pl,min_dep,rlen):
         sv_classes = sv_df.classification.values
         #invs = [ idx in params.inversion_class for idx,sv_class in enumerate(sv_classes) ]
         dups = np.array([ sv_class in params.dna_gain_class for idx,sv_class in enumerate(sv_classes) ])
-        dels = np.array([ sv_class in params.deletion_class for idx,sv_class in enumerate(sv_classes) ])
+        loss = np.array([ sv_class in params.dna_loss_class for idx,sv_class in enumerate(sv_classes) ])
+        #dels = np.array([ sv_class in params.deletion_class for idx,sv_class in enumerate(sv_classes) ])
         
         # normal read counts for duplications are adjusted by purity and ploidy
         if sum(dups)>0:
@@ -517,8 +518,9 @@ def adjust_sv_read_counts(sv_df,pi,pl,min_dep,rlen):
             # if these events don't exist, adjust by:
             # normal component + 1/ploidy (estimated half tumour normal) + estimated bias of normal reads 
             # not counted due to norm overlap threshold cutoff
-            alt_adjust = (1-float(pi)) + (1/float(pl))*pi + float(pi)*(svp_params.norm_overlap/float(rlen))
-            adjust_factor = np.mean(norm[dels])/np.mean(norm[dups]) if sum(dels)>5 else alt_adjust
+            #alt_adjust = (1-float(pi)) + (1/float(pl))*pi + float(pi)*(svp_params.norm_overlap/float(rlen))
+            alt_adjust = 1./(1+(float(pi)/pl))
+            adjust_factor = np.mean(norm[loss])/np.mean(norm[dups]) if sum(loss)>5 else alt_adjust
             if adjust_factor < 1:
                 norm[dups] = norm[dups] * adjust_factor
         

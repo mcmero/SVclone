@@ -6,6 +6,7 @@ import os
 import numpy as np
 import pysam
 import csv
+import ipdb
 from collections import OrderedDict
 from operator import methodcaller
 import vcf
@@ -28,25 +29,37 @@ def read_to_array(x,bamf):
 def is_soft_clipped(read):
     return read['align_start'] != 0 or (read['len'] + read['ref_start'] != read['ref_end'])
 
-def is_minor_softclip(read,threshold=params.tr):
-    return (read['align_start'] < threshold) and ((read['align_end'] + read['ref_start'] - read['ref_end']) < threshold)
+def is_below_sc_threshold(read,threshold=params.tr):
+    return (read['align_start'] < threshold) and (read['len'] - read['align_end'] < threshold)
 
-def is_normal_across_break(read,pos,min_ins,max_ins):
-    # must overhang break by at least soft-clip threshold
-    return  (not is_soft_clipped(read)) and \
+def is_normal_non_overlap(read,mate,pos,min_ins,max_ins):
+    '''
+    if read and mate have normal insert size, are not soft-clipped,
+    and do not overlap the breakpoint (insert or read), return true
+    '''
+    if read['chrom']!=mate['chrom']:
+        return False
+    return  is_below_sc_threshold(read) and is_below_sc_threshold(mate) and \
             (abs(read['ins_len']) < max_ins and abs(read['ins_len']) > min_ins) and \
-            (read['ref_start'] <= (pos - params.norm_overlap)) and \
-            (read['ref_end'] >= (pos + params.norm_overlap)) 
+            (abs(mate['ins_len']) < max_ins and abs(mate['ins_len']) > min_ins) and \
+            not (read['ref_start'] < (pos + params.tr) and read['ref_end'] > (pos - params.tr)) and \
+            not (mate['ref_start'] < (pos + params.tr) and mate['ref_end'] > (pos - params.tr)) and \
+            not (read['ref_start'] < pos and mate['ref_end'] > pos)
+
+def is_normal_across_break(read,pos,min_ins,max_ins,sc_len):
+    # must overhang break by at least the threshold parameter
+    return  is_below_sc_threshold(read) and \
+            (abs(read['ins_len']) < max_ins and abs(read['ins_len']) > min_ins) and \
+            (read['ref_start'] < (pos - sc_len) and read['ref_end'] > (pos + sc_len))
 
 def get_normal_overlap_bases(read,pos):
     return min( [abs(read['ref_start']-pos), abs(read['ref_end']-pos)] )
 
-def is_normal_spanning(read,mate,pos,min_ins,max_ins):
-    if not (is_soft_clipped(read) or is_soft_clipped(mate)):
+def is_normal_spanning(read,mate,pos,min_ins,max_ins,sc_len):
+    if is_below_sc_threshold(read) and is_below_sc_threshold(mate):
         if (not read['is_reverse'] and mate['is_reverse']) or (read['is_reverse'] and not mate['is_reverse']):
             return (abs(read['ins_len']) < max_ins and abs(read['ins_len']) > min_ins) and \
-                   (read['ref_end'] < (pos + params.tr)) and \
-                   (mate['ref_start'] > (pos - params.tr))
+                   (read['ref_start'] < (pos + sc_len) and mate['ref_end'] > (pos - sc_len))
     return False
 
 def is_supporting_split_read(read,pos,max_ins,sc_len):
@@ -109,9 +122,6 @@ def is_supporting_spanning_pair(read,mate,bp1,bp2,inserts,max_ins):
     pos1 = (bp1['start'] + bp1['end']) / 2
     pos2 = (bp2['start'] + bp2['end']) / 2
     
-#    if is_soft_clipped(read) or is_soft_clipped(mate):
-#        return False
-    
     #ensure this isn't just a regular old spanning pair    
     if read['chrom']==mate['chrom']:
         if read['ref_start']<mate['ref_start']:
@@ -128,7 +138,7 @@ def is_supporting_spanning_pair(read,mate,bp1,bp2,inserts,max_ins):
     ins_dist2 = get_bp_dist(mate,pos2)
 
     if is_supporting_split_read_lenient(read,pos1):
-        if is_soft_clipped(mate): 
+        if not is_below_sc_threshold(mate): 
             #only allow one soft-clip
             return False
         if abs(ins_dist1)+abs(ins_dist2) < max_ins: 
@@ -166,7 +176,7 @@ def get_loc_reads(bp,bamf,max_dp):
         err_code = 2
         return np.empty(0), err_code
 
-def reads_to_sam(reads,bam,bp1,bp2,name):
+def reads_to_sam(reads,bam,bp1,bp2,dir,name):
     '''
     For testing read assignemnts.
     Takes reads from array, matches them to bam 
@@ -181,8 +191,10 @@ def reads_to_sam(reads,bam,bp1,bp2,name):
     loc1 = '%s-%d' % (bp1['chrom'], (bp1['start']+bp1['end'])/2)
     loc2 = '%s-%d' % (bp2['chrom'], (bp1['start']+bp1['end'])/2)
     sam_name = '%s_%s-%s' % (name,loc1,loc2)
-    bam_out = pysam.AlignmentFile('%s.sam'%sam_name, "w", header=bamf.header)
-        
+    if not os.path.exists(dir):
+        os.makedirs(dir)
+    bam_out = pysam.AlignmentFile('%s/%s.sam'%(dir,sam_name), "w", header=bamf.header)
+    
     for x in iter_loc1:
         if len(reads)==0:
             break
@@ -228,7 +240,9 @@ def get_loc_counts(bp,loc_reads,pos,rc,reproc,split,norm,min_ins,max_ins,sc_len,
             break        
         r1 = loc_reads[idx]
         r2 = loc_reads[idx+1] if (idx+2)<=len(loc_reads) else None
-        if is_normal_across_break(x,pos,min_ins,max_ins):
+        if is_normal_non_overlap(r1,r2,pos,min_ins,max_ins):
+            continue
+        elif is_normal_across_break(x,pos,min_ins,max_ins,sc_len):        
             norm = np.append(norm,r1)            
             split_norm = 'bp%d_split_norm'%bp_num
             norm_olap = 'bp%d_norm_olap_bp'%bp_num
@@ -245,7 +259,7 @@ def get_loc_counts(bp,loc_reads,pos,rc,reproc,split,norm,min_ins,max_ins,sc_len,
             #else:    
             #    rc[split_supp] = rc[split_supp]+1 
             #    rc[split_cnt]  = rc[split_cnt]+get_sc_bases(x,pos)
-        elif r2!=None and r1['query_name']==r2['query_name'] and is_normal_spanning(r1,r2,pos,min_ins,max_ins):
+        elif r2!=None and r1['query_name']==r2['query_name'] and is_normal_spanning(r1,r2,pos,min_ins,max_ins,sc_len):
             norm = np.append(norm,r1)            
             norm = np.append(norm,r2)            
             span_norm = 'bp%d_span_norm'%bp_num
@@ -275,7 +289,7 @@ def get_spanning_counts(reproc,rc,bp1,bp2,inserts,min_ins,max_ins):
     
     reproc = np.sort(reproc,axis=0,order=['query_name','ref_start'])
     reproc = np.unique(reproc) #remove dups
-    reproc_again = np.empty([0,len(params.read_dtype)],dtype=params.read_dtype)    
+    anomalous = np.empty([0,len(params.read_dtype)],dtype=params.read_dtype)    
     span_bp1 = np.empty([0,len(params.read_dtype)],dtype=params.read_dtype)
     span_bp2 = np.empty([0,len(params.read_dtype)],dtype=params.read_dtype)
     
@@ -295,18 +309,18 @@ def get_spanning_counts(reproc,rc,bp1,bp2,inserts,min_ins,max_ins):
             r1 = mate
             r2 = np.array(x,copy=True)
         if is_supporting_spanning_pair(r1,r2,bp1,bp2,inserts,max_ins):        
-            span_bp1 = np.append(span_bp1,r1)
-            span_bp2 = np.append(span_bp2,r2)
             if bp1['dir'] in ['+','-'] and bp2['dir'] in ['-','+']:
                 if validate_spanning_orientation(bp1,bp2,r1,r2):
+                    span_bp1 = np.append(span_bp1,r1)
+                    span_bp2 = np.append(span_bp2,r2)
                     rc['spanning'] = rc['spanning']+1
                 else:
-                    reproc_again = np.append(reproc,x)
-            #else:
-            #    rc['spanning'] = rc['spanning']+1
+                    anomalous = np.append(anomalous,r1)
+                    anomalous = np.append(anomalous,r2)
         else:
-            reproc_again = np.append(reproc,x)
-    return rc,span_bp1,span_bp2,reproc_again
+            anomalous = np.append(anomalous,r1)
+            anomalous = np.append(anomalous,r2)
+    return rc,span_bp1,span_bp2,anomalous
 
 def recount_split_reads(split_reads,pos,bp_dir,max_ins,sc_len):
     split_count = 0
@@ -317,7 +331,7 @@ def recount_split_reads(split_reads,pos,bp_dir,max_ins,sc_len):
             split_bases += get_sc_bases(x,pos)
     return split_count,split_bases        
 
-def get_sv_read_counts(row,bam,inserts,max_dp,min_ins,max_ins,sc_len):
+def get_sv_read_counts(row,bam,inserts,max_dp,min_ins,max_ins,sc_len,out):
     
     sv_id, bp1_chr, bp1_pos, bp1_dir, bp2_chr, bp2_pos, bp2_dir, sv_class = [h[0] for h in params.sv_dtype]    
     bp1 = np.array((row[bp1_chr],row[bp1_pos]-params.window,
@@ -367,11 +381,18 @@ def get_sv_read_counts(row,bam,inserts,max_dp,min_ins,max_ins,sc_len):
     rc['bp1_win_norm'] = windowed_norm_read_count(loc1_reads,inserts,min_ins,max_ins)
     rc['bp2_win_norm'] = windowed_norm_read_count(loc2_reads,inserts,min_ins,max_ins)    
  
-    rc, span_bp1, span_bp2, reproc = get_spanning_counts(reproc,rc,bp1,bp2,inserts,min_ins,max_ins)
-    
+    rc, span_bp1, span_bp2, anomalous = get_spanning_counts(reproc,rc,bp1,bp2,inserts,min_ins,max_ins)
+    rc['anomalous'] = len(anomalous)
+    #print('%d anomalous reads' % len(anomalous))
+
     # for debugging only
     #span_reads = np.unique(np.concatenate([span_bp1['query_name'],span_bp2['query_name']]))
-    #reads_to_sam(span_reads,bam,bp1,bp2,'span')
+    #norm_reads = np.unique(norm['query_name'])
+    #anom_reads = np.unique(anomalous['query_name'])
+    #if len(anomalous)>0:
+    #    reads_to_sam(anom_reads,bam,bp1,bp2,out,'anom')
+    #if len(norm_reads)>0:
+    #    reads_to_sam(norm_reads,bam,bp1,bp2,out,'norm')
 
     print('processed %d reads at loc1; %d reads at loc2' % (len(loc1_reads),len(loc2_reads)))
     return rc
@@ -430,7 +451,7 @@ def proc_svs(args):
         sv_str = '%s:%d|%s:%d'%sv_prop
         print('processing %s'%sv_str)
 
-        sv_rc = get_sv_read_counts(row,bam,inserts,max_dp,min_ins,max_ins,sc_len)
+        sv_rc = get_sv_read_counts(row,bam,inserts,max_dp,min_ins,max_ins,sc_len,out)
 
         norm1 = int(sv_rc['bp1_split_norm'] + sv_rc['bp1_span_norm'])
         norm2 = int(sv_rc['bp2_split_norm'] + sv_rc['bp2_span_norm'])

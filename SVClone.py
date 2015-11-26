@@ -79,10 +79,10 @@ process_parser.add_argument("-d","--mean_depth",dest="mean_dp",type=float,defaul
                     help='''Average coverage for BAM file in covered region. May be calculated across 
                     binned intervals and may be approximate''')
 
-process_parser.add_argument("-sc","--softclip",dest="sc_len",default=25,type=int,
+process_parser.add_argument("-sc","--softclip",dest="sc_len",default=10,type=int,
                     help='''Optional: minimum number of basepairs by which reads spanning the break are 
                     considered support the breakpoint. Also affects number of base-pairs a normal read 
-                    must overlap the break to be counted. Default = 25''')
+                    must overlap the break to be counted. Default = 10''')
 
 process_parser.add_argument("-cn","--max_cn",dest="max_cn",default=10,type=int,
                     help='''Optional: maximum expected copy-number. Will skip the processing of any areas 

@@ -26,7 +26,8 @@ phi_limit               = 2
 # SV classification class names
 inversion_class          = ['INV']
 deletion_class           = ['DEL']
-dna_gain_class           = ['DUP','INTDUP']
+dna_gain_class           = ['DUP','INTDUP']    #classes of variations where normal reads are not disturbed
+dna_loss_class           = ['DEL','INV','TRX'] #classes of variations where normal reads are disturbed
 itrx_class               = ['INTRX']
 
 #####################################################################
