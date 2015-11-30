@@ -332,7 +332,7 @@ def preproc_svs(args):
     filt_repeats = filt_repeats.split(',') if filt_repeats != '' else filt_repeats
     filt_repeats = [rep for rep in filt_repeats if rep!='']    
     
-    outf = '%s_svin.txt'%out
+    outname = '%s_svin.txt'%out
     
     svs = np.empty(0)
     if simple:
@@ -397,7 +397,7 @@ def preproc_svs(args):
                     svs[i]['classification'] = trx_label
                     svs[i]['ID'] = new_idx
 
-    with open('%s_svin.txt'%out,'w') as outf:
+    with open(outname,'w') as outf:
         writer = csv.writer(outf,delimiter='\t',quoting=csv.QUOTE_NONE,quotechar='')
         header = [field for field,dtype in params.sv_dtype]
         writer.writerow(header)

@@ -17,7 +17,7 @@ read_dtype      = [('query_name',       'S150'),
                    ('ins_len',          'int64'), 
                    ('is_reverse',       np.bool)]
 
-sv_dtype        = [('ID',            'int64'),
+sv_dtype        = [('ID',               'int64'),
                    ('bp1_chr',          'S20'),
                    ('bp1_pos',          'int64'),
                    ('bp1_dir',          'S1'),

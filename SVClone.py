@@ -117,8 +117,7 @@ filter_parser.add_argument("-g","--germline",dest="germline",default="",
                     assume all SVs are somatic.''')
 
 filter_parser.add_argument("-c","--cnvs",dest="cnvs",default="",
-                    help='''Phased copy-number states from Battenberg (comma separated if multiple).If 
-                    not provided, all SVs assumed copy-neutral.''')
+                    help='''Phased copy-number states from Battenberg. If not provided, all SVs assumed copy-neutral.''')
 
 filter_parser.add_argument("--min_depth",dest="min_dep",type=float,default=4,
                     help='''Filter out any variants with total depth below this value (default = 4). Applies to

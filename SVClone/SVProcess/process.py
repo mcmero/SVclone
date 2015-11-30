@@ -48,7 +48,7 @@ def is_normal_non_overlap(read,mate,pos,min_ins,max_ins):
 
 def is_normal_across_break(read,pos,min_ins,max_ins,sc_len):
     # must overhang break by at least the threshold parameter
-    return  is_below_sc_threshold(read) and \
+    return  (not is_soft_clipped(read)) and \
             (abs(read['ins_len']) < max_ins and abs(read['ins_len']) > min_ins) and \
             (read['ref_start'] < (pos - sc_len) and read['ref_end'] > (pos + sc_len))
 
@@ -56,7 +56,7 @@ def get_normal_overlap_bases(read,pos):
     return min( [abs(read['ref_start']-pos), abs(read['ref_end']-pos)] )
 
 def is_normal_spanning(read,mate,pos,min_ins,max_ins,sc_len):
-    if is_below_sc_threshold(read) and is_below_sc_threshold(mate):
+    if not is_soft_clipped(read) and not is_soft_clipped(mate):
         if (not read['is_reverse'] and mate['is_reverse']) or (read['is_reverse'] and not mate['is_reverse']):
             return (abs(read['ins_len']) < max_ins and abs(read['ins_len']) > min_ins) and \
                    (read['ref_start'] < (pos + sc_len) and mate['ref_end'] > (pos - sc_len))
@@ -121,7 +121,7 @@ def points_towards_break(read,pos):
 def is_supporting_spanning_pair(read,mate,bp1,bp2,inserts,max_ins):
     pos1 = (bp1['start'] + bp1['end']) / 2
     pos2 = (bp2['start'] + bp2['end']) / 2
-    
+   
     #ensure this isn't just a regular old spanning pair    
     if read['chrom']==mate['chrom']:
         if read['ref_start']<mate['ref_start']:
@@ -144,7 +144,7 @@ def is_supporting_spanning_pair(read,mate,bp1,bp2,inserts,max_ins):
         if abs(ins_dist1)+abs(ins_dist2) < max_ins: 
             return True
     elif is_supporting_split_read_lenient(mate,pos2):
-        if is_soft_clipped(read):
+        if not is_below_sc_threshold(read):
             return False
         if abs(ins_dist1)+abs(ins_dist2) < max_ins:
             return True
@@ -176,7 +176,7 @@ def get_loc_reads(bp,bamf,max_dp):
         err_code = 2
         return np.empty(0), err_code
 
-def reads_to_sam(reads,bam,bp1,bp2,dir,name):
+def reads_to_sam(reads,bam,bp1,bp2,dirout,name):
     '''
     For testing read assignemnts.
     Takes reads from array, matches them to bam 
@@ -191,9 +191,9 @@ def reads_to_sam(reads,bam,bp1,bp2,dir,name):
     loc1 = '%s-%d' % (bp1['chrom'], (bp1['start']+bp1['end'])/2)
     loc2 = '%s-%d' % (bp2['chrom'], (bp1['start']+bp1['end'])/2)
     sam_name = '%s_%s-%s' % (name,loc1,loc2)
-    if not os.path.exists(dir):
-        os.makedirs(dir)
-    bam_out = pysam.AlignmentFile('%s/%s.sam'%(dir,sam_name), "w", header=bamf.header)
+    if not os.path.exists(dirout):
+        os.makedirouts(dirout)
+    bam_out = pysam.AlignmentFile('%s/%s.sam'%(dirout,sam_name), "w", header=bamf.header)
     
     for x in iter_loc1:
         if len(reads)==0:
@@ -249,16 +249,16 @@ def get_loc_counts(bp,loc_reads,pos,rc,reproc,split,norm,min_ins,max_ins,sc_len,
             rc[split_norm] = rc[split_norm]+1 
             rc[norm_olap] = rc[norm_olap]+get_normal_overlap_bases(x,pos)
         elif is_supporting_split_read(x,pos,max_ins,sc_len):
-            split = np.append(split,x)            
             split_supp = 'bp%d_split'%bp_num
             split_cnt = 'bp%d_sc_bases'%bp_num
             if bp['dir'] in ['+','-']:
                 if is_supporting_split_read_wdir(bp['dir'],x,pos,max_ins,sc_len):
+                    split = np.append(split,x)            
                     rc[split_supp] = rc[split_supp]+1 
                     rc[split_cnt]  = rc[split_cnt]+get_sc_bases(x,pos)                    
-            #else:    
-            #    rc[split_supp] = rc[split_supp]+1 
-            #    rc[split_cnt]  = rc[split_cnt]+get_sc_bases(x,pos)
+                else:    
+                    rc[split_supp] = rc[split_supp]+1 
+                    rc[split_cnt]  = rc[split_cnt]+get_sc_bases(x,pos)
         elif r2!=None and r1['query_name']==r2['query_name'] and is_normal_spanning(r1,r2,pos,min_ins,max_ins,sc_len):
             norm = np.append(norm,r1)            
             norm = np.append(norm,r2)            
@@ -286,7 +286,7 @@ def validate_spanning_orientation(bp1,bp2,r1,r2):
 def get_spanning_counts(reproc,rc,bp1,bp2,inserts,min_ins,max_ins):
     pos1 = (bp1['start'] + bp1['end']) / 2
     pos2 = (bp2['start'] + bp2['end']) / 2
-    
+       
     reproc = np.sort(reproc,axis=0,order=['query_name','ref_start'])
     reproc = np.unique(reproc) #remove dups
     anomalous = np.empty([0,len(params.read_dtype)],dtype=params.read_dtype)    
@@ -299,12 +299,11 @@ def get_spanning_counts(reproc,rc,bp1,bp2,inserts,min_ins,max_ins):
         if reproc[idx+1]['query_name'] != reproc[idx]['query_name']:
             #not paired
             continue
-
         mate = np.array(reproc[idx+1],copy=True)
         r1 = np.array(x,copy=True)
         r2 = np.array(mate,copy=True)
-        #if read corresponds to bp2 and mate to bp1
-        if (bp1['chrom']!=bp2['chrom'] and x['chrom']==bp2['chrom']) or \
+        #if read corresponds to bp2 and mate to bp1, switch their order
+        if (bp1['chrom']!=bp2['chrom'] and r1['chrom']==bp2['chrom']) or \
             (pos1 > pos2 and bp1['chrom']==bp2['chrom']):
             r1 = mate
             r2 = np.array(x,copy=True)
@@ -322,16 +321,16 @@ def get_spanning_counts(reproc,rc,bp1,bp2,inserts,min_ins,max_ins):
             anomalous = np.append(anomalous,r2)
     return rc,span_bp1,span_bp2,anomalous
 
-def recount_split_reads(split_reads,pos,bp_dir,max_ins,sc_len):
-    split_count = 0
-    split_bases = 0
-    for idx,x in enumerate(split_reads):
-        if is_supporting_split_read_wdir(bp_dir,x,pos,max_ins,sc_len):
-            split_count += 1
-            split_bases += get_sc_bases(x,pos)
-    return split_count,split_bases        
+#def recount_split_reads(split_reads,pos,bp_dir,max_ins,sc_len):
+#    split_count = 0
+#    split_bases = 0
+#    for idx,x in enumerate(split_reads):
+#        if is_supporting_split_read_wdir(bp_dir,x,pos,max_ins,sc_len):
+#            split_count += 1
+#            split_bases += get_sc_bases(x,pos)
+#    return split_count,split_bases        
 
-def get_sv_read_counts(row,bam,inserts,max_dp,min_ins,max_ins,sc_len,out):
+def get_sv_read_counts(row,bam,inserts,max_dp,min_ins,max_ins,sc_len,out,split_reads,span_reads,anom_reads):
     
     sv_id, bp1_chr, bp1_pos, bp1_dir, bp2_chr, bp2_pos, bp2_dir, sv_class = [h[0] for h in params.sv_dtype]    
     bp1 = np.array((row[bp1_chr],row[bp1_pos]-params.window,
@@ -382,20 +381,21 @@ def get_sv_read_counts(row,bam,inserts,max_dp,min_ins,max_ins,sc_len,out):
     rc['bp2_win_norm'] = windowed_norm_read_count(loc2_reads,inserts,min_ins,max_ins)    
  
     rc, span_bp1, span_bp2, anomalous = get_spanning_counts(reproc,rc,bp1,bp2,inserts,min_ins,max_ins)
-    rc['anomalous'] = len(anomalous)
-    #print('%d anomalous reads' % len(anomalous))
+    spanning = span_bp1
+    spanning = np.concatenate([span_bp1,span_bp2]) if (len(span_bp1)>0 and len(span_bp2)>0) else spanning
+    spanning = span_bp2 if len(span_bp1)==0 else spanning
+    span_reads = np.append(span_reads,spanning)
 
-    # for debugging only
-    #span_reads = np.unique(np.concatenate([span_bp1['query_name'],span_bp2['query_name']]))
-    #norm_reads = np.unique(norm['query_name'])
-    #anom_reads = np.unique(anomalous['query_name'])
-    #if len(anomalous)>0:
-    #    reads_to_sam(anom_reads,bam,bp1,bp2,out,'anom')
-    #if len(norm_reads)>0:
-    #    reads_to_sam(norm_reads,bam,bp1,bp2,out,'norm')
+    split = split_bp1
+    split = np.concatenate([split_bp1,split_bp2]) if (len(split_bp1)>0 and len(split_bp2)>0) else split
+    split = split_bp2 if len(split_bp1)==0 else split
+    split_reads = np.append(split_reads,split)
+
+    rc['anomalous'] = len(anomalous)
+    anom_reads = np.append(anom_reads,anomalous)
 
     print('processed %d reads at loc1; %d reads at loc2' % (len(loc1_reads),len(loc2_reads)))
-    return rc
+    return rc, split_reads, span_reads, anom_reads
 
 def get_params(bam,mean_dp,max_cn,rlen,insert_mean,insert_std,out):
     inserts = [insert_mean,insert_std]
@@ -429,7 +429,7 @@ def proc_svs(args):
     insert_mean  = float(args.insert_mean)
     insert_std   = float(args.insert_std)
 
-    outf = '%s_svinfo.txt'%out
+    outname = '%s_svinfo.txt'%out
     dirname = os.path.dirname(out)
     if dirname!='' and not os.path.exists(dirname):
         os.makedirs(dirname)
@@ -439,10 +439,14 @@ def proc_svs(args):
     # write header output
     header_out = [h[0] for idx,h in enumerate(params.sv_out_dtype)]
     
-    with open('%s_svinfo.txt'%out,'w') as outf:        
+    with open(outname,'w') as outf:        
         writer = csv.writer(outf,delimiter='\t',quoting=csv.QUOTE_NONE)
         writer.writerow(header_out)
 
+    split_reads = np.empty([0,len(params.read_dtype)],dtype=params.read_dtype)
+    span_reads = np.empty([0,len(params.read_dtype)],dtype=params.read_dtype)
+    anom_reads = np.empty([0,len(params.read_dtype)],dtype=params.read_dtype)
+    
     sv_id, bp1_chr, bp1_pos, bp1_dir, bp2_chr, bp2_pos, bp2_dir, sv_class = [h[0] for h in params.sv_dtype]    
     svs = np.genfromtxt(svin,delimiter='\t',names=True,dtype=None,invalid_raise=False)
     print("Extracting data from %d SVs"%len(svs))
@@ -451,7 +455,8 @@ def proc_svs(args):
         sv_str = '%s:%d|%s:%d'%sv_prop
         print('processing %s'%sv_str)
 
-        sv_rc = get_sv_read_counts(row,bam,inserts,max_dp,min_ins,max_ins,sc_len,out)
+        sv_rc, split_reads, span_reads, anom_reads = get_sv_read_counts(row,bam,inserts,max_dp,min_ins,max_ins,
+                                                           sc_len,out,split_reads,span_reads,anom_reads)
 
         norm1 = int(sv_rc['bp1_split_norm'] + sv_rc['bp1_span_norm'])
         norm2 = int(sv_rc['bp2_split_norm'] + sv_rc['bp2_span_norm'])
@@ -463,7 +468,53 @@ def proc_svs(args):
         sv_rc['vaf1'] = support / (support + norm1) if support!=0 else 0
         sv_rc['vaf2'] = support / (support + norm2) if support!=0 else 0            
 
-        with open('%s_svinfo.txt'%out,'a') as outf:
+        with open(outname,'a') as outf:
             writer = csv.writer(outf,delimiter='\t',quoting=csv.QUOTE_NONE)
             writer.writerow(sv_rc)
 
+#    print('Writing anom reads to file')
+#    split_reads = np.unique(split_reads['query_name'])
+#    span_reads = np.unique(span_reads['query_name'])
+#
+#    # need to filter out any reads that were at any point marked as valid spanning
+#    anom_reads = np.array([x for x in np.unique(anom_reads['query_name']) if x not in split_reads])
+#    anom_reads = np.array([x for x in np.unique(anom_reads['query_name']) if x not in span_reads])
+#
+#    bamf = pysam.AlignmentFile(bam, "rb")
+#    index = pysam.IndexedReads(bamf)
+#    index.build()
+#    anom_bam = pysam.AlignmentFile("%s_anom_reads.bam" % out, "wb", template=bamf)
+#    for read_name in anom_reads:
+#        for read in index.find(read_name):
+#            anom_bam.write(read)
+#    anom_bam.close()
+#    
+#    print('Recounting anomalous reads')
+#    sv_proc = np.genfromtxt(outname,delimiter='\t',names=True,dtype=params.sv_out_dtype,invalid_raise=False)
+#    for idx,row in enumerate(sv_proc):
+#        sv_id, bp1_chr, bp1_pos, bp1_dir, bp2_chr, bp2_pos, bp2_dir, sv_class = [h[0] for h in params.sv_dtype]    
+#        bp1 = np.array((row[bp1_chr],row[bp1_pos]-params.window,
+#                        row[bp1_pos]+params.window,row[bp1_dir]),dtype=params.bp_dtype)
+#        bp2 = np.array((row[bp2_chr],row[bp2_pos]-params.window,
+#                        row[bp2_pos]+params.window,row[bp2_dir]),dtype=params.bp_dtype)
+#
+#        bamf = pysam.AlignmentFile(bam, "rb")
+#        loc1_reads, err_code1 = get_loc_reads(bp1,bamf,max_dp)
+#        loc2_reads, err_code2 = get_loc_reads(bp2,bamf,max_dp)
+#        bamf.close()
+#        
+#        if err_code1==0 and err_code2==0:
+#            anom1 = [ x['query_name'] for x in loc1_reads if x['query_name'] in anom_reads]
+#            anom2 = [ x['query_name'] for x in loc2_reads if x['query_name'] in anom_reads]
+#            anom = np.concatenate([anom1,anom2])
+#            anom_count = len(np.unique(anom))
+#            sv_proc[idx]['anomalous'] = anom_count
+#            print('found %d anomalous reads at %s:%d|%s:%d' % (anom_count,row[bp1_chr],row[bp1_pos],row[bp2_chr],row[bp2_pos]))
+#    
+#    with open(outname,'w') as outf:
+#        header_out = [h[0] for idx,h in enumerate(params.sv_out_dtype)]
+#        writer = csv.writer(outf,delimiter='\t',quoting=csv.QUOTE_NONE)
+#        writer.writerow(header_out)
+#        for row in sv_proc:   
+#            writer = csv.writer(outf,delimiter='\t',quoting=csv.QUOTE_NONE)
+#            writer.writerow(row)
