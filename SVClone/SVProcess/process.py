@@ -256,9 +256,8 @@ def get_loc_counts(bp,loc_reads,pos,rc,reproc,split,norm,min_ins,max_ins,sc_len,
                     split = np.append(split,x)            
                     rc[split_supp] = rc[split_supp]+1 
                     rc[split_cnt]  = rc[split_cnt]+get_sc_bases(x,pos)                    
-                else:    
-                    rc[split_supp] = rc[split_supp]+1 
-                    rc[split_cnt]  = rc[split_cnt]+get_sc_bases(x,pos)
+                else:
+                    reproc = np.append(reproc,x) #may be spanning support or anomalous
         elif r2!=None and r1['query_name']==r2['query_name'] and is_normal_spanning(r1,r2,pos,min_ins,max_ins,sc_len):
             norm = np.append(norm,r1)            
             norm = np.append(norm,r2)            
@@ -417,6 +416,57 @@ def get_params(bam,mean_dp,max_cn,rlen,insert_mean,insert_std,out):
 
     return rlen, inserts, max_dp, max_ins, min_ins
 
+def write_anomalous_read_to_bam(bam,split_reads,span_reads,anom_reads,out):
+    print('Writing anom reads to file')
+    split_reads = np.unique(split_reads['query_name'])
+    span_reads = np.unique(span_reads['query_name'])
+    anom_reads = np.unique(anom_reads['query_name'])
+
+    # need to filter out any reads that were at any point marked as valid spanning
+    anom_reads = np.array([x for x in anom_reads if x not in split_reads])
+    anom_reads = np.array([x for x in anom_reads if x not in span_reads])
+
+    bamf = pysam.AlignmentFile(bam, "rb")
+    index = pysam.IndexedReads(bamf)
+    index.build()
+    anom_bam = pysam.AlignmentFile("%s_anom_reads.bam" % out, "wb", template=bamf)
+    for read_name in anom_reads:
+        for read in index.find(read_name):
+            anom_bam.write(read)
+    anom_bam.close()
+
+def recount_anomalous_reads(bam,outname,anom_reads,max_dp):
+    print('Recounting anomalous reads')   
+    anom_reads = np.unique(anom_reads['query_name'])
+    sv_proc = np.genfromtxt(outname,delimiter='\t',names=True,dtype=params.sv_out_dtype,invalid_raise=False)
+    for idx,row in enumerate(sv_proc):
+        sv_id, bp1_chr, bp1_pos, bp1_dir, bp2_chr, bp2_pos, bp2_dir, sv_class = [h[0] for h in params.sv_dtype]    
+        bp1 = np.array((row[bp1_chr],row[bp1_pos]-params.window,
+                        row[bp1_pos]+params.window,row[bp1_dir]),dtype=params.bp_dtype)
+        bp2 = np.array((row[bp2_chr],row[bp2_pos]-params.window,
+                        row[bp2_pos]+params.window,row[bp2_dir]),dtype=params.bp_dtype)
+
+        bamf = pysam.AlignmentFile(bam, "rb")
+        loc1_reads, err_code1 = get_loc_reads(bp1,bamf,max_dp)
+        loc2_reads, err_code2 = get_loc_reads(bp2,bamf,max_dp)
+        bamf.close()
+        
+        if err_code1==0 and err_code2==0:
+            anom1 = [ x['query_name'] for x in loc1_reads if x['query_name'] in anom_reads]
+            anom2 = [ x['query_name'] for x in loc2_reads if x['query_name'] in anom_reads]
+            anom = np.concatenate([anom1,anom2])
+            anom_count = len(np.unique(anom))
+            sv_proc[idx]['anomalous'] = anom_count
+            print('found %d anomalous reads at %s:%d|%s:%d' % (anom_count,row[bp1_chr],row[bp1_pos],row[bp2_chr],row[bp2_pos]))
+    
+    with open(outname,'w') as outf:
+        header_out = [h[0] for idx,h in enumerate(params.sv_out_dtype)]
+        writer = csv.writer(outf,delimiter='\t',quoting=csv.QUOTE_NONE)
+        writer.writerow(header_out)
+        for row in sv_proc:   
+            writer = csv.writer(outf,delimiter='\t',quoting=csv.QUOTE_NONE)
+            writer.writerow(row)            
+
 def proc_svs(args):
     
     svin         = args.svin
@@ -428,6 +478,7 @@ def proc_svs(args):
     rlen         = int(args.rlen)
     insert_mean  = float(args.insert_mean)
     insert_std   = float(args.insert_std)
+    write_anom   = args.write_anom
 
     outname = '%s_svinfo.txt'%out
     dirname = os.path.dirname(out)
@@ -471,50 +522,8 @@ def proc_svs(args):
         with open(outname,'a') as outf:
             writer = csv.writer(outf,delimiter='\t',quoting=csv.QUOTE_NONE)
             writer.writerow(sv_rc)
+   
+    if write_anom:
+        write_anomalous_read_to_bam(bam,split_reads,span_reads,anom_reads,out)
+        sv_proc = recount_anomalous_reads(bam,outname,anom_reads,max_dp)
 
-#    print('Writing anom reads to file')
-#    split_reads = np.unique(split_reads['query_name'])
-#    span_reads = np.unique(span_reads['query_name'])
-#
-#    # need to filter out any reads that were at any point marked as valid spanning
-#    anom_reads = np.array([x for x in np.unique(anom_reads['query_name']) if x not in split_reads])
-#    anom_reads = np.array([x for x in np.unique(anom_reads['query_name']) if x not in span_reads])
-#
-#    bamf = pysam.AlignmentFile(bam, "rb")
-#    index = pysam.IndexedReads(bamf)
-#    index.build()
-#    anom_bam = pysam.AlignmentFile("%s_anom_reads.bam" % out, "wb", template=bamf)
-#    for read_name in anom_reads:
-#        for read in index.find(read_name):
-#            anom_bam.write(read)
-#    anom_bam.close()
-#    
-#    print('Recounting anomalous reads')
-#    sv_proc = np.genfromtxt(outname,delimiter='\t',names=True,dtype=params.sv_out_dtype,invalid_raise=False)
-#    for idx,row in enumerate(sv_proc):
-#        sv_id, bp1_chr, bp1_pos, bp1_dir, bp2_chr, bp2_pos, bp2_dir, sv_class = [h[0] for h in params.sv_dtype]    
-#        bp1 = np.array((row[bp1_chr],row[bp1_pos]-params.window,
-#                        row[bp1_pos]+params.window,row[bp1_dir]),dtype=params.bp_dtype)
-#        bp2 = np.array((row[bp2_chr],row[bp2_pos]-params.window,
-#                        row[bp2_pos]+params.window,row[bp2_dir]),dtype=params.bp_dtype)
-#
-#        bamf = pysam.AlignmentFile(bam, "rb")
-#        loc1_reads, err_code1 = get_loc_reads(bp1,bamf,max_dp)
-#        loc2_reads, err_code2 = get_loc_reads(bp2,bamf,max_dp)
-#        bamf.close()
-#        
-#        if err_code1==0 and err_code2==0:
-#            anom1 = [ x['query_name'] for x in loc1_reads if x['query_name'] in anom_reads]
-#            anom2 = [ x['query_name'] for x in loc2_reads if x['query_name'] in anom_reads]
-#            anom = np.concatenate([anom1,anom2])
-#            anom_count = len(np.unique(anom))
-#            sv_proc[idx]['anomalous'] = anom_count
-#            print('found %d anomalous reads at %s:%d|%s:%d' % (anom_count,row[bp1_chr],row[bp1_pos],row[bp2_chr],row[bp2_pos]))
-#    
-#    with open(outname,'w') as outf:
-#        header_out = [h[0] for idx,h in enumerate(params.sv_out_dtype)]
-#        writer = csv.writer(outf,delimiter='\t',quoting=csv.QUOTE_NONE)
-#        writer.writerow(header_out)
-#        for row in sv_proc:   
-#            writer = csv.writer(outf,delimiter='\t',quoting=csv.QUOTE_NONE)
-#            writer.writerow(row)

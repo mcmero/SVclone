@@ -98,6 +98,10 @@ process_parser.add_argument("-v","--insert_mean",dest="insert_mean",default=-1.,
 process_parser.add_argument("--insert_std",dest="insert_std",default=-1.,type=float,
                     help="Standard deviation of insert length. If not specified, will be inferred")
 
+process_parser.add_argument("--write_anomalous",dest="write_anom",action="store_true",
+                    help='''Whether to output (as a bam) and accurately recount anomalous reads. 
+                    Useful for diagnosing issues with read counting.''')
+
 process_parser.set_defaults(func=process.proc_svs)
 
 ##########################################################################################################
