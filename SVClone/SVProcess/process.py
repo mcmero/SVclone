@@ -345,7 +345,7 @@ def get_sv_read_counts(row,bam,inserts,max_dp,min_ins,max_ins,sc_len,out,split_r
    
     if row[bp1_dir] not in ['+','-'] or row[bp2_dir] not in ['+','-']:
         #one or both breaks don't have a valid direction
-        return rc
+        return rc, split_reads, span_reads, anom_reads
 
     bamf = pysam.AlignmentFile(bam, "rb")
     loc1_reads, err_code1 = get_loc_reads(bp1,bamf,max_dp)    
@@ -356,13 +356,13 @@ def get_sv_read_counts(row,bam,inserts,max_dp,min_ins,max_ins,sc_len,out,split_r
         sv_class = str(row['classification'])
         if err_code1 == 1 or err_code2 == 1:
             rc['classification'] = 'HIDEP' if sv_class=='' else sv_class+';HIDEP' 
-            return rc
+            return rc, split_reads, span_reads, anom_reads
         elif err_code1 == 2 or err_code2 == 2:
             rc['classification'] = 'READ_FETCH_FAILED' if sv_class=='' else sv_class+';READ_FETCH_FAILED'
-            return rc
+            return rc, split_reads, span_reads, anom_reads
         else:
             rc['classification'] = 'NO_READS' if sv_class=='' else sv_class+';NO_READS'
-            return rc
+            return rc, split_reads, span_reads, anom_reads
     
     reproc = np.empty([0,len(params.read_dtype)],dtype=params.read_dtype)    
     rc['bp1_total_reads'] = len(loc1_reads)
