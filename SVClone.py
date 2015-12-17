@@ -178,8 +178,8 @@ filter_parser.set_defaults(func=run_filter.run)
 
 cluster_parser = subparsers.add_parser('cluster', help='Run clustering step')
 
-cluster_parser.add_argument("-s","--samples",dest="sample",
-                    help='''Required: Sample name (comma separated if multiple), not including germline.
+cluster_parser.add_argument("-s","--samples",dest="sample",default="sample1",
+                    help='''Sample name (comma separated if multiple), not including germline.
                     WARNING: if clustering using mutect SNVs, the sample name must match the sample name 
                     in the vcf file.''')
 

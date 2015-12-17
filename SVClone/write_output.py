@@ -65,8 +65,12 @@ def write_out_files(df,clus_info,clus_members,df_probs,clus_cert,clus_out_dir,sa
 
             ref_cn, sc_cn, freq = cns[idx]
             pv = pvs[idx]
+            chrs_bearing_mut = int(sc_cn*freq) if (not np.isnan(sc_cn) or not np.isnan(freq)) else 0
 
-            chrs_bearing_mut = int(sc_cn*freq) if (not np.isnan(sc_cn) or not np.isnan(freq)) else float('nan')
+            ref_cn = 0 if np.isnan(sc_cn) else ref_cn
+            sc_cn = 0 if np.isnan(sc_cn) else sc_cn
+            freq = 0 if np.isnan(freq) else freq
+
             cn_new_row = np.array([(bp1_chr,bp1_pos,tot_cn1,chrs_bearing_mut,
                                     bp2_chr,bp2_pos,tot_cn2,chrs_bearing_mut)],dtype=cn_dtype)
             ml_new_row = np.array([(bp1_chr,bp1_pos,bp2_chr,bp2_pos,var['gtype1'],var['gtype2'],
