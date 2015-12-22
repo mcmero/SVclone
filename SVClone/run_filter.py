@@ -526,14 +526,17 @@ def adjust_sv_read_counts(sv_df,pi,pl,min_dep,rlen):
         
     except AttributeError:
         print('Warning, no valid classifications found. SV read counts cannot be adjusted')
+    
+    all_indexes      = sv_df.index.values
+    adjust_factor    = 1+(params.support_adjust_factor*pi)
+    adjusted_support = map(round,sup*adjust_factor)
 
-    all_indexes = sv_df.index.values
     sv_df.loc[all_indexes,'adjusted_norm']      = norm
-    sv_df.loc[all_indexes,'adjusted_support']   = sup
-    sv_df.loc[all_indexes,'adjusted_depth']     = norm+sup
+    sv_df.loc[all_indexes,'adjusted_support']   = map(int,adjusted_support)
+    sv_df.loc[all_indexes,'adjusted_depth']     = map(int,adjusted_support+norm)
     sv_df.loc[all_indexes,'preferred_side']     = sides
-    sv_df.loc[all_indexes,'raw_mean_vaf']       = (s+d)/(s+d+map(float,sv_df.norm_mean.values))
-    sv_df.loc[all_indexes,'adjusted_vaf']       = map(float,sup)/(norm+sup)
+    sv_df.loc[all_indexes,'raw_mean_vaf']       = sup/(sup+sv_df.norm_mean.map(float).values)
+    sv_df.loc[all_indexes,'adjusted_vaf']       = adjusted_support/(norm+adjusted_support)
 
     return sv_df
 
@@ -574,8 +577,9 @@ def run(args):
     pi      = proc_arg(pi,n,float)
     ploidy  = proc_arg(ploidy,n,float)    
 
+    # defaults
     rlen    = 100
-    insert  = 100
+    insert  = 300
     
     for p in pi:
         if p<0 or p>1:

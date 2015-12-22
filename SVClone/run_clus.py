@@ -212,10 +212,6 @@ def post_process_clusters(mcmc,sv_df,snv_df,merge_clusts,clus_out_dir,sup,dep,cn
     if plot:
         plot_clusters(center_trace,clus_idx,clus_max_prob,sup,dep,clus_out_dir)
     
-    #if len(clus_info)>1 and merge_clusts: 
-        #TODO: fix merging
-        #print('Merge clusters feature has been temporarily removed')
-
     # merge clusters
     if len(clus_info)>1 and merge_clusts:        
         clus_merged = pd.DataFrame(columns=clus_info.columns,index=clus_info.index)
@@ -297,8 +293,10 @@ def run_clustering(args):
     else:
         print('purity_ploidy.txt file not found! Assuming purity = 1, ploidy = 2') 
    
+    #defaults
     rlen    = 100
-    insert  = 100
+    insert  = 300
+
     if params_file=='':
         params_file = '%s/%s_params.txt' % (out,sample) 
     if os.path.exists(params_file):
