@@ -6,110 +6,110 @@ Commandline input for running SV
 
 from SVClone import run_filter
 from SVClone import run_clus
-from SVClone.SVProcess import preprocess
-from SVClone.SVProcess import process
+from SVClone.SVProcess import identify
+from SVClone.SVProcess import count
 
 import argparse
 import numpy as np
 
 parser = argparse.ArgumentParser(prog='SVClone')
 
-parser.add_argument('--version', action='version', version='SVClone-0.1.0')
+parser.add_argument('--version', action='version', version='SVClone-1.0.0')
 
 subparsers = parser.add_subparsers()
 
 ##########################################################################################################
 
-preprocess_parser = subparsers.add_parser('preprocess', help='Extract directions and SV classifications')
+identify_parser = subparsers.add_parser('identify', help='Extract directions and SV classifications')
 
-preprocess_parser.add_argument("-i","--input",dest="svin",required=True,
+identify_parser.add_argument("-i","--input",dest="svin",required=True,
                    help="Structural variants input file. See README for input format")
 
-preprocess_parser.add_argument("-b","--bam",dest="bam",required=True,
+identify_parser.add_argument("-b","--bam",dest="bam",required=True,
                     help="Corresponding indexed BAM file")
 
-preprocess_parser.add_argument("-o","--out",dest="out",required=True,
+identify_parser.add_argument("-o","--out",dest="out",required=True,
                     help='''Output base name. May contain directories. Will create pre-processed output as 
                     <name>_svin.txt''')
 
-preprocess_parser.add_argument("-md","--max_dep",dest="max_dep",default=5000,type=int,
+identify_parser.add_argument("-md","--max_dep",dest="max_dep",default=5000,type=int,
                     help='''Skip all regions with depth higher than this value (default = 5000)''')
 
-preprocess_parser.add_argument("--simple",dest="simple_svs",action="store_true",
+identify_parser.add_argument("--simple",dest="simple_svs",action="store_true",
                     help="Whether sv input is in a simple format (see README), otherwise VCF format is assumed.")
 
-preprocess_parser.add_argument("--socrates",dest="socrates",action="store_true",
+identify_parser.add_argument("--socrates",dest="socrates",action="store_true",
                     help="Whether sv input is 'Socrates' SV caller input.")
 
-preprocess_parser.add_argument("--sv_class_field",dest="class_field",default="",
+identify_parser.add_argument("--sv_class_field",dest="class_field",default="",
                     help="Use existing classification field, specify the field name")
 
-preprocess_parser.add_argument("--use_dir",dest="use_dir",action="store_true",
+identify_parser.add_argument("--use_dir",dest="use_dir",action="store_true",
                     help="Whether to use breakpoint direction in the input file (where it must be supplied).")
 
-preprocess_parser.add_argument("--filter_repeats",dest="filt_repeats",default="",
+identify_parser.add_argument("--filter_repeats",dest="filt_repeats",default="",
                     help='''Comma-separated repeat types to filter, if found at both sides of the breakpoint). 
                     SOCRATES INPUT ONLY.''')
 
-preprocess_parser.add_argument("--min_mapq",dest="min_mapq",default=0,type=float,
+identify_parser.add_argument("--min_mapq",dest="min_mapq",default=0,type=float,
                     help='''Filter out SVs with lower average MAPQ than this value. SOCRATES INPUT ONLY (default 0)''')
 
-preprocess_parser.add_argument("--trust_sc_pos",dest="trust_sc_pos",action="store_true",
+identify_parser.add_argument("--trust_sc_pos",dest="trust_sc_pos",action="store_true",
                     help='''Use specified breaks without checking for differing soft-clip consensus position. 
                     Cannot be skipped if directionality must be inferred. If your SV caller offsets 
                     breaks due to micro-homology, e.g. Socrates, using this option is not recommended.''')
 
-preprocess_parser.set_defaults(func=preprocess.preproc_svs)
+identify_parser.set_defaults(func=identify.preproc_svs)
 
 ##########################################################################################################
 
-process_parser = subparsers.add_parser('process', help='Count reads from called structural variations')
+count_parser = subparsers.add_parser('count', help='Count reads from called structural variations')
 
-process_parser.add_argument("-i","--input",dest="svin",required=True,
+count_parser.add_argument("-i","--input",dest="svin",required=True,
                    help="Structural variants input file. See README for input format")
 
-process_parser.add_argument("-b","--bam",dest="bam",required=True,
+count_parser.add_argument("-b","--bam",dest="bam",required=True,
                     help="Corresponding indexed BAM file")
 
-process_parser.add_argument("-o","--out",dest="out",required=True,
+count_parser.add_argument("-o","--out",dest="out",required=True,
                     help='''Output base name. May contain directories. Will create processed output as 
                     <name>_svinfo.txt.''')
 
-process_parser.add_argument("-d","--mean_depth",dest="mean_dp",type=float,default=50,
+count_parser.add_argument("-d","--mean_depth",dest="mean_dp",type=float,default=50,
                     help='''Average coverage for BAM file in covered region. May be calculated across 
                     binned intervals and may be approximate''')
 
-process_parser.add_argument("-sc","--softclip",dest="sc_len",default=10,type=int,
+count_parser.add_argument("-sc","--softclip",dest="sc_len",default=10,type=int,
                     help='''Optional: minimum number of basepairs by which reads spanning the break are 
                     considered support the breakpoint. Also affects number of base-pairs a normal read 
                     must overlap the break to be counted. Default = 10''')
 
-process_parser.add_argument("-cn","--max_cn",dest="max_cn",default=10,type=int,
+count_parser.add_argument("-cn","--max_cn",dest="max_cn",default=10,type=int,
                     help='''Optional: maximum expected copy-number. Will skip the processing of any areas 
                     where reads > average coverage * max_cn''')
 
-process_parser.add_argument("-r","--read_len",dest="rlen",default=-1,type=int,
+count_parser.add_argument("-r","--read_len",dest="rlen",default=-1,type=int,
                     help="Read length. If not specified, will be inferred")
 
-process_parser.add_argument("-v","--insert_mean",dest="insert_mean",default=-1.,type=float,
+count_parser.add_argument("-v","--insert_mean",dest="insert_mean",default=-1.,type=float,
                     help='''Mean insert length (this is the fragment length or template length). 
                     If not specified, will be inferred''')
 
-process_parser.add_argument("--insert_std",dest="insert_std",default=-1.,type=float,
+count_parser.add_argument("--insert_std",dest="insert_std",default=-1.,type=float,
                     help="Standard deviation of insert length. If not specified, will be inferred")
 
-process_parser.add_argument("--write_anomalous",dest="write_anom",action="store_true",
+count_parser.add_argument("--write_anomalous",dest="write_anom",action="store_true",
                     help='''Whether to output (as a bam) and accurately recount anomalous reads. 
                     Useful for diagnosing issues with read counting.''')
 
-process_parser.set_defaults(func=process.proc_svs)
+count_parser.set_defaults(func=count.proc_svs)
 
 ##########################################################################################################
 
 filter_parser = subparsers.add_parser('filter', help='Filter output from process step')
 
 filter_parser.add_argument("-s","--samples",dest="sample",
-                    help='''Required: Sample name (comma separated if multiple), not including germline.
+                    help='''Sample name.
                     WARNING: if clustering using mutect SNVs, the sample name must match the sample name 
                     in the vcf file.''')
 
@@ -179,9 +179,7 @@ filter_parser.set_defaults(func=run_filter.run)
 cluster_parser = subparsers.add_parser('cluster', help='Run clustering step')
 
 cluster_parser.add_argument("-s","--samples",dest="sample",default="sample1",
-                    help='''Sample name (comma separated if multiple), not including germline.
-                    WARNING: if clustering using mutect SNVs, the sample name must match the sample name 
-                    in the vcf file.''')
+                    help='''Sample name.''')
 
 cluster_parser.add_argument("-o","--outdir",dest="outdir",default=".",
                     help="Output directory. Default: current directory")
@@ -202,8 +200,8 @@ cluster_parser.add_argument("--burn",dest="burn",default=0,type=int,
 cluster_parser.add_argument("--thin",dest="thin",default=1,type=int,
                     help="Thinning parameter for MCMC (default 1.)")
 
-cluster_parser.add_argument("--plot",dest="plot",action="store_true",
-                    help="Plot traces and clusters.")
+cluster_parser.add_argument("--no_plot",dest="plot",action="store_false",default=True,
+                    help="Do not create output plot")
 
 cluster_parser.add_argument("--beta",dest="beta",default="0.9,1/0.9,2",type=str,
                     help='''Comma separated; first two values determine the shape and scale (1/rate) 

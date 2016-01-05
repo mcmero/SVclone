@@ -154,7 +154,6 @@ def merge_results(clus_merged, merged_ids, df_probs, ccert):
     return df_probs_new,ccert_new
 
 def post_process_clusters(mcmc,sv_df,snv_df,merge_clusts,clus_out_dir,sup,dep,cn_states,plot,sparams,cparams):
-    #npoints = len(df.spanning.values) if not are_snvs else len(df['var'].values)
     # assign points to highest probabiliy cluster
     npoints = len(snv_df) + len(sv_df)
 
@@ -180,7 +179,6 @@ def post_process_clusters(mcmc,sv_df,snv_df,merge_clusts,clus_out_dir,sup,dep,cn
     clus_info['phi'] = phis[:,0]
     clus_info['phi_low_conf'] = phis[:,1]
     clus_info['phi_hi_conf'] = phis[:,2]
-    #clus_info = clus_info.sort('phi',ascending=False)
     
     clus_ids = clus_info.clus_id.values
     clus_members = np.array([np.where(np.array(clus_max_prob)==i)[0] for i in clus_ids])
@@ -291,20 +289,20 @@ def run_clustering(args):
         pi      = float(pur_pl.purity.values[0])
         pl      = float(pur_pl.ploidy.values[0])
     else:
-        print('purity_ploidy.txt file not found! Assuming purity = 1, ploidy = 2') 
+        print('purity_ploidy.txt file not found! Assuming purity = %f, ploidy = %f'%(pi,pl)) 
    
     #defaults
     rlen    = 100
     insert  = 300
 
     if params_file=='':
-        params_file = '%s/%s_params.txt' % (out,sample) 
+        params_file = '%s/read_params.txt' % out 
     if os.path.exists(params_file):
         read_params = pd.read_csv(params_file,delimiter='\t',dtype=None,header=0)
         rlen        = int(read_params.read_len.values[0])
         insert      = float(read_params.insert_mean.values[0])
     else:
-        print('read_params.txt file not found! Assuming read length = 100, mean insert length = 100') 
+        print('read_params.txt file not found! Assuming read length = %d, mean insert length = %d'%(rlen,insert)) 
 
     sample_params  = { 'sample': sample, 'ploidy': pl, 'pi': pi, 'rlen': rlen, 'insert': insert }
     cluster_params = { 'n_iter': n_iter, 'burn': burn, 'thin': thin, 'beta': beta, 'use_map': use_map }

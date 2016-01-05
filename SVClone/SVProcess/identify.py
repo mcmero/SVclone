@@ -4,7 +4,7 @@ import numpy as np
 import csv
 import ipdb
 from . import load_data
-from . import process
+from . import count
 from . import parameters as params
 from . import svDetectFuncs as svd
 
@@ -20,7 +20,7 @@ def classify_event(sv,sv_id,svd_prevResult,prevSV):
 
 def has_mixed_evidence(loc_reads,pos,sc_len):
 
-    split_reads = np.where([process.is_supporting_split_read_lenient(x,pos,params.tr*2) for x in loc_reads])[0]
+    split_reads = np.where([count.is_supporting_split_read_lenient(x,pos,params.tr*2) for x in loc_reads])[0]
     split_all = loc_reads[split_reads]
     
     if len(split_all)>0:
@@ -43,7 +43,7 @@ def get_dir_split(split,sc_len):
     return assign_dir
 
 def get_dir(loc_reads,pos):
-    split_reads = np.where([process.is_supporting_split_read_lenient(x,pos) for x in loc_reads])[0]
+    split_reads = np.where([count.is_supporting_split_read_lenient(x,pos) for x in loc_reads])[0]
     split_all = loc_reads[split_reads]
     if len(split_all)>0:
         dir_split = get_dir_split(split_all,params.tr)
@@ -52,7 +52,7 @@ def get_dir(loc_reads,pos):
         return '?'
 
 def get_consensus_align(loc_reads,pos):
-    split_reads = np.where([process.is_supporting_split_read_lenient(x,pos,params.tr*2) for x in loc_reads])[0]
+    split_reads = np.where([count.is_supporting_split_read_lenient(x,pos,params.tr*2) for x in loc_reads])[0]
     split_all = loc_reads[split_reads]
    
     if len(split_all)!=0:
@@ -96,8 +96,8 @@ def retrieve_loc_reads(sv,bam,max_dep):
     bp2 = np.array((sv[bp2_chr],sv[bp2_pos]-(params.tr*2),sv[bp2_pos]+(params.tr*2),sv[bp2_dir]),dtype=bp_dtype)
     
     bamf = pysam.AlignmentFile(bam, "rb")
-    loc1_reads, err_code1 = process.get_loc_reads(bp1,bamf,max_dep)    
-    loc2_reads, err_code2 = process.get_loc_reads(bp2,bamf,max_dep)    
+    loc1_reads, err_code1 = count.get_loc_reads(bp1,bamf,max_dep)    
+    loc2_reads, err_code2 = count.get_loc_reads(bp2,bamf,max_dep)    
     bamf.close()
 
     sv_class = str(sv['classification'])

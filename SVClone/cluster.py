@@ -43,7 +43,7 @@ def add_copynumber_combos(combos, var_maj, var_min, ref_cn):
     var_total = float(var_maj + var_min)
     if var_total == 0.:
         mu_v = 0.
-        #combos.append([ref_cn, var_total, mu_v])
+    #    combos.append([ref_cn, var_total, mu_v])
     #elif var_maj == 1.:
     #    mu_v = 1. / var_total
     #    combos.append([ref_cn, var_total, mu_v])

@@ -68,19 +68,19 @@ def is_clonal_neutral(gtype):
 
 def is_copynumber_zero(gtype):
     '''
-    returns false if copynumber genotype
+    returns true if copynumber genotype
     of the major and minor alleles
     are 0 for the clone or any subclone
     '''
-    if gtype=='': return False
+    if gtype=='': return True
     gtype = map(methodcaller('split',','),gtype.split('|'))
     if len(gtype)==1:
         gt = map(float,gtype[0])
-        if gt[2]==1:            
-            return (gt[0]==0 and gt[1]==0)
-        else:
-            gt2 = map(float,gtype[1])
-            return ((gt[0]==0 and gt[1]==0) or (gt2[0]==0 and gt2[1]==0))
+        if (gt[0]==0 and gt[1]==0): return True
+    else:
+        for gt in gtype:
+            gt = map(float,gt)
+            if (gt[0]==0 and gt[1]==0): return True
     return False
 
 def get_weighted_cns(gtypes):
@@ -168,11 +168,10 @@ def run_cnv_filter(df_flt,cnv,neutral,filter_outliers,are_snvs=False):
                 df_flt = df_flt[np.logical_and(depths>dep_ranges[0],depths<dep_ranges[1])]
                 print('Filtered out %d SNVs which had outlying depths' % (n_df - len(df_flt)))
         else:
-            df_flt = df_flt[np.logical_or(df_flt.gtype1.values!='',df_flt.gtype2.values!='')]
-            
-            #gt1_is_zero = np.array(map(is_copynumber_zero,df_flt.gtype1.values))
-            #gt2_is_zero = np.array(map(is_copynumber_zero,df_flt.gtype2.values))
-            #df_flt = df_flt[np.logical_and(gt1_is_zero==False,gt2_is_zero==False)]
+            #df_flt = df_flt[np.logical_or(df_flt.gtype1.values!='',df_flt.gtype2.values!='')]
+            gt1_is_zero = np.array(map(is_copynumber_zero,df_flt.gtype1.values))
+            gt2_is_zero = np.array(map(is_copynumber_zero,df_flt.gtype2.values))
+            df_flt = df_flt[np.logical_and(gt1_is_zero==False,gt2_is_zero==False)]
             print('Filtered out %d SVs without copy-numbers or with 0,0 copy-numbers' % (n_df - len(df_flt)))
             n_df = len(df_flt)            
 
@@ -671,7 +670,7 @@ def run(args):
         
         with open('%s/read_params.txt'%out,'w') as outf:
             outf.write("sample\tread_len\tinsert_mean\n")
-            outf.write('%s\t%f\t%f\n'%(sample,rlen,insert))
+            outf.write('%s\t%f\t%f\n\n'%(sample,rlen,insert))
         
         # pr.disable()
         # s = StringIO.StringIO()
