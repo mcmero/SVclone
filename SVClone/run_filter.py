@@ -486,11 +486,10 @@ def adjust_sv_read_counts(sv_df,pi,pl,min_dep,rlen):
     gt1_sc = np.array(map(len,map(methodcaller("split","|"),sv_df.gtype1.values)))>1
     gt2_sc = np.array(map(len,map(methodcaller("split","|"),sv_df.gtype2.values)))>1    
     one_sc = np.logical_xor(gt1_sc,gt2_sc)
-    #print(one_sc)
-
+    
     combos = sv_df.apply(cluster.get_sv_allele_combos,axis=1)
     exclusive_subclones = zip(sv_df.gtype1.values[one_sc],sv_df.gtype2.values[one_sc]) 
-    sides[one_sc] = [0 if gt1!='' else 1 for gt1,gt2 in exclusive_subclones]
+    sides[one_sc] = [0 if len(gt1.split('|'))>1 else 1 for gt1,gt2 in exclusive_subclones]
     has_both_gts = np.logical_and(sv_df.gtype1.values!='',sv_df.gtype2.values!='')
     cn_states = [cn[side] for cn,side in zip(combos,sides)]
    
