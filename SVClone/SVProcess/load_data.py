@@ -2,7 +2,7 @@ import vcf
 import numpy as np
 import ipdb
 from collections import OrderedDict
-from . import parameters as params
+from .. import dtypes
 
 def remove_duplicates(svs):
     for idx,row in enumerate(svs):
@@ -13,7 +13,7 @@ def remove_duplicates(svs):
     return np.unique(svs)
 
 def load_input_vcf(svin,class_field):
-    sv_dtype = [s for i,s in enumerate(params.sv_dtype)]
+    sv_dtype = [s for i,s in enumerate(dtypes.sv_dtype)]
     
     sv_vcf = vcf.Reader(filename=svin)
     sv_dict = OrderedDict()
@@ -25,26 +25,6 @@ def load_input_vcf(svin,class_field):
         
         sv_dict[sv.ID] = {'CHROM': sv.CHROM, 'POS': sv.POS, 'INFO': sv.INFO}
 
-#    svs = OrderedDict()
-#    sv_vcf = np.genfromtxt(svin,dtype=params.sv_vcf_dtype,delimiter='\t',comments="#")
-#    keys = [key[0] for key in params.sv_vcf_dtype]
-#    
-#    for sv in sv_vcf:
-#        sv_id = sv['ID']
-#        svs[sv_id] = OrderedDict()
-#        for key,sv_data in zip(keys,sv):
-#            if key=='INFO' or key=='ID': continue
-#            svs[sv_id][key] = sv_data
-#         
-#        info = map(methodcaller('split','='),sv['INFO'].split(';'))
-#        svs[sv_id]['INFO'] = OrderedDict()
-#        
-#        for i in info:
-#            if len(i)<2: continue
-#            name = i[0]
-#            data = i[1]
-#            svs[sv_id]['INFO'][name] = data
-    
     svs = np.empty(0,sv_dtype)
     procd = np.empty(0,dtype='S50')
 
@@ -73,10 +53,18 @@ def load_input_vcf(svin,class_field):
     
     return svs
 
-def load_input_socrates(svin,use_dir,min_mapq,filt_repeats):
-    #sv_dtype =  [s for s in params.sv_dtype] if use_dir else [s for i,s in enumerate(params.sv_dtype) if i not in [2,5]]
-    sv_dtype = params.sv_dtype
-    
+def load_input_socrates(svin,use_dir,min_mapq,filt_repeats,Config):
+    #sv_dtype =  [s for s in dtypes.sv_dtype] if use_dir else [s for i,s in enumerate(dtypes.sv_dtype) if i not in [2,5]]
+    sv_dtype = dtypes.sv_dtype
+    bp1_pos_field = Config.get('SocratesFields', 'bp1_pos')
+    bp2_pos_field = Config.get('SocratesFields', 'bp2_pos')
+    bp1_dir_field = Config.get('SocratesFields', 'bp1_dir')
+    bp2_dir_field = Config.get('SocratesFields', 'bp2_dir')
+    avg_mapq1_field = Config.get('SocratesFields', 'avg_mapq1')
+    avg_mapq2_field = Config.get('SocratesFields', 'avg_mapq2')
+    repeat1_field = Config.get('SocratesFields', 'repeat1')
+    repeat2_field = Config.get('SocratesFields', 'repeat2')
+
     #TODO: make parsing of socrates input more robust
     soc_in = np.genfromtxt(svin,delimiter='\t',names=True,dtype=None,invalid_raise=False)
     svs = np.empty(0,dtype=sv_dtype)
@@ -85,8 +73,8 @@ def load_input_socrates(svin,use_dir,min_mapq,filt_repeats):
     sv_id = 0
     for row in soc_in:
         try: 
-            bp1 = row[params.bp1_pos].split(':')
-            bp2 = row[params.bp2_pos].split(':')
+            bp1 = row[bp1_pos_field].split(':')
+            bp2 = row[bp2_pos_field].split(':')
             bp1_chr, bp1_pos = bp1[0], int(bp1[1]) 
             bp2_chr, bp2_pos = bp2[0], int(bp2[1])
             #classification = row['classification']
@@ -94,17 +82,17 @@ def load_input_socrates(svin,use_dir,min_mapq,filt_repeats):
                 # has germline info, filter out
                 if row['normal']=='normal':
                     continue
-            if row[params.avg_mapq1]<min_mapq or row[params.avg_mapq2]<min_mapq:
+            if row[avg_mapq1_field]<min_mapq or row[avg_mapq2_field]<min_mapq:
                 filtered_out += 1
                 continue
             if filt_repeats!=[]:
-                if row[params.repeat1] in filt_repeats and row[params.repeat2] in filt_repeats:
+                if row[repeat1_field] in filt_repeats and row[repeat2_field] in filt_repeats:
                     filtered_out += 1
                     continue
             add_sv = np.empty(0)
             
-            bp1_dir = row[params.bp1_dir] if use_dir else '?'
-            bp2_dir = row[params.bp2_dir] if use_dir else '?'
+            bp1_dir = row[bp1_dir_field] if use_dir else '?'
+            bp2_dir = row[bp2_dir_field] if use_dir else '?'
             
             add_sv = np.array([(sv_id,bp1_chr,bp1_pos,bp1_dir,bp2_chr,bp2_pos,bp2_dir,'')],dtype=sv_dtype)
             svs = np.append(svs,add_sv)
@@ -116,8 +104,8 @@ def load_input_socrates(svin,use_dir,min_mapq,filt_repeats):
     return remove_duplicates(svs)
 
 def load_input_simple(svin,use_dir,class_field):
-    #sv_dtype =  [s for s in params.sv_dtype] if use_dir else [s for i,s in enumerate(params.sv_dtype) if i not in [2,5]]
-    sv_dtype = params.sv_dtype
+    #sv_dtype =  [s for s in dtypes.sv_dtype] if use_dir else [s for i,s in enumerate(dtypes.sv_dtype) if i not in [2,5]]
+    sv_dtype = dtypes.sv_dtype
 
     sv_tmp = np.genfromtxt(svin,delimiter='\t',names=True,dtype=None,invalid_raise=False)
     svs = np.empty(0,dtype=sv_dtype)

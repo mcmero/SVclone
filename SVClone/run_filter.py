@@ -4,6 +4,7 @@ Run clustering and tree building on sample inputs
 from __future__ import print_function
 
 import os
+import ConfigParser
 import numpy as np
 import ipdb
 import re
@@ -26,7 +27,7 @@ def get_outlier_ranges(vals):
     upper = q3 + 1.5*iqr
     return [lower,upper]
 
-def run_simple_filter(df,rlen,insert,minsplit,minspan,sizefilter,min_dep,valid_chrs):
+def run_simple_filter(df,rlen,insert,minsplit,minspan,sizefilter,min_dep,check_valid_chrs,valid_chrs):
     '''
     filter based on presence of supporting reads and > fragment length
     ''' 
@@ -48,9 +49,9 @@ def run_simple_filter(df,rlen,insert,minsplit,minspan,sizefilter,min_dep,valid_c
 
     print('Filtered out %d SVs based on size limits' % (len(df_flt) - len(df_flt2)))
     
-    if valid_chrs:
-        chr1 = np.array([chrom in params.valid_chroms for chrom in df_flt2.bp1_chr])
-        chr2 = np.array([chrom in params.valid_chroms for chrom in df_flt2.bp2_chr])
+    if check_valid_chrs:
+        chr1 = np.array([chrom in valid_chroms for chrom in df_flt2.bp1_chr])
+        chr2 = np.array([chrom in valid_chroms for chrom in df_flt2.bp2_chr])
         df_flt3 = df_flt2[np.logical_and(chr1,chr2)]
         
         print('Filtered out %d SVs that had non-standard chromosomes' % (len(df_flt2) - len(df_flt3)))
@@ -276,7 +277,7 @@ def match_copy_numbers(var_df, cnv_df, bp_fields=['bp1_chr','bp1_pos','bp1_dir',
             
             closest_start  = min(abs(cnv_start_list-pos))
             closest_end    = min(abs(cnv_end_list-pos))
-            cnv_dist    = closest_start if closest_start < closest_end else closest_end
+            cnv_dist       = closest_start if closest_start < closest_end else closest_end
             
             cnv_dists.append(cnv_dist)
 
@@ -558,7 +559,16 @@ def run(args):
     sizefilter  = int(args.sizefilter)
     filter_otl  = args.filter_outliers
     min_dep     = args.min_dep
-    valid_chrs  = args.valid_chrs
+    check_valid_chrs  = args.valid_chrs
+    cfg             = args.cfg
+
+    Config = ConfigParser.ConfigParser()
+    cfg_file = Config.read(cfg)
+
+    if len(cfg_file)==0:
+        raise ValueError('No configuration file found')
+
+    valid_chrs = Config.get('ValidationParameters', 'chroms').split(',')
    
     def proc_arg(arg,n_args=1,of_type=str):
         arg = str.split(arg,',')
@@ -619,7 +629,8 @@ def run(args):
     
         if sv!="":
             sv_df = load_data.load_svs(sv)
-            sv_df = run_simple_filter(sv_df,rlen,insert,minsplit,minspan,sizefilter,min_dep,valid_chrs)
+            sv_df = run_simple_filter(sv_df,rlen,insert,minsplit,minspan,sizefilter, \
+                                        min_dep,check_valid_chrs,valid_chrs)
         
         if gml!="":
             sv_df = filter_germline(gml,sv_df,rlen,insert)

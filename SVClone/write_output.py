@@ -2,9 +2,9 @@ import numpy as np
 import pandas as pd
 import os
 import ipdb
-from . import parameters as params
 from operator import methodcaller
 
+from . import dtypes
 from . import cluster
 from . import load_data
 
@@ -32,9 +32,9 @@ def write_out_files(df,clus_info,clus_members,df_probs,clus_cert,clus_out_dir,sa
         outf.write('%s\t%d\n'%(sample,len(clus_info)))
 
     cmem        = np.hstack(clus_members)
-    cn_dtype    = params.sv_cn_dtype    if not are_snvs else params.snv_cn_dtype
-    mlcn_dtype  = params.sv_mlcn_dtype  if not are_snvs else params.snv_mlcn_dtype
-    mult_dtype  = params.sv_mult_dtype  if not are_snvs else params.snv_mult_dtype
+    cn_dtype    = dtypes.sv_cn_dtype    if not are_snvs else dtypes.snv_cn_dtype
+    mlcn_dtype  = dtypes.sv_mlcn_dtype  if not are_snvs else dtypes.snv_mlcn_dtype
+    mult_dtype  = dtypes.sv_mult_dtype  if not are_snvs else dtypes.snv_mult_dtype
 
     cn_vect     = np.empty((0,len(cmem)),dtype=cn_dtype)
     mlcn_vect   = np.empty((0,len(cmem)),dtype=mlcn_dtype)

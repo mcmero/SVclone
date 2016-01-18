@@ -22,8 +22,11 @@ subparsers = parser.add_subparsers()
 
 identify_parser = subparsers.add_parser('identify', help='Extract directions and SV classifications')
 
+identify_parser.add_argument("-cfg","--config",dest="cfg",default="svclone_config.ini",
+                    help="Config file.")
+
 identify_parser.add_argument("-i","--input",dest="svin",required=True,
-                   help="Structural variants input file. See README for input format")
+                    help="Structural variants input file. See README for input format")
 
 identify_parser.add_argument("-b","--bam",dest="bam",required=True,
                     help="Corresponding indexed BAM file")
@@ -32,8 +35,13 @@ identify_parser.add_argument("-o","--out",dest="out",required=True,
                     help='''Output base name. May contain directories. Will create pre-processed output as 
                     <name>_svin.txt''')
 
-identify_parser.add_argument("-md","--max_dep",dest="max_dep",default=5000,type=int,
-                    help='''Skip all regions with depth higher than this value (default = 5000)''')
+#identify_parser.add_argument("-cn","--max_cn",dest="max_cn",default=10,type=int,
+#                    help='''Optional: maximum expected copy-number. Will skip the processing of any areas 
+#                    where reads > average coverage * max_cn''')
+#
+#identify_parser.add_argument("-d","--mean_depth",dest="mean_dp",type=float,default=50,
+#                    help='''Average coverage for BAM file in covered region. May be calculated across 
+#                    binned intervals and may be approximate''')
 
 identify_parser.add_argument("--simple",dest="simple_svs",action="store_true",
                     help="Whether sv input is in a simple format (see README), otherwise VCF format is assumed.")
@@ -65,6 +73,9 @@ identify_parser.set_defaults(func=identify.preproc_svs)
 
 count_parser = subparsers.add_parser('count', help='Count reads from called structural variations')
 
+count_parser.add_argument("-cfg","--config",dest="cfg",default="svclone_config.ini",
+                    help="Config file.")
+
 count_parser.add_argument("-i","--input",dest="svin",required=True,
                    help="Structural variants input file. See README for input format")
 
@@ -75,18 +86,18 @@ count_parser.add_argument("-o","--out",dest="out",required=True,
                     help='''Output base name. May contain directories. Will create processed output as 
                     <name>_svinfo.txt.''')
 
-count_parser.add_argument("-d","--mean_depth",dest="mean_dp",type=float,default=50,
-                    help='''Average coverage for BAM file in covered region. May be calculated across 
-                    binned intervals and may be approximate''')
-
-count_parser.add_argument("-sc","--softclip",dest="sc_len",default=10,type=int,
-                    help='''Optional: minimum number of basepairs by which reads spanning the break are 
-                    considered support the breakpoint. Also affects number of base-pairs a normal read 
-                    must overlap the break to be counted. Default = 10''')
-
-count_parser.add_argument("-cn","--max_cn",dest="max_cn",default=10,type=int,
-                    help='''Optional: maximum expected copy-number. Will skip the processing of any areas 
-                    where reads > average coverage * max_cn''')
+#count_parser.add_argument("-d","--mean_depth",dest="mean_dp",type=float,default=50,
+#                    help='''Average coverage for BAM file in covered region. May be calculated across 
+#                    binned intervals and may be approximate''')
+#
+#count_parser.add_argument("-sc","--softclip",dest="sc_len",default=10,type=int,
+#                    help='''Optional: minimum number of basepairs by which reads spanning the break are 
+#                    considered support the breakpoint. Also affects number of base-pairs a normal read 
+#                    must overlap the break to be counted. Default = 10''')
+#
+#count_parser.add_argument("-cn","--max_cn",dest="max_cn",default=10,type=int,
+#                    help='''Optional: maximum expected copy-number. Will skip the processing of any areas 
+#                    where reads > average coverage * max_cn''')
 
 count_parser.add_argument("-r","--read_len",dest="rlen",default=-1,type=int,
                     help="Read length. If not specified, will be inferred")
@@ -108,7 +119,10 @@ count_parser.set_defaults(func=count.proc_svs)
 
 filter_parser = subparsers.add_parser('filter', help='Filter output from process step')
 
-filter_parser.add_argument("-s","--samples",dest="sample",
+filter_parser.add_argument("-cfg","--config",dest="cfg",default="svclone_config.ini",
+                    help="Config file. Default: svclone_config.ini")
+
+filter_parser.add_argument("-s","--samples",dest="sample",required=True,
                     help='''Sample name.
                     WARNING: if clustering using mutect SNVs, the sample name must match the sample name 
                     in the vcf file.''')
@@ -178,7 +192,10 @@ filter_parser.set_defaults(func=run_filter.run)
 
 cluster_parser = subparsers.add_parser('cluster', help='Run clustering step')
 
-cluster_parser.add_argument("-s","--samples",dest="sample",default="sample1",
+cluster_parser.add_argument("-cfg","--config",dest="cfg",default="svclone_config.ini",
+                    help="Config file.")
+
+cluster_parser.add_argument("-s","--samples",dest="sample",required=True,
                     help='''Sample name.''')
 
 cluster_parser.add_argument("-o","--outdir",dest="outdir",default=".",
@@ -203,10 +220,10 @@ cluster_parser.add_argument("--thin",dest="thin",default=1,type=int,
 cluster_parser.add_argument("--no_plot",dest="plot",action="store_false",default=True,
                     help="Do not create output plot")
 
-cluster_parser.add_argument("--beta",dest="beta",default="0.9,1/0.9,2",type=str,
-                    help='''Comma separated; first two values determine the shape and scale (1/rate) 
-                    parameters used in the Dirichlet Processes' gamma function. The third value is the 
-                    initial value. Default values: "0.9,1/0.9,2" (shape = 0.9, scale = 1/0.9, init = 2)''')
+#cluster_parser.add_argument("--beta",dest="beta",default="0.9,1/0.9,2",type=str,
+#                    help='''Comma separated; first two values determine the shape and scale (1/rate) 
+#                    parameters used in the Dirichlet Processes' gamma function. The third value is the 
+#                    initial value. Default values: "0.9,1/0.9,2" (shape = 0.9, scale = 1/0.9, init = 2)''')
 
 cluster_parser.add_argument("--merge",dest="merge_clusts",action="store_true",
                     help="Set to merge clusters.")

@@ -6,6 +6,7 @@ from __future__ import print_function
 import subprocess
 import ipdb
 import os
+import ConfigParser
 import pandas as pd
 import scipy as sp
 import scipy.stats
@@ -271,7 +272,6 @@ def run_clustering(args):
     n_iter          = args.n_iter
     burn            = args.burn
     thin            = args.thin
-    beta            = args.beta
     plot            = args.plot
     use_map         = args.use_map
     merge_clusts    = args.merge_clusts
@@ -279,6 +279,18 @@ def run_clustering(args):
     out             = args.outdir
     no_adjust       = args.no_adjust
     params_file     = args.params_file
+    cfg             = args.cfg
+
+    Config = ConfigParser.ConfigParser()
+    cfg_file = Config.read(cfg)
+
+    if len(cfg_file)==0:
+        raise ValueError('No configuration file found')
+
+    shape  = Config.get('BetaParameters', 'shape')
+    scale  = Config.get('BetaParameters', 'scale')
+    init   = Config.get('BetaParameters', 'init')
+    beta   = ','.join([str(shape),str(scale),str(init)])
 
     purity_ploidy_file = '%s/purity_ploidy.txt' % out
 
