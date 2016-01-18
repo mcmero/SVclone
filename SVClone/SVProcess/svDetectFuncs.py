@@ -5,8 +5,6 @@ Created on Jan 8, 2014
 
 @author: HELE
 '''
-import ipdb
-from . import parameters as params
 
 blurbp1=15 #for difference of breakpoint loci between c1 and c2. 10pb
 blurbp2=100 #for difference of breakpoint loci between two continuous lines. 150bp
@@ -214,8 +212,7 @@ def detect (prevSV,prevResult,sv):
 #        result=SVtypes.novelInsertion
     return [result,[startPoint,endPoint]]
 
-def detectTransloc(idx,sv_info):
-    tolerance=params.tr #tolerance for blunt.
+def detectTransloc(idx,sv_info,tolerance):
     #find the mobile part. r:[interInserType,[p1,p2,p3,p4]]
     if idx-1 < 0:
         return []    

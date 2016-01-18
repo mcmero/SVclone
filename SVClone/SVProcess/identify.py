@@ -22,7 +22,6 @@ def classify_event(sv, sv_id, svd_prev_result, prev_sv):
     return classification, sv_id, svd_prev_result, prev_sv
 
 def has_mixed_evidence(loc_reads, pos, sc_len, threshold):
-
     split_reads = [count.is_supporting_split_read_lenient(x, pos, threshold*2) for x in loc_reads]
     split_all = loc_reads[np.where(split_reads)[0]]
 
@@ -434,7 +433,7 @@ def preproc_svs(args):
         intins_label = svd.getResultType([svd.SVtypes.interspersedDuplication])
         if sv['classification'] == intins_label:
             svs[idx-1]['classification'] = intins_label
-            translocs = svd.detectTransloc(idx, svs)
+            translocs = svd.detectTransloc(idx, svs, threshold)
             if len(translocs) > 0:
                 new_idx = idx-1
                 for i in translocs:

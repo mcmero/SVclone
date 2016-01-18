@@ -30,7 +30,7 @@ def read_to_array(x,bamf):
         return np.empty(0)
 
 def is_soft_clipped(read):
-    return read['align_start'] != 0 or (read['len'] + read['ref_start'] != read['ref_end'])
+    return (read['align_start'] != 0) or (read['align_end'] != read['len'])
 
 def is_below_sc_threshold(read,threshold):
     return (read['align_start'] < threshold) and (read['len'] - read['align_end'] < threshold)
@@ -42,7 +42,7 @@ def is_normal_non_overlap(read,mate,pos,min_ins,max_ins,threshold):
     '''
     if read['chrom']!=mate['chrom']:
         return False
-    return  is_below_sc_threshold(read,threshold) and is_below_sc_threshold(mate,threshold) and \
+    return  (not is_soft_clipped(read)) and \
             (abs(read['ins_len']) < max_ins and abs(read['ins_len']) > min_ins) and \
             (abs(mate['ins_len']) < max_ins and abs(mate['ins_len']) > min_ins) and \
             not (read['ref_start'] < (pos + threshold) and read['ref_end'] > (pos - threshold)) and \
@@ -366,10 +366,11 @@ def get_sv_read_counts(row,bam,inserts,max_dp,min_ins,max_ins,sc_len,out,split_r
     split_bp2 = np.empty([0,len(dtypes.read_dtype)],dtype=dtypes.read_dtype)
     norm = np.empty([0,len(dtypes.read_dtype)],dtype=dtypes.read_dtype)
     
-    rc, reproc, split_bp1, norm = get_loc_counts(bp1,loc1_reads,pos1,rc,reproc,split_bp1, \
-                                                    norm,min_ins,max_ins,sc_len,norm_overlap,threshold)
-    rc, reproc, split_bp2, norm = get_loc_counts(bp2,loc2_reads,pos2,rc,reproc,split_bp2, \
-                                                    norm,min_ins,max_ins,sc_len,norm_overlap,threshold,2)
+    rc, reproc, split_bp1, norm = get_loc_counts(bp1, loc1_reads, pos1, rc, reproc, split_bp1, \
+                                        norm, min_ins, max_ins, sc_len, norm_overlap, threshold)
+    rc, reproc, split_bp2, norm = get_loc_counts(bp2, loc2_reads, pos2, rc, reproc, split_bp2, \
+                                        norm,min_ins, max_ins, sc_len, norm_overlap, threshold, 2)
+
     rc['bp1_win_norm'] = windowed_norm_read_count(loc1_reads,inserts,min_ins,max_ins)
     rc['bp2_win_norm'] = windowed_norm_read_count(loc2_reads,inserts,min_ins,max_ins)    
  
@@ -510,9 +511,9 @@ def proc_svs(args):
         sv_str = '%s:%d|%s:%d'%sv_prop
         print('processing %s'%sv_str)
 
-        sv_rc, split_reads, span_reads, anom_reads = get_sv_read_counts(row,bam,inserts,max_dp,min_ins,max_ins,
-                                                           sc_len,out,split_reads,span_reads,anom_reads,norm_overlap,
-                                                           threshold)
+        sv_rc, split_reads, span_reads, anom_reads = \
+                get_sv_read_counts(row,bam,inserts,max_dp,min_ins,max_ins,
+                    sc_len,out,split_reads,span_reads,anom_reads,norm_overlap,threshold)
 
         norm1 = int(sv_rc['bp1_split_norm'] + sv_rc['bp1_span_norm'])
         norm2 = int(sv_rc['bp2_split_norm'] + sv_rc['bp2_span_norm'])

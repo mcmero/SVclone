@@ -17,7 +17,6 @@ from . import run_clus
 from . import cluster
 from . import load_data
 from . import parameters as params
-from SVProcess import parameters as svp_params
 
 def get_outlier_ranges(vals):
     q1 = np.percentile(vals,25)
