@@ -50,8 +50,8 @@ def run_simple_filter(df,rlen,insert,minsplit,minspan,sizefilter,min_dep,check_v
     print('Filtered out %d SVs based on size limits' % (len(df_flt) - len(df_flt2)))
     
     if check_valid_chrs:
-        chr1 = np.array([chrom in valid_chroms for chrom in df_flt2.bp1_chr])
-        chr2 = np.array([chrom in valid_chroms for chrom in df_flt2.bp2_chr])
+        chr1 = np.array([chrom in valid_chrs for chrom in df_flt2.bp1_chr])
+        chr2 = np.array([chrom in valid_chrs for chrom in df_flt2.bp2_chr])
         df_flt3 = df_flt2[np.logical_and(chr1,chr2)]
         
         print('Filtered out %d SVs that had non-standard chromosomes' % (len(df_flt2) - len(df_flt3)))
