@@ -49,11 +49,11 @@ def is_normal_non_overlap(read,mate,pos,min_ins,max_ins,threshold):
             not (mate['ref_start'] < (pos + threshold) and mate['ref_end'] > (pos - threshold)) and \
             not (read['ref_start'] < pos and mate['ref_end'] > pos)
 
-def is_normal_across_break(read,pos,min_ins,max_ins,sc_len):
-    # must overhang break by at least the threshold parameter
-    return  (is_soft_clipped(read)) and \
+def is_normal_across_break(read,pos,min_ins,max_ins,norm_overlap,threshold):
+    # must overhang break by at least the norm overlap parameter
+    return  is_below_sc_threshold(read,threshold) and \
             (abs(read['ins_len']) < max_ins and abs(read['ins_len']) > min_ins) and \
-            (read['ref_start'] < (pos - sc_len) and read['ref_end'] > (pos + sc_len))
+            (read['ref_start'] < (pos - norm_overlap) and read['ref_end'] > (pos + norm_overlap))
 
 def get_normal_overlap_bases(read,pos):
     return min( [abs(read['ref_start']-pos), abs(read['ref_end']-pos)] )
@@ -237,7 +237,7 @@ def windowed_norm_read_count(loc_reads,inserts,min_ins,max_ins):
             cnorm = cnorm + 2
     return cnorm
 
-def get_loc_counts(bp,loc_reads,pos,rc,reproc,split,norm,min_ins,max_ins,sc_len,threshold,bp_num=1):
+def get_loc_counts(bp,loc_reads,pos,rc,reproc,split,norm,min_ins,max_ins,sc_len,norm_overlap,threshold,bp_num=1):
     for idx,x in enumerate(loc_reads):
         if idx+1 >= len(loc_reads):            
             break        
@@ -245,7 +245,7 @@ def get_loc_counts(bp,loc_reads,pos,rc,reproc,split,norm,min_ins,max_ins,sc_len,
         r2 = loc_reads[idx+1] if (idx+2)<=len(loc_reads) else None
         if is_normal_non_overlap(r1,r2,pos,min_ins,max_ins,threshold):
             continue
-        elif is_normal_across_break(x,pos,min_ins,max_ins,sc_len):        
+        elif is_normal_across_break(x,pos,min_ins,max_ins,norm_overlap,threshold):
             norm = np.append(norm,r1)            
             split_norm = 'bp%d_split_norm'%bp_num
             norm_olap = 'bp%d_norm_olap_bp'%bp_num
@@ -323,7 +323,7 @@ def get_spanning_counts(reproc,rc,bp1,bp2,inserts,min_ins,max_ins,threshold):
             anomalous = np.append(anomalous,r2)
     return rc,span_bp1,span_bp2,anomalous
 
-def get_sv_read_counts(row,bam,inserts,max_dp,min_ins,max_ins,sc_len,out,split_reads,span_reads,anom_reads,threshold):
+def get_sv_read_counts(row,bam,inserts,max_dp,min_ins,max_ins,sc_len,out,split_reads,span_reads,anom_reads,norm_overlap,threshold):
     
     sv_id, bp1_chr, bp1_pos, bp1_dir, bp2_chr, bp2_pos, bp2_dir, sv_class = [h[0] for h in dtypes.sv_dtype]    
     bp1 = np.array((row[bp1_chr],row[bp1_pos]-max_ins,
@@ -366,10 +366,10 @@ def get_sv_read_counts(row,bam,inserts,max_dp,min_ins,max_ins,sc_len,out,split_r
     split_bp2 = np.empty([0,len(dtypes.read_dtype)],dtype=dtypes.read_dtype)
     norm = np.empty([0,len(dtypes.read_dtype)],dtype=dtypes.read_dtype)
     
-    rc, reproc, split_bp1, norm = get_loc_counts(bp1,loc1_reads,pos1,rc,reproc,
-                                                 split_bp1,norm,min_ins,max_ins,sc_len,threshold)
-    rc, reproc, split_bp2, norm = get_loc_counts(bp2,loc2_reads,pos2,rc,reproc,
-                                                 split_bp2,norm,min_ins,max_ins,sc_len,threshold,2)
+    rc, reproc, split_bp1, norm = get_loc_counts(bp1,loc1_reads,pos1,rc,reproc,split_bp1, \
+                                                    norm,min_ins,max_ins,sc_len,norm_overlap,threshold)
+    rc, reproc, split_bp2, norm = get_loc_counts(bp2,loc2_reads,pos2,rc,reproc,split_bp2, \
+                                                    norm,min_ins,max_ins,sc_len,norm_overlap,threshold,2)
     rc['bp1_win_norm'] = windowed_norm_read_count(loc1_reads,inserts,min_ins,max_ins)
     rc['bp2_win_norm'] = windowed_norm_read_count(loc2_reads,inserts,min_ins,max_ins)    
  
@@ -466,9 +466,6 @@ def proc_svs(args):
     svin         = args.svin
     bam          = args.bam
     out          = args.out
-#    mean_cov      = float(args.mean_cov)
-#    sc_len       = int(args.sc_len)
-#    max_cn       = int(args.max_cn)
     rlen         = int(args.rlen)
     insert_mean  = float(args.insert_mean)
     insert_std   = float(args.insert_std)
@@ -483,8 +480,9 @@ def proc_svs(args):
 
     max_cn    = int(Config.get('GlobalParameters', 'max_cn'))
     mean_cov  = int(Config.get('GlobalParameters', 'mean_cov'))
-    sc_len    = int(Config.get('GlobalParameters', 'sc_len'))
+    sc_len    = int(Config.get('GlobalParameters', 'sc_len'))    
     threshold = int(Config.get('GlobalParameters', 'threshold'))
+    norm_overlap = int(Config.get('GlobalParameters', 'norm_overlap'))
 
     outname = '%s_svinfo.txt'%out
     dirname = os.path.dirname(out)
@@ -513,7 +511,8 @@ def proc_svs(args):
         print('processing %s'%sv_str)
 
         sv_rc, split_reads, span_reads, anom_reads = get_sv_read_counts(row,bam,inserts,max_dp,min_ins,max_ins,
-                                                           sc_len,out,split_reads,span_reads,anom_reads,threshold)
+                                                           sc_len,out,split_reads,span_reads,anom_reads,norm_overlap,
+                                                           threshold)
 
         norm1 = int(sv_rc['bp1_split_norm'] + sv_rc['bp1_span_norm'])
         norm2 = int(sv_rc['bp2_split_norm'] + sv_rc['bp2_span_norm'])
