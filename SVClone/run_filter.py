@@ -16,7 +16,6 @@ from operator import methodcaller
 from . import run_clus
 from . import cluster
 from . import load_data
-from . import parameters as params
 
 def get_outlier_ranges(vals):
     q1 = np.percentile(vals,25)
@@ -181,7 +180,7 @@ def run_cnv_filter(df_flt,cnv,neutral,filter_outliers,are_snvs=False):
 
     return df_flt
 
-def match_snv_copy_numbers(snv_df, cnv_df):
+def match_snv_copy_numbers(snv_df, cnv_df, sv_offset):
     bp_chroms = np.unique(snv_df['chrom'].values)
     bp_chroms = sorted(bp_chroms, key=lambda item: (int(item.partition(' ')[0]) \
                         if item[0].isdigit() else float('inf'), item))
@@ -195,7 +194,7 @@ def match_snv_copy_numbers(snv_df, cnv_df):
         if len(cnv_tmp)==0:
             continue
 
-        sv_offset = params.sv_offset
+        sv_offset = sv_offset
         for pos in var_tmp['pos']:
             cnv_start_list = cnv_tmp.startpos.values
             cnv_end_list   = cnv_tmp.endpos.values
@@ -222,7 +221,7 @@ def match_snv_copy_numbers(snv_df, cnv_df):
         snv_df.loc[snv_indexes,'gtype'] = gtypes
     return snv_df
 
-def match_copy_numbers(var_df, cnv_df, bp_fields=['bp1_chr','bp1_pos','bp1_dir','classification','bp2_pos'], gtype_field='gtype1'):
+def match_copy_numbers(var_df, cnv_df, sv_offset, bp_fields=['bp1_chr','bp1_pos','bp1_dir','classification','bp2_pos'], gtype_field='gtype1'):
     
     chrom_field, pos_field, dir_field, class_field, other_pos_field = bp_fields
 
@@ -252,7 +251,7 @@ def match_copy_numbers(var_df, cnv_df, bp_fields=['bp1_chr','bp1_pos','bp1_dir',
             var_df.loc[var_indexes,cnv_dist_field] = float('nan')
             continue
         
-        sv_offset = params.sv_offset
+        sv_offset = sv_offset
         sv_info = zip(var_tmp[pos_field],var_tmp[dir_field],var_tmp[class_field],var_tmp[other_pos_field])
         for pos,direct,classification,otherpos in sv_info:
             cnv_gtype,adj_cnv = '',''
@@ -345,100 +344,100 @@ def gtypes_match(gtype1,gtype2):
     gtype2 = [map(float,x.split(',')[:2]) for x in gtype2.split('|')]
     return np.all(np.array(gtype1)==np.array(gtype2))
 
-def reprocess_unmatched_cnvs(sv_df, cnv_df):
-    gtypes1, gtypes2 = sv_df.gtype1.values, sv_df.gtype2.values
-    unmatched = gtypes1 != gtypes2
-    not_itrx  = sv_df.classification.values!=params.itrx_class
-    
-    proximity = params.sv_offset*2 #max SV proximity from CNV we tolerate
-    for idx,sv in sv_df.iterrows():
+#def reprocess_unmatched_cnvs(sv_df, cnv_df):
+#    gtypes1, gtypes2 = sv_df.gtype1.values, sv_df.gtype2.values
+#    unmatched = gtypes1 != gtypes2
+#    not_itrx  = sv_df.classification.values!=params.itrx_class
+#    
+#    proximity = params.sv_offset*2 #max SV proximity from CNV we tolerate
+#    for idx,sv in sv_df.iterrows():
+#
+#        if sv.gtype1 == sv.gtype2 or sv.classification==params.itrx_class:
+#            continue
+#        
+#        # check subclonal gtypes
+#        if gtypes_match(sv.gtype1,sv.gtype2):
+#            continue
+#    
+#        cnv_tmp = cnv_df[cnv_df['chr']==sv['bp1_chr']]
+#        
+#        start_match = abs(sv.bp1_pos - cnv_tmp.startpos).values < proximity
+#        end_match   = abs(sv.bp2_pos - cnv_tmp.endpos).values < proximity
+#        both_match  = np.logical_and(start_match,end_match)        
+#        tmp_sv = sv.copy()
+#
+#        if sum(both_match)==1:
+#            # state matching start/end boundaries of single CNV
+#            sv_df.loc[idx,'gtype1'] = cnv_tmp[both_match].gtype.values[0]
+#            sv_df.loc[idx,'gtype2'] = cnv_tmp[both_match].gtype.values[0]
+#        
+#        elif sum(start_match)==1 and sum(end_match)==0:
+#            cnv_pos = cnv_tmp[start_match].startpos.values[0]
+#            adj_cnv = get_adjacent_cnv(cnv_tmp,start_match,sv.bp1_pos,cnv_pos,False)
+#            sv_df.loc[idx,'gtype1'] = adj_cnv.gtype.values[0] if len(adj_cnv)>0 else ''
+#
+#        elif sum(start_match)==0 and sum(end_match)==1:
+#            cnv_pos = cnv_tmp[end_match].endpos.values[0]
+#            adj_cnv = get_adjacent_cnv(cnv_tmp,end_match,sv.bp2_pos,cnv_pos)
+#            sv_df.loc[idx,'gtype2']  = adj_cnv.gtype.values[0] if len(adj_cnv)>0  else ''            
+#             
+#        elif sum(start_match)==1 and sum(end_match)==1:
+#            # one or both points may have different cnv state
+#            # check all combinations of bordering cnvs
+#            cnv_pos = cnv_tmp[start_match].startpos.values[0]
+#            adj_cnv = get_adjacent_cnv(cnv_tmp,start_match,sv.bp1_pos,cnv_pos,False)
+#            adj_gtype1 = adj_cnv.gtype.values[0] if len(adj_cnv)>0 else ''
+#
+#            cnv_pos = cnv_tmp[end_match].endpos.values[0]
+#            adj_cnv = get_adjacent_cnv(cnv_tmp,end_match,sv.bp2_pos,cnv_pos)
+#            adj_gtype2 = adj_cnv.gtype.values[0] if len(adj_cnv)>0 else ''
+#
+#            if sv.classification in params.deletion_class:
+#                # if there's a CNV match, choose the CNV loss
+#                 cn1,cn2 = get_weighted_cns([sv.gtype1,adj_gtype1])
+#                 loss_cn = sv.gtype1 if cn1 <= cn2 else adj_gtype1
+#                 if loss_cn not in [sv.gtype2, adj_gtype2]:
+#                    sv_df.loc[idx,'gtype1']  = loss_cn
+#                    sv_df.loc[idx,'gtype2']  = loss_cn
+#
+#            elif sv.classification in params.dna_gain_class:
+#                # if there's a CNV match, choose the CNV gain
+#                 cn1,cn2 = get_weighted_cns([sv.gtype1,adj_gtype1])
+#                 gain_cn = sv.gtype1 if cn1 >= cn2 else adj_gtype1
+#                 if gain_cn in [sv.gtype2, adj_gtype2]:
+#                    sv_df.loc[idx,'gtype1'] = gain_cn
+#                    sv_df.loc[idx,'gtype2'] = gain_cn
+#
+#            if sv_df.loc[idx,'gtype1'] != sv_df.loc[idx,'gtype2']:
+#                #TODO: if both svs share an adjacent cnv state
+#                #that matches, picking the genotype is completely
+#                #arbitrary - is there a better way to do this?
+#                if adj_gtype1 in [sv.gtype2,adj_gtype2]:
+#                    sv_df.loc[idx,'gtype1'] = adj_gtype1
+#                    sv_df.loc[idx,'gtype2'] = adj_gtype1
+#                elif adj_gtype2 in [sv.gtype1,adj_gtype1]:
+#                    sv_df.loc[idx,'gtype1'] = adj_gtype2
+#                    sv_df.loc[idx,'gtype2'] = adj_gtype2
+#            
+##        if sv_df.loc[idx,'bp1_chr']==sv_df.loc[idx,'bp2_chr']:
+##            if sv_df.loc[idx,'gtype1']!=sv_df.loc[idx,'gtype2']:
+##                ipdb.set_trace()
+#    
+#    return sv_df
 
-        if sv.gtype1 == sv.gtype2 or sv.classification==params.itrx_class:
-            continue
-        
-        # check subclonal gtypes
-        if gtypes_match(sv.gtype1,sv.gtype2):
-            continue
-    
-        cnv_tmp = cnv_df[cnv_df['chr']==sv['bp1_chr']]
-        
-        start_match = abs(sv.bp1_pos - cnv_tmp.startpos).values < proximity
-        end_match   = abs(sv.bp2_pos - cnv_tmp.endpos).values < proximity
-        both_match  = np.logical_and(start_match,end_match)        
-        tmp_sv = sv.copy()
-
-        if sum(both_match)==1:
-            # state matching start/end boundaries of single CNV
-            sv_df.loc[idx,'gtype1'] = cnv_tmp[both_match].gtype.values[0]
-            sv_df.loc[idx,'gtype2'] = cnv_tmp[both_match].gtype.values[0]
-        
-        elif sum(start_match)==1 and sum(end_match)==0:
-            cnv_pos = cnv_tmp[start_match].startpos.values[0]
-            adj_cnv = get_adjacent_cnv(cnv_tmp,start_match,sv.bp1_pos,cnv_pos,False)
-            sv_df.loc[idx,'gtype1'] = adj_cnv.gtype.values[0] if len(adj_cnv)>0 else ''
-
-        elif sum(start_match)==0 and sum(end_match)==1:
-            cnv_pos = cnv_tmp[end_match].endpos.values[0]
-            adj_cnv = get_adjacent_cnv(cnv_tmp,end_match,sv.bp2_pos,cnv_pos)
-            sv_df.loc[idx,'gtype2']  = adj_cnv.gtype.values[0] if len(adj_cnv)>0  else ''            
-             
-        elif sum(start_match)==1 and sum(end_match)==1:
-            # one or both points may have different cnv state
-            # check all combinations of bordering cnvs
-            cnv_pos = cnv_tmp[start_match].startpos.values[0]
-            adj_cnv = get_adjacent_cnv(cnv_tmp,start_match,sv.bp1_pos,cnv_pos,False)
-            adj_gtype1 = adj_cnv.gtype.values[0] if len(adj_cnv)>0 else ''
-
-            cnv_pos = cnv_tmp[end_match].endpos.values[0]
-            adj_cnv = get_adjacent_cnv(cnv_tmp,end_match,sv.bp2_pos,cnv_pos)
-            adj_gtype2 = adj_cnv.gtype.values[0] if len(adj_cnv)>0 else ''
-
-            if sv.classification in params.deletion_class:
-                # if there's a CNV match, choose the CNV loss
-                 cn1,cn2 = get_weighted_cns([sv.gtype1,adj_gtype1])
-                 loss_cn = sv.gtype1 if cn1 <= cn2 else adj_gtype1
-                 if loss_cn not in [sv.gtype2, adj_gtype2]:
-                    sv_df.loc[idx,'gtype1']  = loss_cn
-                    sv_df.loc[idx,'gtype2']  = loss_cn
-
-            elif sv.classification in params.dna_gain_class:
-                # if there's a CNV match, choose the CNV gain
-                 cn1,cn2 = get_weighted_cns([sv.gtype1,adj_gtype1])
-                 gain_cn = sv.gtype1 if cn1 >= cn2 else adj_gtype1
-                 if gain_cn in [sv.gtype2, adj_gtype2]:
-                    sv_df.loc[idx,'gtype1'] = gain_cn
-                    sv_df.loc[idx,'gtype2'] = gain_cn
-
-            if sv_df.loc[idx,'gtype1'] != sv_df.loc[idx,'gtype2']:
-                #TODO: if both svs share an adjacent cnv state
-                #that matches, picking the genotype is completely
-                #arbitrary - is there a better way to do this?
-                if adj_gtype1 in [sv.gtype2,adj_gtype2]:
-                    sv_df.loc[idx,'gtype1'] = adj_gtype1
-                    sv_df.loc[idx,'gtype2'] = adj_gtype1
-                elif adj_gtype2 in [sv.gtype1,adj_gtype1]:
-                    sv_df.loc[idx,'gtype1'] = adj_gtype2
-                    sv_df.loc[idx,'gtype2'] = adj_gtype2
-            
-#        if sv_df.loc[idx,'bp1_chr']==sv_df.loc[idx,'bp2_chr']:
-#            if sv_df.loc[idx,'gtype1']!=sv_df.loc[idx,'gtype2']:
-#                ipdb.set_trace()
-    
-    return sv_df
-
-def is_same_sv_germline(sv1,sv2):
+def is_same_sv_germline(sv1,sv2,gl_th):
     sv1_chr1, sv1_bp1, sv1_chr2, sv1_bp2 = sv1
     sv2_chr1, sv2_bp1, sv2_chr2, sv2_bp2 = sv2
 
     if sv1_chr1==sv2_chr1 and sv1_chr2==sv2_chr2:
-        if abs(sv1_bp1-sv2_bp1)<params.gl_th and abs(sv1_bp2-sv2_bp2)<params.gl_th:
+        if abs(sv1_bp1-sv2_bp1)<gl_th and abs(sv1_bp2-sv2_bp2)<gl_th:
             return True
     if sv1_chr2==sv2_chr1 and sv1_chr1==sv2_chr2:
-        if abs(sv1_bp2-sv2_bp1)<params.gl_th and abs(sv1_bp1-sv2_bp2)<params.gl_th:
+        if abs(sv1_bp2-sv2_bp1)<gl_th and abs(sv1_bp1-sv2_bp2)<gl_th:
             return True
     return False
 
-def filter_germline(gml_file,sv_df,rlen,insert):
+def filter_germline(gml_file,sv_df,rlen,insert,gl_th):
     print("Filtering out germline SVs...")
     df_gml = pd.DataFrame(pd.read_csv(gml_file,delimiter='\t',dtype=None,low_memory=False))
     #df_gml = run_simple_filter(df_gml,rlen,insert)
@@ -450,14 +449,18 @@ def filter_germline(gml_file,sv_df,rlen,insert):
         df_gml_tmp = df_gml[same_chrs]
         for idx_gml,sv_gml in df_gml_tmp.iterrows():
             sv_loc_gml = [str(sv_gml.bp1_chr),int(sv_gml.bp1_pos),str(sv_gml.bp2_chr),int(sv_gml.bp2_pos)]
-            if sv_gml.support>0 and is_same_sv_germline(sv_loc,sv_loc_gml):
+            if sv_gml.support>0 and is_same_sv_germline(sv_loc,sv_loc_gml,gl_th):
                 germline.append(idx_sv)
                 break
 
     print("Filtered out %d SVs that were found in the germline!" % len(germline))
     return sv_df.drop(germline,axis=0)
 
-def adjust_sv_read_counts(sv_df,pi,pl,min_dep,rlen):
+def adjust_sv_read_counts(sv_df,pi,pl,min_dep,rlen,Config):
+    dna_gain_class = Config.get('SVClasses', 'dna_gain_class').split(',')
+    dna_loss_class = Config.get('SVClasses', 'dna_loss_class').split(',')
+    support_adjust_factor = float(Config.get('GlobalParameters', 'support_adjust_factor'))
+
     n = zip(np.array(sv_df.norm1.values),np.array(sv_df.norm2.values))
     s = np.array(sv_df.bp1_split.values+sv_df.bp2_split.values)
     d = np.array(sv_df.spanning.values)
@@ -505,10 +508,10 @@ def adjust_sv_read_counts(sv_df,pi,pl,min_dep,rlen):
         # read value adjustments for specific types of events
         # currently the adjustments are quite simple
         sv_classes = sv_df.classification.values
-        #invs = [ idx in params.inversion_class for idx,sv_class in enumerate(sv_classes) ]
-        dups = np.array([ sv_class in params.dna_gain_class for idx,sv_class in enumerate(sv_classes) ])
-        loss = np.array([ sv_class in params.dna_loss_class for idx,sv_class in enumerate(sv_classes) ])
-        #dels = np.array([ sv_class in params.deletion_class for idx,sv_class in enumerate(sv_classes) ])
+        #invs = [ idx in inversion_class for idx,sv_class in enumerate(sv_classes) ]
+        dups = np.array([ sv_class in dna_gain_class for idx,sv_class in enumerate(sv_classes) ])
+        loss = np.array([ sv_class in dna_loss_class for idx,sv_class in enumerate(sv_classes) ])
+        #dels = np.array([ sv_class in deletion_class for idx,sv_class in enumerate(sv_classes) ])
         
         # normal read counts for duplications are adjusted by purity and ploidy
         if sum(dups)>0:
@@ -516,7 +519,7 @@ def adjust_sv_read_counts(sv_df,pi,pl,min_dep,rlen):
             # if these events don't exist, adjust by:
             # normal component + 1/ploidy (estimated half tumour normal) + estimated bias of normal reads 
             # not counted due to norm overlap threshold cutoff
-            #alt_adjust = (1-float(pi)) + (1/float(pl))*pi + float(pi)*(svp_params.norm_overlap/float(rlen))
+            #alt_adjust = (1-float(pi)) + (1/float(pl))*pi + float(pi)*(svp_norm_overlap/float(rlen))
             alt_adjust = 1./(1+(float(pi)/pl))
             adjust_factor = np.mean(norm[loss])/np.mean(norm[dups]) if sum(loss)>5 else alt_adjust
             if adjust_factor < 1:
@@ -526,7 +529,7 @@ def adjust_sv_read_counts(sv_df,pi,pl,min_dep,rlen):
         print('Warning, no valid classifications found. SV read counts cannot be adjusted')
     
     all_indexes      = sv_df.index.values
-    adjust_factor    = 1+(params.support_adjust_factor*pi)
+    adjust_factor    = 1+(support_adjust_factor*pi)
     adjusted_support = map(round,sup*adjust_factor)
 
     sv_df.loc[all_indexes,'adjusted_norm']      = norm
@@ -568,6 +571,8 @@ def run(args):
         raise ValueError('No configuration file found')
 
     valid_chrs = Config.get('ValidationParameters', 'chroms').split(',')
+    gl_th = int(Config.get('GlobalParameters', 'germline_threshold'))
+    sv_offset = int(Config.get('GlobalParameters', 'sv_offset'))
    
     def proc_arg(arg,n_args=1,of_type=str):
         arg = str.split(arg,',')
@@ -632,22 +637,22 @@ def run(args):
                                         min_dep,check_valid_chrs,valid_chrs)
         
         if gml!="":
-            sv_df = filter_germline(gml,sv_df,rlen,insert)
+            sv_df = filter_germline(gml,sv_df,rlen,insert,gl_th)
        
         if cnv!="":
             cnv_df = load_data.load_cnvs(cnv)
 
             if len(sv_df)>0:
                 print('Matching copy-numbers for SVs...')
-                sv_df = match_copy_numbers(sv_df,cnv_df) 
-                sv_df = match_copy_numbers(sv_df,cnv_df,['bp2_chr','bp2_pos','bp2_dir','classification','bp1_pos'],'gtype2') 
+                sv_df = match_copy_numbers(sv_df,cnv_df,sv_offset) 
+                sv_df = match_copy_numbers(sv_df,cnv_df,sv_offset,['bp2_chr','bp2_pos','bp2_dir','classification','bp1_pos'],'gtype2') 
                 #sv_df = reprocess_unmatched_cnvs(sv_df,cnv_df)
                 sv_df = run_cnv_filter(sv_df,cnv,neutral,filter_otl)
                 print('Keeping %d SVs' % len(sv_df))
         
             if len(snv_df)>0:
                 print('Matching copy-numbers for SNVs...')
-                snv_df = match_snv_copy_numbers(snv_df,cnv_df)
+                snv_df = match_snv_copy_numbers(snv_df,cnv_df,sv_offset)
                 snv_df = run_cnv_filter(snv_df,cnv,neutral,filter_otl,are_snvs=True)
                 print('Keeping %d SNVs' % len(snv_df))
         else:
@@ -666,7 +671,7 @@ def run(args):
         
         if len(sv_df)>0: 
             sv_df.index = range(len(sv_df)) #reindex
-            sv_df = adjust_sv_read_counts(sv_df,pi,ploidy,min_dep,rlen)
+            sv_df = adjust_sv_read_counts(sv_df,pi,ploidy,min_dep,rlen,Config)
             sv_df.to_csv('%s/%s_filtered_svs.tsv'%(out,sample),sep='\t',index=False,na_rep='')
         
         if len(snv_df)>0: 

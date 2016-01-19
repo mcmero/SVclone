@@ -21,7 +21,6 @@ from IPython.core.pylabtools import figsize
 
 from . import cluster
 from . import load_data
-from . import parameters as params
 from . import write_output
 
 import numpy as np
@@ -67,7 +66,7 @@ def mean_confidence_interval(phi_trace, alpha=0.1):
     h = se * sp.stats.t._ppf((1+(1-alpha))/2., n-1)
     return round(m,4), round(m-h,4), round(m+h,4)
 
-def merge_clusters(clus_out_dir,clus_info,clus_merged,clus_members,merged_ids,sup,dep,cn_states,sparams,cparams):
+def merge_clusters(clus_out_dir,clus_info,clus_merged,clus_members,merged_ids,sup,dep,cn_states,sparams,cparams,clus_limit,phi_limit):
     if len(clus_info)==1:
         return (clus_info,clus_members)
 
@@ -84,7 +83,7 @@ def merge_clusters(clus_out_dir,clus_info,clus_merged,clus_members,merged_ids,su
             new_size = ci['size'] + cn['size']
 
             new_members = np.concatenate([clus_members[idx],clus_members[idx+1]])
-            mcmc = cluster.cluster(sup[new_members],dep[new_members],cn_states[new_members],len(new_members),sparams,cparams)
+            mcmc = cluster.cluster(sup[new_members],dep[new_members],cn_states[new_members],len(new_members),sparams,cparams,clus_limit,phi_limit)
             trace = mcmc.trace("phi_k")[:]
 
             phis = mean_confidence_interval(trace)
@@ -122,7 +121,7 @@ def merge_clusters(clus_out_dir,clus_info,clus_merged,clus_members,merged_ids,su
         return (clus_merged,clus_members,merged_ids)
     else:
         new_df = pd.DataFrame(columns=clus_merged.columns,index=clus_merged.index)
-        return merge_clusters(clus_out_dir,clus_merged,new_df,clus_members,merged_ids,sup,dep,cn_states,sparams,cparams)
+        return merge_clusters(clus_out_dir,clus_merged,new_df,clus_members,merged_ids,sup,dep,cn_states,sparams,cparamsclus_limit,phi_limit)
 
 def merge_results(clus_merged, merged_ids, df_probs, ccert):    
     # merge probability table
@@ -292,6 +291,9 @@ def run_clustering(args):
     init   = Config.get('BetaParameters', 'init')
     beta   = ','.join([str(shape),str(scale),str(init)])
 
+    phi_limit = float(Config.get('ClusterParameters', 'phi_limit'))
+    clus_limit = int(Config.get('ClusterParameters', 'clus_limit'))
+
     purity_ploidy_file = '%s/purity_ploidy.txt' % out
 
     pi      = 1.
@@ -351,7 +353,8 @@ def run_clustering(args):
                 cn_states = pd.concat([cn_states,pd.DataFrame(sv_cn_states)])[0].values
                 Nvar = Nvar + sv_Nvar
                 
-                mcmc = cluster.cluster(sup,dep,cn_states,Nvar,sample_params,cluster_params)
+                mcmc = cluster.cluster(sup,dep,cn_states,Nvar,sample_params,cluster_params,\
+                                      clus_limit,phi_limit)
                 post_process_clusters(mcmc,sv_df,snv_df,merge_clusts,clus_out_dir, \
                                       sup,dep,cn_states,plot,sample_params,cluster_params)
             else:
@@ -363,7 +366,8 @@ def run_clustering(args):
                 sup,dep,cn_states,Nvar = load_data.get_snv_vals(snv_df)
 
                 print('Clustering %d SNVs...' % len(snv_df))
-                mcmc = cluster.cluster(sup,dep,cn_states,Nvar,sample_params,cluster_params)
+                mcmc = cluster.cluster(sup,dep,cn_states,Nvar,sample_params,cluster_params,\
+                                       clus_limit,phi_limit)
                 post_process_clusters(mcmc,pd.DataFrame(),snv_df,merge_clusts,clus_out_dir, \
                                       sup,dep,cn_states,plot,sample_params,cluster_params)
 
@@ -371,7 +375,8 @@ def run_clustering(args):
                 sup,dep,cn_states,Nvar = load_data.get_sv_vals(sv_df,no_adjust)
 
                 print('Clustering %d SVs...' % len(sv_df))
-                mcmc = cluster.cluster(sup,dep,cn_states,Nvar,sample_params,cluster_params)
+                mcmc = cluster.cluster(sup,dep,cn_states,Nvar,sample_params,cluster_params,\
+                                       clus_limit,phi_limit)
                 post_process_clusters(mcmc,sv_df,pd.DataFrame(),merge_clusts,clus_out_dir, \
                                       sup,dep,cn_states,plot,sample_params,cluster_params)
 

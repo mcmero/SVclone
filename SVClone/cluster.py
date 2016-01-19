@@ -6,7 +6,6 @@ import ipdb
 
 from scipy import stats
 from operator import methodcaller
-from . import parameters as params
 
 #def get_cn_mu_v(cn):
 #    cn_v = [0.,0.]
@@ -193,10 +192,11 @@ def get_most_likely_cn_states(cn_states,s,d,phi,pi):
 
     return most_likely_cn, most_likely_pv
 
-def cluster(sup,dep,cn_states,Nvar,sparams,cparams,Ndp=params.clus_limit):
+def cluster(sup,dep,cn_states,Nvar,sparams,cparams,clus_limit,phi_limit):
     '''
     clustering model using Dirichlet Process
     '''
+    Ndp = clus_limit
     sens = 1.0 / ((sparams['pi']/float(sparams['ploidy']))*np.mean(dep))
     beta_a, beta_b, beta_init = map(lambda x: float(eval(x)), cparams['beta'].split(','))
     alpha = pm.Gamma('alpha',beta_a,beta_b)#,value=beta_init)
@@ -212,7 +212,7 @@ def cluster(sup,dep,cn_states,Nvar,sparams,cparams,Ndp=params.clus_limit):
 
     z = pm.Categorical('z', p=p, size=Nvar, value=np.zeros(Nvar))
     #phi_init = (np.mean(sup/dep)/pi)*2
-    phi_k = pm.Uniform('phi_k', lower=sens, upper=params.phi_limit, size=Ndp)#, value=[phi_init]*Ndp)
+    phi_k = pm.Uniform('phi_k', lower=sens, upper=phi_limit, size=Ndp)#, value=[phi_init]*Ndp)
     
     @pm.deterministic
     def p_var(z=z,phi_k=phi_k):
