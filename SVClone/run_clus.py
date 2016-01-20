@@ -66,7 +66,7 @@ def mean_confidence_interval(phi_trace, alpha=0.1):
     h = se * sp.stats.t._ppf((1+(1-alpha))/2., n-1)
     return round(m,4), round(m-h,4), round(m+h,4)
 
-def merge_clusters(clus_out_dir,clus_info,clus_merged,clus_members,merged_ids,sup,dep,cn_states,sparams,cparams,clus_limit,phi_limit):
+def merge_clusters(clus_out_dir,clus_info,clus_merged,clus_members,merged_ids,sup,dep,cn_states,sparams,cparams,subclone_diff,clus_limit,phi_limit):
     if len(clus_info)==1:
         return (clus_info,clus_members)
 
@@ -78,7 +78,7 @@ def merge_clusters(clus_out_dir,clus_info,clus_merged,clus_members,merged_ids,su
             clus_merged.loc[idx] = clus_info.loc[idx]
             break
         cn = clus_info.loc[idx+1]
-        if abs(ci.phi - float(cn.phi)) < params.subclone_diff:
+        if abs(ci.phi - float(cn.phi)) < subclone_diff:
             print("\nReclustering similar clusters...")
             new_size = ci['size'] + cn['size']
 
@@ -121,7 +121,7 @@ def merge_clusters(clus_out_dir,clus_info,clus_merged,clus_members,merged_ids,su
         return (clus_merged,clus_members,merged_ids)
     else:
         new_df = pd.DataFrame(columns=clus_merged.columns,index=clus_merged.index)
-        return merge_clusters(clus_out_dir,clus_merged,new_df,clus_members,merged_ids,sup,dep,cn_states,sparams,cparamsclus_limit,phi_limit)
+        return merge_clusters(clus_out_dir,clus_merged,new_df,clus_members,merged_ids,sup,dep,cn_states,sparams,cparams,subclone_diff,clus_limit,phi_limit)
 
 def merge_results(clus_merged, merged_ids, df_probs, ccert):    
     # merge probability table
@@ -153,7 +153,7 @@ def merge_results(clus_merged, merged_ids, df_probs, ccert):
 
     return df_probs_new,ccert_new
 
-def post_process_clusters(mcmc,sv_df,snv_df,merge_clusts,clus_out_dir,sup,dep,cn_states,plot,sparams,cparams):
+def post_process_clusters(mcmc,sv_df,snv_df,merge_clusts,clus_out_dir,sup,dep,cn_states,plot,sparams,cparams,subclone_diff,clus_limit,phi_limit):
     # assign points to highest probabiliy cluster
     npoints = len(snv_df) + len(sv_df)
 
@@ -214,7 +214,7 @@ def post_process_clusters(mcmc,sv_df,snv_df,merge_clusts,clus_out_dir,sup,dep,cn
     if len(clus_info)>1 and merge_clusts:        
         clus_merged = pd.DataFrame(columns=clus_info.columns,index=clus_info.index)
         clus_merged, clus_members, merged_ids  = merge_clusters(clus_out_dir,clus_info,clus_merged,\
-                clus_members,[],sup,dep,cn_states,sparams,cparams)
+                clus_members,[],sup,dep,cn_states,sparams,cparams,subclone_diff,clus_limit,phi_limit)
         
         if len(clus_merged)!=len(clus_info):
             clus_info = clus_merged
@@ -293,6 +293,7 @@ def run_clustering(args):
 
     phi_limit = float(Config.get('ClusterParameters', 'phi_limit'))
     clus_limit = int(Config.get('ClusterParameters', 'clus_limit'))
+    subclone_diff = float(Config.get('ClusterParameters', 'subclone_diff'))
 
     purity_ploidy_file = '%s/purity_ploidy.txt' % out
 
@@ -356,7 +357,8 @@ def run_clustering(args):
                 mcmc = cluster.cluster(sup,dep,cn_states,Nvar,sample_params,cluster_params,\
                                       clus_limit,phi_limit)
                 post_process_clusters(mcmc,sv_df,snv_df,merge_clusts,clus_out_dir, \
-                                      sup,dep,cn_states,plot,sample_params,cluster_params)
+                                      sup,dep,cn_states,plot,sample_params,cluster_params, \
+                                      subclone_diff, clus_limit, phi_limit)
             else:
                 print('Cannot cocluster - check that valid SV and SNV input is supplied')
         else:            
@@ -369,7 +371,8 @@ def run_clustering(args):
                 mcmc = cluster.cluster(sup,dep,cn_states,Nvar,sample_params,cluster_params,\
                                        clus_limit,phi_limit)
                 post_process_clusters(mcmc,pd.DataFrame(),snv_df,merge_clusts,clus_out_dir, \
-                                      sup,dep,cn_states,plot,sample_params,cluster_params)
+                                      sup,dep,cn_states,plot,sample_params,cluster_params, \
+                                      subclone_diff, clus_limit, phi_limit)
 
             if len(sv_df)>0:
                 sup,dep,cn_states,Nvar = load_data.get_sv_vals(sv_df,no_adjust)
@@ -378,5 +381,6 @@ def run_clustering(args):
                 mcmc = cluster.cluster(sup,dep,cn_states,Nvar,sample_params,cluster_params,\
                                        clus_limit,phi_limit)
                 post_process_clusters(mcmc,sv_df,pd.DataFrame(),merge_clusts,clus_out_dir, \
-                                      sup,dep,cn_states,plot,sample_params,cluster_params)
+                                      sup,dep,cn_states,plot,sample_params,cluster_params, \
+                                      subclone_diff, clus_limit, phi_limit)
 
