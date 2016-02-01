@@ -378,7 +378,8 @@ def preproc_svs(args):
                         ('bp2_ca_right', int), ('bp2_ca_left', int)]
     ca = np.zeros(len(svs), dtype=consens_dtype)
 
-    rlen = bamtools.estimateTagSize(bam)
+    #rlen = bamtools.estimateTagSize(bam)
+    rlen = 100
     inserts = bamtools.estimateInsertSizeDistribution(bam)
     inserts = (max(rlen*2,inserts[0]),inserts[1])
     

@@ -470,7 +470,8 @@ def adjust_sv_read_counts(sv_df,pi,pl,min_dep,rlen,Config):
     # pick side closest to the above-threshold norm mean count
     norm_vals = np.append(sv_df.norm1.values,sv_df.norm2.values)
     norm_mean = np.mean(norm_vals[norm_vals > min_dep])
-    sides = np.array([0 if a < b else 1 for a,b in zip(abs(sv_df.norm1.values-norm_mean),abs(sv_df.norm2.values-norm_mean))])
+    #sides = np.array([0 if a > b else 1 for a,b in zip(abs(sv_df.norm1.values-norm_mean),abs(sv_df.norm2.values-norm_mean))])
+    sides = np.array([0 if a < b else 1 for a,b in zip(sv_df.norm1.values,sv_df.norm2.values)])
     #gts_match = np.array([gtypes_match(gt1,gt2) for gt1,gt2 in zip(sv_df.gtype1.values,sv_df.gtype2.values)])
 
     # if low normal depth on one side only, pick other side 
