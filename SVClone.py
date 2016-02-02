@@ -67,6 +67,9 @@ identify_parser.add_argument("--trust_sc_pos",dest="trust_sc_pos",action="store_
                     Cannot be skipped if directionality must be inferred. If your SV caller offsets 
                     breaks due to micro-homology, e.g. Socrates, using this option is not recommended.''')
 
+identify_parser.add_argument("-r","--read_len",dest="rlen",default=-1,type=int,
+                    help="Read length. If not specified, will be inferred")
+
 identify_parser.set_defaults(func=identify.preproc_svs)
 
 ##########################################################################################################

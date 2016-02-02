@@ -348,6 +348,7 @@ def preproc_svs(args):
     class_field  = args.class_field
     filt_repeats = args.filt_repeats
     trust_sc_pos = args.trust_sc_pos
+    rlen         = args.rlen
 
     cfg = args.cfg
     Config = ConfigParser.ConfigParser()
@@ -378,8 +379,9 @@ def preproc_svs(args):
                         ('bp2_ca_right', int), ('bp2_ca_left', int)]
     ca = np.zeros(len(svs), dtype=consens_dtype)
 
-    #rlen = bamtools.estimateTagSize(bam)
-    rlen = 100
+    if rlen<0:
+        rlen = bamtools.estimateTagSize(bam)
+    
     inserts = bamtools.estimateInsertSizeDistribution(bam)
     inserts = (max(rlen*2,inserts[0]),inserts[1])
     
