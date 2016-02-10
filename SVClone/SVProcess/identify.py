@@ -248,6 +248,7 @@ def split_dirs_dual_mixed_sv(svs, row, idx, ca, threshold):
             # likely an inversion - both sides match same break
             # set one SV to + dirs, the other to - dirs
 
+            new_sv = svs[idx].copy()
             new_pos1, new_pos2 = ca[idx]['bp1_ca_right'], ca[idx]['bp2_ca_right']
             svs[idx] = set_dir_class(new_sv, '+', '+', '', new_pos1, new_pos2)
 
