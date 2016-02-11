@@ -50,7 +50,8 @@ def load_input_vcf(svin,class_field):
         except KeyError:
             print("SV %s improperly paired or missing attributes"%sv_id)
             continue
-    
+
+    svs['ID'] = range(0,len(svs)) #re-index
     return svs
 
 def load_input_socrates(svin,use_dir,min_mapq,filt_repeats,Config):
