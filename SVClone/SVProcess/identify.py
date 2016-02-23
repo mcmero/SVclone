@@ -196,6 +196,7 @@ def remove_duplicates(svs, threshold):
                 if is_same_sv(sv1_tmp, sv2_tmp, threshold):
                     to_delete.append(idx1)
     svs = np.delete(svs, np.array(to_delete))
+    svs['ID'] = range(0,len(svs)) #re-index
     return svs
 
 def get_sv_pos_ranks(sv_list, threshold):
@@ -231,18 +232,25 @@ def split_dirs_dual_mixed_sv(svs, row, idx, ca, threshold):
                                 svs[idx]['bp2_pos'], svs, threshold, mixed=True)
 
     if len(bp1_svmatch) > 0 and len(bp2_svmatch) > 0:
-
-        other_idx1 = int(bp1_svmatch[0]['ID'])
-        other_idx2 = int(bp2_svmatch[0]['ID'])
-
+        
         if len(bp1_svmatch) > 1 or len(bp2_svmatch) > 1:
-            indexes = [int(sv_match['ID']) for sv_match in bp1_svmatch] + [row['ID']]
-            indexes = [int(sv_match['ID']) for sv_match in bp2_svmatch] + indexes
-
-            for tmp_idx in indexes:
-                svs[tmp_idx]['classification'] = 'COMPLEX'
+            for match in bp1_svmatch:
+                assert len(np.where(svs==match)[0]) == 1
+                tmp_id = np.where(svs==match)[0][0]
+                svs[tmp_id]['classification'] = 'COMPLEX'
+            
+            for match in bp2_svmatch:
+                assert len(np.where(svs==match)[0]) == 1
+                tmp_id = np.where(svs==match)[0][0]
+                svs[tmp_id]['classification'] = 'COMPLEX'
 
             return svs
+
+        assert len(np.where(svs==bp1_svmatch)[0]) == 1
+        assert len(np.where(svs==bp2_svmatch)[0]) == 1
+
+        other_idx1 = np.where(svs==bp1_svmatch)[0][0]
+        other_idx2 = np.where(svs==bp2_svmatch)[0][0]
 
         if bp1_svmatch[0] == bp2_svmatch[0]:
             # likely an inversion - both sides match same break
@@ -299,43 +307,48 @@ def split_dirs_dual_mixed_sv(svs, row, idx, ca, threshold):
     return svs
 
 def split_mixed_svs(svs, ca, threshold):
+    new_svs = []
     for idx, row in enumerate(svs):
-        sv_class = np.array(row['classification'].split(';'))
 
+        sv_class = np.array(row['classification'].split(';'))
         if 'MIXED' in sv_class:
 
             if 'UNKNOWN_DIR' in sv_class:
                 svs[idx]['classification'] = 'UNKNOWN_DIR'
                 break #can't fix this if one direction is unknown
 
-            if len(sv_class) > 1 and sv_class[0] == 'MIXED' and sv_class[1] == 'MIXED':
-                svs = split_dirs_dual_mixed_sv(svs, row, idx, ca, threshold)
+            elif len(sv_class) > 1 and sv_class[0] == 'MIXED' and sv_class[1] == 'MIXED':
+                new_svs = split_dirs_dual_mixed_sv(svs, row, idx, ca, threshold)
 
-            elif row['bp1_dir'] != '?':
-                #set dir to -, create new sv with dir set to +
+            elif row['bp1_dir'] in ['-','+']:
+                #set dir to -, create new sv with dir set to +                
                 new_sv = svs[idx].copy()
                 new_pos2 = ca[idx]['bp2_ca_right']
                 new_sv = set_dir_class(new_sv, row['bp1_dir'], '+', '', 0, new_pos2)
-                svs = np.append(svs, new_sv)
-
-                new_pos2 = ca[idx]['bp2_ca_left']
+                new_sv['ID'] = svs[len(svs)-1]['ID']+1
                 svs[idx] = set_dir_class(svs[idx], row['bp1_dir'], '-', '', 0, new_pos2)
 
-            elif row['bp2_dir'] != '?':
+                new_svs = np.append(svs, new_sv)
+
+            elif row['bp2_dir'] in ['-','+']:
                 #set dir to -, create new sv with dir set to +
                 new_sv = svs[idx].copy()
                 new_pos1 = ca[idx]['bp1_ca_right']
                 new_sv = set_dir_class(new_sv, '+', row['bp2_dir'], '', new_pos1, 0)
-                svs = np.append(svs, new_sv)
-
+                new_sv['ID'] = svs[len(svs)-1]['ID']+1
                 svs[idx] = set_dir_class(svs[idx], '-', row['bp2_dir'], '', new_pos1, 0)
+
+                new_svs = np.append(svs, new_sv)
 
             else:
                 svs[idx]['classification'] = 'UNKNOWN_DIR'
 
             break #can only fix one set at a time
 
-    return svs
+    if len(new_svs)>0:
+        return new_svs
+    else:
+        return svs
 
 def preproc_svs(args):
 
@@ -390,6 +403,7 @@ def preproc_svs(args):
     max_dep = ((mean_cov*(max_ins*2))/rlen)*max_cn
 
     if not use_dir:
+        print('Inferring SV directions...')
         for idx, sv in enumerate(svs):
             svs[idx], ca[idx] = get_dir_info(sv, bam, max_dep, sc_len, threshold)
 
@@ -399,6 +413,7 @@ def preproc_svs(args):
                 sum(svs['classification'] == 'MIXED;MIXED'))
 
     elif not trust_sc_pos:
+        print('Recalibrating consensus alignments...')
         # use directions, but recheck the consensus alignments
         for idx, sv in enumerate(svs):
             sv_tmp, loc1_reads, loc2_reads, err_code1, err_code2 = \
