@@ -126,10 +126,11 @@ def get_dir_info(row, bam, max_dep, sc_len, threshold):
 
     return sv, consens_aligns
 
-def mixed_svs_remain(svs):
+def num_mixed_svs(svs):
     sv_classes = map(lambda x: x.split(';'), svs['classification'])
     sv_classes = np.array([sv for svc in sv_classes for sv in svc])
-    return 'MIXED' in sv_classes
+    sv_classes = sv_classes = np.array(['MIXED' in svc for svc in sv_classes])
+    return sum(sv_classes)
 
 def does_break_match(chr1, pos1, chr2, pos2, threshold):
     return chr1 == chr2 and (pos1 + threshold) > pos2 and (pos1 - threshold) < pos2
@@ -407,10 +408,17 @@ def preproc_svs(args):
         for idx, sv in enumerate(svs):
             svs[idx], ca[idx] = get_dir_info(sv, bam, max_dep, sc_len, threshold)
 
-        while mixed_svs_remain(svs):
+        while num_mixed_svs(svs)>0:
+
+            before = num_mixed_svs(svs)
             svs = split_mixed_svs(svs, ca, threshold)
-            print('%d dual mixed classifications remain' % \
-                sum(svs['classification'] == 'MIXED;MIXED'))
+            after = num_mixed_svs(svs)
+            print('%d mixed classifications remain' % after)
+            
+            # to prevent infinite loops...
+            if before == after:
+                print('Failed to fix mixed direction SVs. Skipping...')
+                break
 
     elif not trust_sc_pos:
         print('Recalibrating consensus alignments...')
