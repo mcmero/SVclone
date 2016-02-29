@@ -125,7 +125,7 @@ filter_parser = subparsers.add_parser('filter', help='Filter output from process
 filter_parser.add_argument("-cfg","--config",dest="cfg",default="svclone_config.ini",
                     help="Config file. Default: svclone_config.ini")
 
-filter_parser.add_argument("-s","--samples",dest="sample",required=True,
+filter_parser.add_argument("-s","--sample",dest="sample",required=True,
                     help='''Sample name.
                     WARNING: if clustering using mutect SNVs, the sample name must match the sample name 
                     in the vcf file.''')
