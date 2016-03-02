@@ -225,6 +225,15 @@ init: 2
 
 ```
 
+### Post Processing ###
+
+To create some helpful plots for SV clustering results (currently only SV output is supported), use the following Rscript:
+
+```
+Rscript post_process_sv_only.R <workingdir> <sample_id> <run_number>
+```
+
+
 ### Calculating Coverage ###
 
 Coverage can be approximately calculated using a script such as:

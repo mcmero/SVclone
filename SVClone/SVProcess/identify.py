@@ -135,25 +135,30 @@ def num_mixed_svs(svs):
 def does_break_match(chr1, pos1, chr2, pos2, threshold):
     return chr1 == chr2 and (pos1 + threshold) > pos2 and (pos1 - threshold) < pos2
 
-def get_matching_svs(sv, bp_chr, bp_pos, svs, threshold, mixed=False):
+def get_matching_svs(idx, sv, bp_chr, bp_pos, svs, threshold, mixed=False):
     sv_matches = np.empty(0, dtype=dtypes.sv_dtype)
     which_matches = []
-    for row in svs:
+
+    for i,row in enumerate(svs):
         if mixed and row['classification'] != 'MIXED;MIXED':
             continue
+        if i==idx:
+            continue
         matches = []
-        if not np.all(row == sv) and \
-            does_break_match(bp_chr, bp_pos, row['bp1_chr'], row['bp1_pos'], threshold):
 
-            sv_matches = np.append(sv_matches, row)
+        if does_break_match(bp_chr, bp_pos, row['bp1_chr'], row['bp1_pos'], threshold):
+            match_sv = np.array(row, dtype=dtypes.sv_dtype)
+            sv_matches = np.append(sv_matches, match_sv)
             matches.append(1)
-        if not np.all(row == sv) and \
-            does_break_match(bp_chr, bp_pos, row['bp2_chr'], row['bp2_pos'], threshold):
 
-            sv_matches = np.append(sv_matches, row)
+        if does_break_match(bp_chr, bp_pos, row['bp2_chr'], row['bp2_pos'], threshold):
+            match_sv = np.array(row, dtype=dtypes.sv_dtype)
+            sv_matches = np.append(sv_matches, match_sv)
             matches.append(2)
+
         if len(matches) > 0:
             which_matches.append(matches)
+
     return sv_matches, which_matches
 
 def set_dir_class(sv, bp1_dir, bp2_dir, sv_class, new_pos1, new_pos2):
@@ -225,31 +230,32 @@ def get_sv_pos_ranks(sv_list, threshold):
 
     return ranks
 
+def set_svs_as_complex(svs, svmatch):
+    # ensure that svs are of the correct dtype
+    svs = np.array(svs, dtype=dtypes.sv_dtype)
+    svmatch = np.array(svmatch, dtype=dtypes.sv_dtype)
+    for match in svmatch:
+        for tmp_id in np.where(svs==match)[0]:
+            svs[tmp_id]['classification'] = 'COMPLEX'
+    return svs
+
 def split_dirs_dual_mixed_sv(svs, row, idx, ca, threshold):
 
-    bp1_svmatch, bp1_which = get_matching_svs(svs[idx], svs[idx]['bp1_chr'], \
+    bp1_svmatch, bp1_which = get_matching_svs(idx, svs[idx], svs[idx]['bp1_chr'], \
                                 svs[idx]['bp1_pos'], svs, threshold, mixed=True)
-    bp2_svmatch, bp2_which = get_matching_svs(svs[idx], svs[idx]['bp2_chr'], \
+    bp2_svmatch, bp2_which = get_matching_svs(idx, svs[idx], svs[idx]['bp2_chr'], \
                                 svs[idx]['bp2_pos'], svs, threshold, mixed=True)
 
     if len(bp1_svmatch) > 0 and len(bp2_svmatch) > 0:
         
         if len(bp1_svmatch) > 1 or len(bp2_svmatch) > 1:
-            for match in bp1_svmatch:
-                assert len(np.where(svs==match)[0]) == 1
-                tmp_id = np.where(svs==match)[0][0]
-                svs[tmp_id]['classification'] = 'COMPLEX'
-            
-            for match in bp2_svmatch:
-                assert len(np.where(svs==match)[0]) == 1
-                tmp_id = np.where(svs==match)[0][0]
-                svs[tmp_id]['classification'] = 'COMPLEX'
 
+            svs = set_svs_as_complex(svs, bp1_svmatch)
+            svs = set_svs_as_complex(svs, bp2_svmatch)
             return svs
 
-        assert len(np.where(svs==bp1_svmatch)[0]) == 1
-        assert len(np.where(svs==bp2_svmatch)[0]) == 1
-
+        # ensure that svs are of the correct dtype
+        svs = np.array(svs, dtype=dtypes.sv_dtype)
         other_idx1 = np.where(svs==bp1_svmatch)[0][0]
         other_idx2 = np.where(svs==bp2_svmatch)[0][0]
 
@@ -288,6 +294,10 @@ def split_dirs_dual_mixed_sv(svs, row, idx, ca, threshold):
                     new_pos2 = ca[idxs]['bp2_ca_right'] if \
                                 dirs[1] == '+' else ca[idxs]['bp2_ca_left']
                     svs[idxs] = set_dir_class(sv, dirs[0], dirs[1], '', new_pos1, new_pos2)
+            else:                
+                svs = set_svs_as_complex(svs, bp1_svmatch)
+                svs = set_svs_as_complex(svs, bp2_svmatch)
+                return svs
 
     elif len(bp1_svmatch) == 0 and len(bp2_svmatch) == 0:
         # probably an inversion that has no partner - not called by SV caller?
@@ -402,12 +412,23 @@ def preproc_svs(args):
     
     max_ins = inserts[0]+(3*inserts[1]) #max fragment size = mean fragment len + (fragment std * 3)
     max_dep = ((mean_cov*(max_ins*2))/rlen)*max_cn
-
+    
     if not use_dir:
         print('Inferring SV directions...')
-        for idx, sv in enumerate(svs):
-            svs[idx], ca[idx] = get_dir_info(sv, bam, max_dep, sc_len, threshold)
+#        for idx, sv in enumerate(svs):
+#            svs[idx], ca[idx] = get_dir_info(sv, bam, max_dep, sc_len, threshold)
 
+        tmp_out = '%s_dirout.txt' % out
+        svs = np.genfromtxt(tmp_out, delimiter='\t', names=True, dtype=None, invalid_raise=False)
+    
+        # write directionality output (for debugging)
+        with open(tmp_out, 'w') as outf:
+            writer = csv.writer(outf, delimiter='\t', quoting=csv.QUOTE_NONE, quotechar='')
+            header = [field for field, dtype in dtypes.sv_dtype]
+            writer.writerow(header)
+            for sv_out in svs:
+                writer.writerow(sv_out)
+                
         while num_mixed_svs(svs)>0:
 
             before = num_mixed_svs(svs)
