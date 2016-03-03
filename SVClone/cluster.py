@@ -98,13 +98,17 @@ def get_sv_allele_combos(sv):
     return tuple([combos_bp1,combos_bp2])
 
 def fit_and_sample(model, iters, burn, thin, use_map):
-    #TODO: suppress warning about using fmin method
     if use_map:
         map_ = pm.MAP( model )
-        map_.fit( method = 'fmin_powell' )
+        map_.fit(method = 'fmin')
+
     mcmc = pm.MCMC( model )
     mcmc.sample( iters, burn=burn, thin=thin )
-    return mcmc
+
+    if use_map:
+        return mcmc, map_
+    else:
+        return mcmc, None
 
 def get_pv(phi,cn_r,cn_v,mu,pi):
     #rem = 1.0 - phi
@@ -221,5 +225,5 @@ def cluster(sup,dep,cn_states,Nvar,sparams,cparams,clus_limit,phi_limit):
         
     cbinom = pm.Binomial('cbinom', dep, p_var, observed=True, value=sup)
     model = pm.Model([alpha,h,p,phi_k,z,p_var,cbinom])
-    mcmc = fit_and_sample(model,cparams['n_iter'],cparams['burn'],cparams['thin'],cparams['use_map'])
-    return mcmc
+    mcmc, map_ = fit_and_sample(model,cparams['n_iter'],cparams['burn'],cparams['thin'],cparams['use_map'])
+    return mcmc, map_

@@ -153,7 +153,7 @@ def merge_results(clus_merged, merged_ids, df_probs, ccert):
 
     return df_probs_new,ccert_new
 
-def post_process_clusters(mcmc,sv_df,snv_df,merge_clusts,clus_out_dir,sup,dep,cn_states,plot,sparams,cparams,subclone_diff,clus_limit,phi_limit):
+def post_process_clusters(mcmc,sv_df,snv_df,merge_clusts,clus_out_dir,sup,dep,cn_states,plot,sparams,cparams,subclone_diff,clus_limit,phi_limit,map_):
     # assign points to highest probabiliy cluster
     npoints = len(snv_df) + len(sv_df)
 
@@ -238,8 +238,9 @@ def post_process_clusters(mcmc,sv_df,snv_df,merge_clusts,clus_out_dir,sup,dep,cn
         snv_dep  = dep[:len(snv_df)]
         snv_cn_states = cn_states[:len(snv_df)]
         write_output.write_out_files(snv_df,clus_info,snv_members,
-                snv_probs,snv_ccert,clus_out_dir,sparams['sample'],sparams['pi'],snv_sup,snv_dep,snv_cn_states,are_snvs=True)
-
+                snv_probs,snv_ccert,clus_out_dir,sparams['sample'],sparams['pi'],snv_sup,
+                snv_dep,snv_cn_states,map_,are_snvs=True)
+    
     sv_probs = pd.DataFrame()
     sv_ccert = pd.DataFrame()
     sv_members = np.empty(0)
@@ -262,7 +263,8 @@ def post_process_clusters(mcmc,sv_df,snv_df,merge_clusts,clus_out_dir,sup,dep,cn
         sv_dep  = dep[lb:lb+len(sv_df)]
         sv_cn_states = cn_states[lb:lb+len(sv_df)]
         write_output.write_out_files(sv_df,clus_info,sv_members,
-                    sv_probs,sv_ccert,clus_out_dir,sparams['sample'],sparams['pi'],sv_sup,sv_dep,sv_cn_states)
+                    sv_probs,sv_ccert,clus_out_dir,sparams['sample'],sparams['pi'],sv_sup,
+                    sv_dep,sv_cn_states,map_)
     
 def run_clustering(args):
     
@@ -354,11 +356,11 @@ def run_clustering(args):
                 cn_states = pd.concat([cn_states,pd.DataFrame(sv_cn_states)])[0].values
                 Nvar = Nvar + sv_Nvar
                 
-                mcmc = cluster.cluster(sup,dep,cn_states,Nvar,sample_params,cluster_params,\
+                mcmc, map_ = cluster.cluster(sup,dep,cn_states,Nvar,sample_params,cluster_params,\
                                       clus_limit,phi_limit)
                 post_process_clusters(mcmc,sv_df,snv_df,merge_clusts,clus_out_dir, \
                                       sup,dep,cn_states,plot,sample_params,cluster_params, \
-                                      subclone_diff, clus_limit, phi_limit)
+                                      subclone_diff, clus_limit, phi_limit, map_)
             else:
                 print('Cannot cocluster - check that valid SV and SNV input is supplied')
         else:            
@@ -368,19 +370,19 @@ def run_clustering(args):
                 sup,dep,cn_states,Nvar = load_data.get_snv_vals(snv_df)
 
                 print('Clustering %d SNVs...' % len(snv_df))
-                mcmc = cluster.cluster(sup,dep,cn_states,Nvar,sample_params,cluster_params,\
+                mcmc, map_ = cluster.cluster(sup,dep,cn_states,Nvar,sample_params,cluster_params,\
                                        clus_limit,phi_limit)
                 post_process_clusters(mcmc,pd.DataFrame(),snv_df,merge_clusts,clus_out_dir, \
                                       sup,dep,cn_states,plot,sample_params,cluster_params, \
-                                      subclone_diff, clus_limit, phi_limit)
+                                      subclone_diff, clus_limit, phi_limit, map_)
 
             if len(sv_df)>0:
                 sup,dep,cn_states,Nvar = load_data.get_sv_vals(sv_df,no_adjust)
 
                 print('Clustering %d SVs...' % len(sv_df))
-                mcmc = cluster.cluster(sup,dep,cn_states,Nvar,sample_params,cluster_params,\
+                mcmc, map_ = cluster.cluster(sup,dep,cn_states,Nvar,sample_params,cluster_params,\
                                        clus_limit,phi_limit)
                 post_process_clusters(mcmc,sv_df,pd.DataFrame(),merge_clusts,clus_out_dir, \
                                       sup,dep,cn_states,plot,sample_params,cluster_params, \
-                                      subclone_diff, clus_limit, phi_limit)
+                                      subclone_diff, clus_limit, phi_limit, map_)
 
