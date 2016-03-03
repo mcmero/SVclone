@@ -2,12 +2,13 @@
 
 args <- commandArgs(trailingOnly = TRUE)
 
-if(length(args)==0|args[1]=='-h') {
-    print('Usage: Rscript <workingdir> <sample id>')
+if(length(args)==0 | args[1]=='-h') {
+    print('Usage: Rscript <workingdir> <sample id> --map')
 }
 
 setwd(args[1])
-id<-args[2]
+id <- args[2]
+map <- args[3]
 
 require(combinat)
 require(RColorBrewer)
@@ -102,7 +103,7 @@ for (run in runs) {
     clusts <- rbind(clusts, data.frame(run=run, n_ssms=sv_clust$n_ssms, cluster=sv_clust$cluster))
 }
 
-pdf(paste(id, '_cluster_hist.pdf',sep=''),height=4, width=min(1,length(runs)*0.6))
+pdf(paste(id, '_cluster_hist.pdf',sep=''),height=4, width=max(3,length(runs)*0.6))
 ggplot(clusts, aes(x=factor(run), y=n_ssms, fill=factor(cluster))) + geom_bar(stat='identity')
 dev.off()
 
@@ -110,29 +111,31 @@ dev.off()
 # Plot AIC and BIC for runs
 ############################################################################################
 
-ic_table <- NULL
-for (run in runs) {
-    ic <- read.table(paste(run, '/', id, '_fit.txt', sep=''), sep='\t', header=F)
-    ic <- cbind(run=run, ic)
-    ic_table <- rbind(ic_table, ic)
+if (length(args)==3 & map == '--map') {
+    ic_table <- NULL
+    for (run in runs) {
+        ic <- read.table(paste(run, '/', id, '_fit.txt', sep=''), sep='\t', header=F)
+        ic <- cbind(run=run, ic)
+        ic_table <- rbind(ic_table, ic)
+    }
+    
+    pdf(paste(id, 'aic_bic_plot.pdf',sep='_'), height=4)
+    print(ggplot(ic_table, aes(y=V2, x=run, group=V1, color=factor(V1))) + ylab('value') + geom_line())
+    dev.off()
+    
+    ic_table <- cast(ic_table, run~V1, value='V2')
+    min_bic <- ic_table[min(ic_table$BIC)==ic_table$BIC,]
+    min_bic$AIC <- min_bic$run
+    min_bic$run <- 'min_BIC'
+    ic_table <- rbind(ic_table, min_bic)
+    
+    min_aic <- ic_table[min(ic_table$AIC)==ic_table$AIC,]
+    min_aic$BIC <- min_aic$run
+    min_aic$run <- 'min_AIC'
+    ic_table <- rbind(ic_table, min_aic)
+    
+    write.table(ic_table, paste(id,'_aic_bic_metrics.csv', sep=''), sep=',', quote=F, row.names=F)
 }
-
-pdf(paste(id, run, 'aic_bic_plot.pdf',sep='_'), height=4)
-ggplot(ic_table, aes(y=V2, x=run, group=V1, color=factor(V1))) + ylab('value') + geom_line()
-dev.off()
-
-ic_table <- cast(ic_table, run~V1, value='V2')
-min_bic <- ic_table[min(ic_table$BIC)==ic_table$BIC,]
-min_bic$AIC <- min_bic$run
-min_bic$run <- 'min_BIC'
-ic_table <- rbind(ic_table, min_bic)
-
-min_aic <- ic_table[min(ic_table$AIC)==ic_table$AIC,]
-min_aic$BIC <- min_aic$run
-min_aic$run <- 'min_AIC'
-ic_table <- rbind(ic_table, min_aic)
-
-write.table(ic_table, paste(id,'_aic_bic_metrics.csv', sep=''), sep=',', quote=F, row.names=F)
 
 ############################################################################################
 # Plot histogram of clusters + QQ plots
