@@ -3,12 +3,18 @@
 args <- commandArgs(trailingOnly = TRUE)
 
 if(length(args)==0 | args[1]=='-h') {
-    print('Usage: Rscript <workingdir> <sample id> --map')
+    print('Usage: Rscript <workingdir> <sample id> --map --clus_stability')
 }
 
 setwd(args[1])
 id <- args[2]
-map <- args[3]
+map <- FALSE
+clus_stab <- FALSE
+
+if(length(args) > 2) {
+    map <- '--map' %in% args
+    clus_stab <- '--clus_stability' %in% args
+}
 
 require(combinat)
 require(RColorBrewer)
@@ -67,33 +73,36 @@ compare_runs <- function(run1, run2) {
     return(metric)
 }
 
-all_comps <- combn(runs,2)
-n <- length(runs)
-
-results <- matrix(0, n, n)
-colnames(results) <- runs
-rownames(results) <- runs
-
-for (i in 1:nrow(results)) {
-    for (j in 1:ncol(results)) {
-        run1 <- rownames(results)[i]
-        run2 <- colnames(results)[j]
-        if (run1 == run2) {
-            results[i, j] <- 1.
-        } else {
-            results[i, j] <- compare_runs(run1, run2)
+if (clus_stab) {
+    print('Comparing clustering stability between runs...')
+    all_comps <- combn(runs,2)
+    n <- length(runs)
+    
+    results <- matrix(0, n, n)
+    colnames(results) <- runs
+    rownames(results) <- runs
+    
+    for (i in 1:nrow(results)) {
+        for (j in 1:ncol(results)) {
+            run1 <- rownames(results)[i]
+            run2 <- colnames(results)[j]
+            if (run1 == run2) {
+                results[i, j] <- 1.
+            } else {
+                results[i, j] <- compare_runs(run1, run2)
+            }
         }
     }
+    
+    # cluster stability metric plot
+    pdf(paste(id, '_cluster_stability_heatmap.pdf',sep=''),height=6)
+    cols <- colorRampPalette(brewer.pal(9,'Blues'))(30)
+    heatmap.2(results, trace='none', Rowv=F, Colv=F, dendrogram='none', col=cols)
+    dev.off()
+    
+    results <- cbind(rownames(results), results)
+    write.table(results, paste(id,'_cluster_stability.csv', sep=''), sep=',', quote=F, row.names=F)
 }
-
-# cluster stability metric plot
-pdf(paste(id, '_cluster_stability_heatmap.pdf',sep=''),height=6)
-cols <- colorRampPalette(brewer.pal(9,'Blues'))(30)
-heatmap.2(results, trace='none', Rowv=F, Colv=F, dendrogram='none', col=cols)
-dev.off()
-
-results <- cbind(rownames(results), results)
-write.table(results, paste(id,'_cluster_stability.csv', sep=''), sep=',', quote=F, row.names=F)
 
 # cluster proportions plot
 clusts <- NULL
@@ -111,7 +120,8 @@ dev.off()
 # Plot AIC and BIC for runs
 ############################################################################################
 
-if (length(args)==3 & map == '--map') {
+if (length(args)>2 & map) {
+    print('Plotting AIC & BIC metrics...')
     ic_table <- NULL
     for (run in runs) {
         ic <- read.table(paste(run, '/', id, '_fit.txt', sep=''), sep='\t', header=F)
