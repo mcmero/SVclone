@@ -171,14 +171,14 @@ ggQQ <- function(dat) {
     p <- ggplot(dat) +
         stat_qq(aes(sample=CCF, colour = factor(most_likely_assignment)), alpha = 0.5)
     
-    dat <- dat[!is.na(dat$CCF),]
+    dat_tmp <- dat[!is.na(dat$CCF),]
     
-    clusts <- as.numeric(names(table(dat$most_likely_assignment)))
+    clusts <- as.numeric(names(table(dat_tmp$most_likely_assignment)))
     cols <- gg_color_hue(length(clusts))
     
     for (i in 1:length(clusts)) {
         clus <- clusts[i]
-        tmp <- dat[dat$most_likely_assignment == clus, 'CCF'] 
+        tmp <- dat_tmp[dat_tmp$most_likely_assignment == clus, 'CCF'] 
         y <- quantile(tmp, c(0.25, 0.75))
         x <- qnorm(c(0.25, 0.75))
         slope <- diff(y)/diff(x)
@@ -209,8 +209,11 @@ for (run in runs) {
     plot1 <- ggplot(dat, aes(x=as.numeric(dat$CCF), 
                     fill=factor(most_likely_assignment), color=factor(most_likely_assignment))) + 
                     xlim(0,2) + geom_histogram(alpha=0.3,position='identity',binwidth=0.05)+xlab('CCF') +
-                    geom_vline(xintercept=clus_intercepts, colour='blue', size=1)+
-                    geom_vline(xintercept=clus_intercepts_minor,colour='red',lty=2)
+                    geom_vline(xintercept=clus_intercepts, colour='blue', size=1)
+    
+    if (length(clus_intercepts_minor) > 0) {
+        plot1 + geom_vline(xintercept=clus_intercepts_minor,colour='red',lty=2)
+    }
         
     plot2 <- ggQQ(dat)
     
