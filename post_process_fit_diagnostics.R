@@ -3,17 +3,24 @@
 args <- commandArgs(trailingOnly = TRUE)
 
 if(length(args)==0 | args[1]=='-h') {
-    print('Usage: Rscript <workingdir> <sample id> --map --clus_stability')
+    print('Usage: Rscript <workingdir> <sample id> --map --clus_stability --snvs')
 }
 
 setwd(args[1])
 id <- args[2]
 map <- FALSE
 clus_stab <- FALSE
+snvs <- FALSE
 
 if(length(args) > 2) {
     map <- '--map' %in% args
     clus_stab <- '--clus_stability' %in% args
+    snvs <- '--snvs' %in% args
+}
+
+snv_dir <- ''
+if (snvs) {
+    snv_dir <- 'snvs/'
 }
 
 require(combinat)
@@ -34,16 +41,17 @@ for (dir in list.dirs()) {
         runs <- c(runs,cur_dir)
     }
 }
+runs <- unique(runs)
     
 ############################################################################################
 # Cluster stability of runs
 ############################################################################################
 
 compare_runs <- function(run1, run2) {
-    clus_cert_file <- paste(run1, '/', id, '_cluster_certainty.txt', sep='')
+    clus_cert_file <- paste(run1, '/', snv_dir, id, '_cluster_certainty.txt', sep='')
     clus_cert1 <- read.delim(clus_cert_file, sep='\t', stringsAsFactors=F)
     
-    clus_cert_file <- paste(run2, '/', id, '_cluster_certainty.txt', sep='')
+    clus_cert_file <- paste(run2, '/', snv_dir, id, '_cluster_certainty.txt', sep='')
     clus_cert2 <- read.delim(clus_cert_file, sep='\t', stringsAsFactors=F)
     
     clus1 <- as.numeric(names(table(clus_cert1$most_likely_assignment)))
@@ -107,7 +115,7 @@ if (clus_stab) {
 # cluster proportions plot
 clusts <- NULL
 for (run in runs) {
-    sv_clust <- read.table(paste(run, '/', id, '_subclonal_structure.txt', sep=''), 
+    sv_clust <- read.table(paste(run, '/', snv_dir, id, '_subclonal_structure.txt', sep=''), 
                            header=T, sep='\t', stringsAsFactors=F)
     clusts <- rbind(clusts, data.frame(run=run, n_ssms=sv_clust$n_ssms, cluster=sv_clust$cluster))
 }
@@ -124,7 +132,7 @@ if (length(args)>2 & map) {
     print('Plotting AIC & BIC metrics...')
     ic_table <- NULL
     for (run in runs) {
-        ic <- read.table(paste(run, '/', id, '_fit.txt', sep=''), sep='\t', header=F)
+        ic <- read.table(paste(run, '/', snv_dir, id, '_fit.txt', sep=''), sep='\t', header=F, stringsAsFactors = F)
         ic <- cbind(run=run, ic)
         ic_table <- rbind(ic_table, ic)
     }
@@ -159,7 +167,11 @@ get_adjust_factor <- function(svs, pur) {
     return((1 / prob))
 }
 
-svs <- read.table(paste(id, '_filtered_svs.tsv', sep=''), header=T, sep='\t', stringsAsFactors=F)
+var_file <- paste(id, '_filtered_svs.tsv', sep='')
+if (snvs) {
+    var_file <- paste(id, '_filtered_snvs.tsv', sep='')
+}
+svs <- read.table(var_file, header=T, sep='\t', stringsAsFactors=F)
 pur <- read.table('purity_ploidy.txt',header=T, sep='\t', stringsAsFactors=F)$purity
 
 gg_color_hue <- function(n) {
@@ -191,13 +203,22 @@ ggQQ <- function(dat) {
 }
 
 for (run in runs) {        
-    mlcn <- read.table(paste(run, '/', id, '_most_likely_copynumbers.txt', sep=''), header=T, sep='\t', stringsAsFactors=F)    
-    dat <- merge(svs, mlcn, by.x=c(2,3,5,6), by.y=c(1,2,3,4))
-    certain <- read.table(paste(run, '/', id, '_cluster_certainty.txt', sep=''), sep='\t', header=T)
-    dat <- merge(dat, certain,by.x=c(1,2,3,4), by.y=c(1,2,3,4))
+    mlcn <- read.table(paste(run, '/', snv_dir, id, '_most_likely_copynumbers.txt', sep=''), header=T, sep='\t', stringsAsFactors=F)    
+    dat <- NULL
+    if (snvs) {
+        dat <- merge(svs, mlcn, by.x=c(1,2), by.y=c(1,2))
+        certain <- read.table(paste(run, '/', snv_dir, id, '_cluster_certainty.txt', sep=''), sep='\t', header=T)
+        dat <- merge(dat, certain,by.x=c(1,2), by.y=c(1,2))
+        dat$adjusted_vaf <- dat$var / (dat$ref + dat$var)
+    } else {
+        dat <- merge(svs, mlcn, by.x=c(2,3,5,6), by.y=c(1,2,3,4))
+        certain <- read.table(paste(run, '/', id, '_cluster_certainty.txt', sep=''), sep='\t', header=T)
+        dat <- merge(dat, certain,by.x=c(1,2,3,4), by.y=c(1,2,3,4))
+    }
+    
     dat <- cbind(dat, CCF=get_adjust_factor(dat, pur) * dat$adjusted_vaf)
     
-    sv_clust <- read.table(paste(run, '/', id, '_subclonal_structure.txt', sep=''), header=T, sep='\t', stringsAsFactors=F)
+    sv_clust <- read.table(paste(run, '/', snv_dir, id, '_subclonal_structure.txt', sep=''), header=T, sep='\t', stringsAsFactors=F)
     sv_clust <- sv_clust[sv_clust$n_ssms>1, ]
     dat <- dat[dat$most_likely_assignment%in%sv_clust$cluster,]    
     
@@ -212,13 +233,22 @@ for (run in runs) {
                     geom_vline(xintercept=clus_intercepts, colour='blue', size=1)
     
     if (length(clus_intercepts_minor) > 0) {
-        plot1 + geom_vline(xintercept=clus_intercepts_minor,colour='red',lty=2)
+        plot1 <- plot1 + geom_vline(xintercept=clus_intercepts_minor,colour='red',lty=2)
     }
         
     plot2 <- ggQQ(dat)
     
-    pdf(paste(id, run, 'fit.pdf',sep='_'),height=7)
-    grid.arrange(plot1, plot2)
+    #attach table for convenience, also add BIC/AIC
+    tabout <- sv_clust[order(as.numeric(sv_clust[,3]),decreasing=TRUE),]
+    ic <- read.table(paste(run, '/', snv_dir, id, '_fit.txt', sep=''), 
+                     sep='\t', header=F, stringsAsFactors = F)
+    ic <- cbind(ic[1,],ic[2,]); colnames(ic) <- colnames(tabout)
+    tabout <- rbind(tabout,ic)
+    table <- tableGrob(tabout, rows=c())
+    
+    height <- 6+round(nrow(tabout)*0.6)
+    pdf(paste(id, run, 'fit.pdf',sep='_'),height=height)
+    grid.arrange(table, plot1, plot2)
     dev.off()
 }
 

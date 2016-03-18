@@ -157,15 +157,14 @@ filter_parser.add_argument("--snvs",dest="snvs",default="",type=str,
 
 filter_parser.add_argument("--snv_format",dest="snv_format",
                     choices=['sanger','mutect','mutect_callstats'],default="sanger",
-                    help='''Supplied SNV VCF is in the following input format: sanger (default), mutect 
-                    or mutect_callstats.''')
+                    help='''Supplied SNV VCF is in the following input format: sanger (default) or mutect,
+                    mutect_callstats is also an option for the non-VCF mutect output.''')
 
 filter_parser.add_argument("-o","--outdir",dest="outdir",default=".",
                     help="Output directory. Default: current directory")
 
 filter_parser.add_argument("-p","--purity",dest="pi",default="1.",
-                    help='''Tumour purities for all samples given. A single parameter assumes
-                    uniform purity for all samples. No parameter assumes 100%% purity.''')
+                    help='''Tumour puritie for given sample. Default is 100%% purity.''')
 
 filter_parser.add_argument("-y","--ploidy",dest="ploidy",default="2.0",
                     help="Tumour ploidy; default = 2 (diploid).")
@@ -198,7 +197,7 @@ cluster_parser = subparsers.add_parser('cluster', help='Run clustering step')
 cluster_parser.add_argument("-cfg","--config",dest="cfg",default="svclone_config.ini",
                     help="Config file.")
 
-cluster_parser.add_argument("-s","--samples",dest="sample",required=True,
+cluster_parser.add_argument("-s","--sample",dest="sample",required=True,
                     help='''Sample name.''')
 
 cluster_parser.add_argument("-o","--outdir",dest="outdir",default=".",
@@ -232,7 +231,9 @@ cluster_parser.add_argument("--merge",dest="merge_clusts",action="store_true",
                     help="Set to merge clusters.")
 
 cluster_parser.add_argument("--map",dest="use_map",action="store_true",
-                    help="Use maximum a-posteriori fitting (may significantly increase runtime).")
+                    help='''Use maximum a-posteriori (MAP) fitting (may significantly increase runtime).
+                    Using MAP will give access to the run-fit metrics: the Akaike information criterion (AIC) and
+                    the Bayesian Information Criterion (BIC).''')
 
 cluster_parser.add_argument("--cocluster",dest="cocluster",action="store_true",
                     help="Whether to cluster SNVs and SVs together.")
