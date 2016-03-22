@@ -10,6 +10,7 @@ import ipdb
 import re
 import pandas as pd
 import vcf
+import random
 # import cProfile, pstats, StringIO
 
 from operator import methodcaller
@@ -542,6 +543,19 @@ def adjust_sv_read_counts(sv_df,pi,pl,min_dep,rlen,Config):
 
     return sv_df
 
+def sort_by_loc(snv_df):
+    '''
+    sorts the SNV dataframe by chromosome then position
+    '''
+
+    loc = ['%s_%s' % x for x in zip(snv_df.chrom, snv_df.pos)]
+    sortloc = sorted(loc, key=lambda item: (int(item.partition('_')[0])
+                        if item[0].isdigit() else float('inf'), item))
+    snv_df.index = loc
+    snv_df = snv_df.loc[sortloc]
+
+    return snv_df
+
 def run(args):    
     # pr = cProfile.Profile()
     # pr.enable()    
@@ -562,8 +576,9 @@ def run(args):
     sizefilter  = int(args.sizefilter)
     filter_otl  = args.filter_outliers
     min_dep     = args.min_dep
+    subsample   = args.subsample
     check_valid_chrs  = args.valid_chrs
-    cfg             = args.cfg
+    cfg             = args.cfg    
 
     Config = ConfigParser.ConfigParser()
     cfg_file = Config.read(cfg)
@@ -670,12 +685,16 @@ def run(args):
                 snv_df = run_cnv_filter(snv_df,cnv,neutral,filter_otl,are_snvs=True)
                 print('Retained %d SNVs' % len(snv_df))
         
-        if len(sv_df)>0: 
+        if len(sv_df)>0:
             sv_df.index = range(len(sv_df)) #reindex
             sv_df = adjust_sv_read_counts(sv_df,pi,ploidy,min_dep,rlen,Config)
             sv_df.to_csv('%s/%s_filtered_svs.tsv'%(out,sample),sep='\t',index=False,na_rep='')
         
         if len(snv_df)>0: 
+            if subsample > 0:
+                keep = random.sample(snv_df.index, subsample)
+                snv_df = snv_df.loc[keep]
+            snv_df = sort_by_loc(snv_df)
             snv_df.index = range(len(snv_df)) #reindex
             snv_df.to_csv('%s/%s_filtered_snvs.tsv'%(out,sample),sep='\t',index=False,na_rep='')
         

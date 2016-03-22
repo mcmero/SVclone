@@ -217,6 +217,7 @@ for (run in runs) {
     }
     
     dat <- cbind(dat, CCF=get_adjust_factor(dat, pur) * dat$adjusted_vaf)
+    dat$CCF <- sapply(dat$CCF,function(x){min(2,x)})
     
     sv_clust <- read.table(paste(run, '/', snv_dir, id, '_subclonal_structure.txt', sep=''), header=T, sep='\t', stringsAsFactors=F)
     sv_clust <- sv_clust[sv_clust$n_ssms>1, ]

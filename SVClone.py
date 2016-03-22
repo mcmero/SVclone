@@ -160,6 +160,9 @@ filter_parser.add_argument("--snv_format",dest="snv_format",
                     help='''Supplied SNV VCF is in the following input format: sanger (default) or mutect,
                     mutect_callstats is also an option for the non-VCF mutect output.''')
 
+filter_parser.add_argument("--subsample",dest="subsample",default=0,type=int,
+                    help="Subsample N SNVs from total filtered output.")
+
 filter_parser.add_argument("-o","--outdir",dest="outdir",default=".",
                     help="Output directory. Default: current directory")
 
