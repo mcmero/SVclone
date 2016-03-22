@@ -415,19 +415,19 @@ def preproc_svs(args):
     
     if not use_dir:
         print('Inferring SV directions...')
-#        for idx, sv in enumerate(svs):
-#            svs[idx], ca[idx] = get_dir_info(sv, bam, max_dep, sc_len, threshold)
+        for idx, sv in enumerate(svs):
+            svs[idx], ca[idx] = get_dir_info(sv, bam, max_dep, sc_len, threshold)
 
-        tmp_out = '%s_dirout.txt' % out
-        svs = np.genfromtxt(tmp_out, delimiter='\t', names=True, dtype=None, invalid_raise=False)
+#        tmp_out = '%s_dirout.txt' % out
+#        svs = np.genfromtxt(tmp_out, delimiter='\t', names=True, dtype=None, invalid_raise=False)
     
         # write directionality output (for debugging)
-        with open(tmp_out, 'w') as outf:
-            writer = csv.writer(outf, delimiter='\t', quoting=csv.QUOTE_NONE, quotechar='')
-            header = [field for field, dtype in dtypes.sv_dtype]
-            writer.writerow(header)
-            for sv_out in svs:
-                writer.writerow(sv_out)
+#        with open(tmp_out, 'w') as outf:
+#            writer = csv.writer(outf, delimiter='\t', quoting=csv.QUOTE_NONE, quotechar='')
+#            header = [field for field, dtype in dtypes.sv_dtype]
+#            writer.writerow(header)
+#            for sv_out in svs:
+#                writer.writerow(sv_out)
                 
         while num_mixed_svs(svs)>0:
 
