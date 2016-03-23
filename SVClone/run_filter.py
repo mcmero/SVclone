@@ -66,22 +66,30 @@ def is_clonal_neutral(gtype):
         return (gt[0]==1 and gt[1]==1 and gt[2]==1)
     return False
 
-def is_copynumber_zero(gtype):
+def remove_zero_copynumbers(gtype):
     '''
-    returns true if copynumber genotype
-    of the major and minor alleles
-    are 0 for the clone or any subclone
+    remove any clonal or subclonal copy-numbers 
+    where the total copy-number is zero
     '''
-    if gtype=='': return True
+    if gtype=='': return ''
     gtype = map(methodcaller('split',','),gtype.split('|'))
     if len(gtype)==1:
         gt = map(float,gtype[0])
-        if (gt[0]==0 and gt[1]==0): return True
+        if (gt[0]==0 and gt[1]==0): 
+            return ''
     else:
+        new_gtype = []
         for gt in gtype:
             gt = map(float,gt)
-            if (gt[0]==0 and gt[1]==0): return True
-    return False
+            if (gt[0]!=0 or gt[1]!=0): 
+                new_gtype.append(gt)
+        if len(new_gtype) > 0:
+            new_gtype = [map(str,g) for g in new_gtype]
+            gtype = '|'.join([','.join(g) for g in new_gtype])
+        else:
+            return ''
+        
+    return gtype
 
 def get_weighted_cns(gtypes):
     gtypes_split = [map(methodcaller("split",","),x) for x in map(methodcaller("split","|"),gtypes)]    
@@ -152,8 +160,10 @@ def run_cnv_filter(df_flt,cnv,neutral,filter_outliers,are_snvs=False):
 
     elif len(cnv)>0:
         if are_snvs:
-            df_flt = df_flt.fillna('')
+            df_flt = df_flt.fillna('')            
+            df_flt['gtype'] = np.array(map(remove_zero_copynumbers,df_flt.gtype.values))
             df_flt = df_flt[df_flt.gtype.values!='']
+            ipdb.set_trace()
             print('Filtered out %d SNVs which did not have copy-numbers' % (n_df - len(df_flt)))
 
             if filter_outliers:
@@ -169,9 +179,12 @@ def run_cnv_filter(df_flt,cnv,neutral,filter_outliers,are_snvs=False):
                 print('Filtered out %d SNVs which had outlying depths' % (n_df - len(df_flt)))
         else:
             #df_flt = df_flt[np.logical_or(df_flt.gtype1.values!='',df_flt.gtype2.values!='')]
-            gt1_is_zero = np.array(map(is_copynumber_zero,df_flt.gtype1.values))
-            gt2_is_zero = np.array(map(is_copynumber_zero,df_flt.gtype2.values))
-            df_flt = df_flt[np.logical_and(gt1_is_zero==False,gt2_is_zero==False)]
+            #gt1_is_zero = np.array(map(is_copynumber_zero,df_flt.gtype1.values))
+            #gt2_is_zero = np.array(map(is_copynumber_zero,df_flt.gtype2.values))
+            df_flt['gtype1'] = np.array(map(remove_zero_copynumbers,df_flt.gtype1.values))
+            df_flt['gtype2'] = np.array(map(remove_zero_copynumbers,df_flt.gtype2.values))
+            df_flt = df_flt[np.logical_or(df_flt.gtype1!='', df_flt.gtype2!='')] #remove breakpairs with cnv state missing
+            #df_flt = df_flt[np.logical_and(gt1_is_zero==False,gt2_is_zero==False)]
             print('Filtered out %d SVs without copy-numbers or with 0,0 copy-numbers' % (n_df - len(df_flt)))
             n_df = len(df_flt)            
 
