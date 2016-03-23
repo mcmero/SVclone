@@ -183,8 +183,7 @@ def run_cnv_filter(df_flt,cnv,neutral,filter_outliers,are_snvs=False):
 
 def match_snv_copy_numbers(snv_df, cnv_df, sv_offset):
     bp_chroms = np.unique(snv_df['chrom'].values)
-    bp_chroms = sorted(bp_chroms, key=lambda item: (int(item.partition(' ')[0]) \
-                        if item[0].isdigit() else float('inf'), item))
+    bp_chroms = sorted(bp_chroms, key=lambda item: (int(item) if item.isdigit() else str(item)))
     
     for bchr in bp_chroms:
         gtypes = []
@@ -550,7 +549,7 @@ def sort_by_loc(snv_df):
 
     loc = ['%s_%s' % x for x in zip(snv_df.chrom, snv_df.pos)]
     sortloc = sorted(loc, key=lambda item: (int(item.partition('_')[0])
-                        if item[0].isdigit() else float('inf'), item))
+                        if item[0].isdigit() else str(item[0]), int(item.partition('_')[2])))
     snv_df.index = loc
     snv_df = snv_df.loc[sortloc]
 
@@ -694,6 +693,7 @@ def run(args):
             if subsample > 0:
                 keep = random.sample(snv_df.index, subsample)
                 snv_df = snv_df.loc[keep]
+                print('Subsampling %d SNVs' % subsample)
             snv_df = sort_by_loc(snv_df)
             snv_df.index = range(len(snv_df)) #reindex
             snv_df.to_csv('%s/%s_filtered_snvs.tsv'%(out,sample),sep='\t',index=False,na_rep='')

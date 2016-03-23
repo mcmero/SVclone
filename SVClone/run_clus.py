@@ -288,10 +288,10 @@ def run_clustering(args):
     if len(cfg_file)==0:
         raise ValueError('No configuration file found')
 
-    shape  = Config.get('BetaParameters', 'shape')
-    scale  = Config.get('BetaParameters', 'scale')
-    init   = Config.get('BetaParameters', 'init')
-    beta   = ','.join([str(shape),str(scale),str(init)])
+    shape  = Config.get('BetaParameters', 'alpha')
+    scale  = Config.get('BetaParameters', 'beta')
+    #init   = Config.get('BetaParameters', 'init')
+    beta   = ','.join([str(shape),str(scale)])
 
     phi_limit = float(Config.get('ClusterParameters', 'phi_limit'))
     clus_limit = int(Config.get('ClusterParameters', 'clus_limit'))

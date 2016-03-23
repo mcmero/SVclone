@@ -51,12 +51,13 @@ def load_cnvs(cnv_file):
         col_names = ['chr','startpos','endpos','norm_total','norm_minor','tumour_total','tumour_minor']
         cnv_df = pd.DataFrame(pd.read_csv(cnv_file,delimiter=',',dtype=None,names=col_names,index_col=0,skip_blank_lines=True))
         
-    cnv_df['chr'] = map(str,cnv_df['chr'])
-    cnv_df['nMaj1_A'] = map(float,cnv_df['nMaj1_A'])
-    cnv_df['nMin1_A'] = map(float,cnv_df['nMin1_A'])
     try:
         if 'nMaj1_A' in cnv_df.columns.values:
             # battenberg input
+            cnv_df['chr'] = map(str,cnv_df['chr'])
+            cnv_df['nMaj1_A'] = map(float,cnv_df['nMaj1_A'])
+            cnv_df['nMin1_A'] = map(float,cnv_df['nMin1_A'])
+
             gtypes = cnv_df['nMaj1_A'].map(str) + ',' + \
                      cnv_df['nMin1_A'].map(str) + ',' + \
                      cnv_df['frac1_A'].map(str)
@@ -72,8 +73,19 @@ def load_cnvs(cnv_file):
             cnv_df['gtype'] = gtypes
             select_cols = ['chr','startpos','endpos','gtype']
             return cnv_df[select_cols]
+
+        elif 'clonal_frequency' in cnv_df.columns.values:
+            # pcawg clonal copy-number calls format
+            cnv_df['chromosome'] = cnv_df.chromosome.map(str)
+            cnv_df = cnv_df.rename(columns={'chromosome': 'chr', 'start': 'startpos', 'end': 'endpos'})
+            gtypes = cnv_df.major_cn.map(str) + ',' + cnv_df.minor_cn.map(str) + ',' + cnv_df.clonal_frequency.map(str)
+            cnv_df['gtype'] = gtypes
+            select_cols = ['chr','startpos','endpos','gtype']
+            cnv_df = cnv_df[select_cols]
+            return cnv_df
+
         else:
-            #caveman input
+            # caveman input
             major = cnv_df.tumour_total.map(int) - cnv_df.tumour_minor.map(int)
             gtypes = major.map(str) + ',' + cnv_df.tumour_minor.map(str) + ',1.0'
             cnv_df['gtype'] = gtypes

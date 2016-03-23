@@ -202,9 +202,9 @@ def cluster(sup,dep,cn_states,Nvar,sparams,cparams,clus_limit,phi_limit):
     '''
     Ndp = clus_limit
     sens = 1.0 / ((sparams['pi']/float(sparams['ploidy']))*np.mean(dep))
-    beta_a, beta_b, beta_init = map(lambda x: float(eval(x)), cparams['beta'].split(','))
+    beta_a, beta_b = map(lambda x: float(eval(x)), cparams['beta'].split(','))
     alpha = pm.Gamma('alpha',beta_a,beta_b)#,value=beta_init)
-    print("Dirichlet concentration gamma values: alpha = %f, beta= %f, init = %f" % (beta_a, beta_b, beta_init))
+    print("Dirichlet concentration gamma values: alpha = %f, beta= %f" % (beta_a, beta_b))
 
     h = pm.Beta('h', alpha=1, beta=alpha, size=Ndp)
     @pm.deterministic
