@@ -72,14 +72,14 @@ def remove_zero_copynumbers(gtype):
     where the total copy-number is zero
     '''
     if gtype=='': return ''
-    gtype = map(methodcaller('split',','),gtype.split('|'))
-    if len(gtype)==1:
-        gt = map(float,gtype[0])
+    gtype_tmp = map(methodcaller('split',','),gtype.split('|'))
+    if len(gtype_tmp)==1:
+        gt = map(float,gtype_tmp[0])
         if (gt[0]==0 and gt[1]==0): 
-            return ''
+            gtype = ''
     else:
         new_gtype = []
-        for gt in gtype:
+        for gt in gtype_tmp:
             gt = map(float,gt)
             if (gt[0]!=0 or gt[1]!=0): 
                 new_gtype.append(gt)
@@ -87,8 +87,7 @@ def remove_zero_copynumbers(gtype):
             new_gtype = [map(str,g) for g in new_gtype]
             gtype = '|'.join([','.join(g) for g in new_gtype])
         else:
-            return ''
-        
+            gtype = ''
     return gtype
 
 def get_weighted_cns(gtypes):
@@ -160,10 +159,9 @@ def run_cnv_filter(df_flt,cnv,neutral,filter_outliers,are_snvs=False):
 
     elif len(cnv)>0:
         if are_snvs:
-            df_flt = df_flt.fillna('')            
-            df_flt['gtype'] = np.array(map(remove_zero_copynumbers,df_flt.gtype.values))
+            df_flt = df_flt.fillna('')
+            df_flt['gtype'] = map(remove_zero_copynumbers,df_flt.gtype.values)
             df_flt = df_flt[df_flt.gtype.values!='']
-            ipdb.set_trace()
             print('Filtered out %d SNVs which did not have copy-numbers' % (n_df - len(df_flt)))
 
             if filter_outliers:
