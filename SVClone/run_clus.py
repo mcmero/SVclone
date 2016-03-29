@@ -8,8 +8,6 @@ import ipdb
 import os
 import ConfigParser
 import pandas as pd
-import scipy as sp
-import scipy.stats
 import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
@@ -18,6 +16,7 @@ import IPython
 
 from collections import OrderedDict
 from IPython.core.pylabtools import figsize
+from pymc.utils import hpd
 
 from . import cluster
 from . import load_data
@@ -32,8 +31,8 @@ def gen_new_colours(N):
     RGB_tuples = map(lambda x: colorsys.hsv_to_rgb(*x), HSV_tuples)
     return RGB_tuples
 
-def plot_clusters(center_trace,clusters,assignments,sup,dep,clus_out_dir):
-    fig, axes = plt.subplots(2, 1, sharex=False, sharey=False, figsize=(12.5,8))
+def plot_clusters(center_trace,clusters,assignments,sup,dep,clus_out_dir):#,alpha_trace):
+    fig, axes = plt.subplots(3, 1, sharex=False, sharey=False, figsize=(12.5,8))
 
     RGB_tuples = gen_new_colours(len(clusters))
 
@@ -47,6 +46,8 @@ def plot_clusters(center_trace,clusters,assignments,sup,dep,clus_out_dir):
     leg = axes[0].legend(loc="upper right")
     leg.get_frame().set_alpha(0.7)
     axes[1].set_title("Raw VAFs")
+#    axes[2].set_title("Alpha trace")
+#    axes[2].plot(alpha_trace, label="alpha trace", lw=1)
     
     for idx,clus in enumerate(clusters):
         clus_idx = np.array(assignments)==clus
@@ -60,11 +61,13 @@ def plot_clusters(center_trace,clusters,assignments,sup,dep,clus_out_dir):
 def index_max(values):
     return max(xrange(len(values)),key=values.__getitem__)
 
-def mean_confidence_interval(phi_trace, alpha=0.1):
+def mean_confidence_interval(phi_trace, alpha):
     n = len(phi_trace)
-    m, se = np.mean(phi_trace), np.std(phi_trace,ddof=1)/(np.sqrt(n))
-    h = se * sp.stats.t._ppf((1+(1-alpha))/2., n-1)
-    return round(m,4), round(m-h,4), round(m+h,4)
+    m = np.mean(phi_trace)
+    #m, se = np.mean(phi_trace), np.std(phi_trace,ddof=1)/(np.sqrt(n))
+    #h = se * sp.stats.t._ppf((1+(1-alpha))/2., n-1)
+    phi_hpd = hpd(phi_trace, alpha)
+    return round(m,4), round(phi_hpd[0],4), round(phi_hpd[1],4) #round(m-h,4), round(m+h,4)
 
 def merge_clusters(clus_out_dir,clus_info,clus_merged,clus_members,merged_ids,sup,dep,cn_states,sparams,cparams,subclone_diff,clus_limit,phi_limit):
     if len(clus_info)==1:
@@ -86,7 +89,7 @@ def merge_clusters(clus_out_dir,clus_info,clus_merged,clus_members,merged_ids,su
             mcmc = cluster.cluster(sup[new_members],dep[new_members],cn_states[new_members],len(new_members),sparams,cparams,clus_limit,phi_limit)
             trace = mcmc.trace("phi_k")[:]
 
-            phis = mean_confidence_interval(trace)
+            phis = mean_confidence_interval(trace,cparams['hpd_alpha'])
             clus_merged.loc[idx] = np.array([ci.clus_id,new_size,phis[0],phis[1],phis[2]])            
             clus_members[idx] = new_members
 
@@ -175,10 +178,10 @@ def post_process_clusters(mcmc,sv_df,snv_df,merge_clusts,clus_out_dir,sup,dep,cn
     # get cluster means
     center_trace = mcmc.trace("phi_k")[:]
     
-    phis = np.array([mean_confidence_interval(center_trace[:,cid]) for cid in clus_info.clus_id.values])
+    phis = np.array([mean_confidence_interval(center_trace[:,cid],cparams['hpd_alpha']) for cid in clus_info.clus_id.values])
     clus_info['phi'] = phis[:,0]
-    clus_info['phi_low_conf'] = phis[:,1]
-    clus_info['phi_hi_conf'] = phis[:,2]
+    clus_info['95p_HPD_lo'] = phis[:,1]
+    clus_info['95p_HPD_hi'] = phis[:,2]
     
     clus_ids = clus_info.clus_id.values
     clus_members = np.array([np.where(np.array(clus_max_prob)==i)[0] for i in clus_ids])
@@ -190,7 +193,7 @@ def post_process_clusters(mcmc,sv_df,snv_df,merge_clusts,clus_out_dir,sup,dep,cn
 
     # cluster certainty
     clus_max_df = pd.DataFrame(clus_max_prob,columns=['most_likely_assignment'])
-    phi_cols = ["average_ccf","90_perc_CI_lo","90_perc_CI_hi"]
+    phi_cols = ["average_ccf","95p_HPD_lo","95p_HPD_hi"]
     phi_matrix = pd.DataFrame(phis[:],index=clus_ids,columns=phi_cols).loc[clus_max_prob]
     phi_matrix.index = range(len(phi_matrix))
     ccert = clus_max_df.join(phi_matrix)
@@ -208,6 +211,7 @@ def post_process_clusters(mcmc,sv_df,snv_df,merge_clusts,clus_out_dir,sup,dep,cn
     
     # cluster plotting
     if plot:
+        alpha_trace = mcmc.trace("alpha")[:]
         plot_clusters(center_trace,clus_idx,clus_max_prob,sup,dep,clus_out_dir)
     
     # merge clusters
@@ -296,6 +300,7 @@ def run_clustering(args):
     phi_limit = float(Config.get('ClusterParameters', 'phi_limit'))
     clus_limit = int(Config.get('ClusterParameters', 'clus_limit'))
     subclone_diff = float(Config.get('ClusterParameters', 'subclone_diff'))
+    hpd_alpha = float(Config.get('ClusterParameters', 'hpd_alpha'))
 
     purity_ploidy_file = '%s/purity_ploidy.txt' % out
 
@@ -322,7 +327,7 @@ def run_clustering(args):
         print('read_params.txt file not found! Assuming read length = %d, mean insert length = %d'%(rlen,insert)) 
 
     sample_params  = { 'sample': sample, 'ploidy': pl, 'pi': pi, 'rlen': rlen, 'insert': insert }
-    cluster_params = { 'n_iter': n_iter, 'burn': burn, 'thin': thin, 'beta': beta, 'use_map': use_map }
+    cluster_params = { 'n_iter': n_iter, 'burn': burn, 'thin': thin, 'beta': beta, 'use_map': use_map, 'hpd_alpha': hpd_alpha }
     
     sv_df       = pd.DataFrame()
     snv_df      = pd.DataFrame()

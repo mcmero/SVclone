@@ -701,7 +701,7 @@ def run(args):
             sv_df.to_csv('%s/%s_filtered_svs.tsv'%(out,sample),sep='\t',index=False,na_rep='')
         
         if len(snv_df)>0: 
-            if subsample > 0:
+            if subsample > 0 and subsample < len(snv_df):
                 keep = random.sample(snv_df.index, subsample)
                 snv_df = snv_df.loc[keep]
                 print('Subsampling %d SNVs' % subsample)
