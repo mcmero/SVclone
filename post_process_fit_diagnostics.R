@@ -248,7 +248,7 @@ for (run in runs) {
     ic_tab <- tableGrob(ic, rows=c())
     sc_tab <- tableGrob(tabout, rows=c())
         
-    height <- 6+round(nrow(tabout)*0.7)
+    height <- 7+round(nrow(tabout)*0.2)
     pdf(paste(id, run, 'fit.pdf',sep='_'),height=height)
     grid.arrange(arrangeGrob(sc_tab, ic_tab, nrow=1), plot1, plot2, ncol=1)
     dev.off()
