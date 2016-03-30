@@ -159,10 +159,10 @@ if (length(args)>2 & map) {
 # Plot histogram of clusters + QQ plots
 ############################################################################################
 
-get_adjust_factor <- function(svs, pur) {
-    cn <- svs$most_likely_variant_copynumber
-    mut_prop <- svs$prop_chrs_bearing_mutation
-    vaf <- svs$adjusted_vaf
+get_adjust_factor <- function(dat, pur) {
+    cn <- dat$most_likely_variant_copynumber
+    mut_prop <- dat$prop_chrs_bearing_mutation
+    vaf <- dat$adjusted_vaf
     prob <- (cn * mut_prop * pur) / (2 * (1 - pur) + cn * pur)
     return((1 / prob))
 }
@@ -243,13 +243,14 @@ for (run in runs) {
     tabout <- sv_clust[order(as.numeric(sv_clust[,3]),decreasing=TRUE),]
     ic <- read.table(paste(run, '/', snv_dir, id, '_fit.txt', sep=''), 
                      sep='\t', header=F, stringsAsFactors = F)
-    ic <- cbind(ic[1,],ic[2,]); colnames(ic) <- colnames(tabout)
-    tabout <- rbind(tabout,ic)
-    table <- tableGrob(tabout, rows=c())
-    
-    height <- 6+round(nrow(tabout)*0.6)
+    #ic <- cbind(ic[1,],ic[2,]); colnames(ic) <- colnames(tabout)
+    ic <- data.frame(t(ic)); colnames(ic) <- ic['V1',];ic <- ic[-1,]
+    ic_tab <- tableGrob(ic, rows=c())
+    sc_tab <- tableGrob(tabout, rows=c())
+        
+    height <- 6+round(nrow(tabout)*0.7)
     pdf(paste(id, run, 'fit.pdf',sep='_'),height=height)
-    grid.arrange(table, plot1, plot2)
+    grid.arrange(arrangeGrob(sc_tab, ic_tab, nrow=1), plot1, plot2, ncol=1)
     dev.off()
 }
 
