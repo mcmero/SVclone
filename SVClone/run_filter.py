@@ -14,6 +14,7 @@ import random
 # import cProfile, pstats, StringIO
 
 from operator import methodcaller
+from SVProcess import load_data as svp_load
 from . import run_clus
 from . import cluster
 from . import load_data
@@ -26,7 +27,7 @@ def get_outlier_ranges(vals):
     upper = q3 + 1.5*iqr
     return [lower,upper]
 
-def run_simple_filter(df,rlen,insert,minsplit,minspan,sizefilter,min_dep,check_valid_chrs,valid_chrs):
+def run_simple_filter(df,rlen,insert,minsplit,minspan,sizefilter,min_dep,check_valid_chrs,valid_chrs,blist):
     '''
     filter based on presence of supporting reads and > fragment length
     ''' 
@@ -47,16 +48,60 @@ def run_simple_filter(df,rlen,insert,minsplit,minspan,sizefilter,min_dep,check_v
     df_flt2 = df_flt[ itx | (abs(df_flt['bp1_pos']-df_flt['bp2_pos'])>sizefilter) ]
 
     print('Filtered out %d SVs based on size limits' % (len(df_flt) - len(df_flt2)))
-    
+
     if check_valid_chrs:
         chr1 = np.array([chrom in valid_chrs for chrom in df_flt2.bp1_chr])
         chr2 = np.array([chrom in valid_chrs for chrom in df_flt2.bp2_chr])
         df_flt3 = df_flt2[np.logical_and(chr1,chr2)]
-        
+
         print('Filtered out %d SVs that had non-standard chromosomes' % (len(df_flt2) - len(df_flt3)))
         df_flt2 = pd.DataFrame(df_flt3,copy=True)
 
+    if len(blist) > 0:
+        keep = []
+        for idx,sv in df_flt2.iterrows():
+            pos_olap1 = np.logical_and(sv['bp1_pos']>=blist.f1, sv['bp1_pos']<=blist.f2)
+            olap1 = np.logical_and(sv['bp1_chr']==blist.f0, pos_olap1)
+
+            pos_olap2 = np.logical_and(sv['bp2_pos']>=blist.f1, sv['bp2_pos']<=blist.f2)
+            olap2 = np.logical_and(sv['bp2_chr']==blist.f0, pos_olap2)
+
+            olaps = blist[np.logical_or(olap1, olap2)]
+            if len(olaps) > 0:
+                keep.append(False)
+            else:
+                keep.append(True)
+        df_flt2 = df_flt2[keep]
+        print('Filtered out %d SVs found in the supplied blacklist' % (len(keep)-sum(keep)))
+
     return df_flt2
+
+def run_simple_snv_filter(snv_df, min_dep, blist, check_valid_chrs, valid_chrs):
+
+    dep = snv_df['ref'] + snv_df['var']
+    snv_df_flt = snv_df[dep>=min_dep]
+    print('Filtered out %d SNVs based on minimum depth' % (len(snv_df) - len(snv_df_flt)))
+
+    if check_valid_chrs:
+        chr_flt = np.array([chrom in valid_chrs for chrom in snv_df_flt.chrom])
+        snv_df_tmp = snv_df_flt[chr_flt]
+
+        print('Filtered out %d SNVs that had non-standard chromosomes' % (len(snv_df_flt) - len(snv_df_tmp)))
+        snv_df_flt = snv_df_tmp
+
+    if len(blist) > 0:
+        keep = []
+        for idx,snv in snv_df.iterrows():
+            pos_olap = np.logical_and(snv['pos']>=blist.f1, snv['pos']<=blist.f2)
+            olaps = blist[np.logical_and(snv['chrom']==blist.f0, pos_olap)]
+            if len(olaps) > 0:
+                keep.append(False)
+            else:
+                keep.append(True)
+        snv_df_flt = snv_df_flt[keep]
+        print('Filtered out %d SNVs found in the supplied blacklist' % (len(keep)-sum(keep)))
+
+    return snv_df_flt
 
 def is_clonal_neutral(gtype):
     if gtype=='': return False
@@ -587,8 +632,9 @@ def run(args):
     filter_otl  = args.filter_outliers
     min_dep     = args.min_dep
     subsample   = args.subsample
+    cfg         = args.cfg
+    blist_file  = args.blist
     check_valid_chrs  = args.valid_chrs
-    cfg             = args.cfg    
 
     Config = ConfigParser.ConfigParser()
     cfg_file = Config.read(cfg)
@@ -618,7 +664,11 @@ def run(args):
     # defaults
     rlen    = 100
     insert  = 300
-    
+
+    blist = pd.DataFrame()
+    if blist_file != '':
+        blist = pd.DataFrame(svp_load.load_blacklist(blist_file))
+
     for p in pi:
         if p<0 or p>1:
             raise ValueError("Tumour purity value not between 0 and 1!")
@@ -654,13 +704,12 @@ def run(args):
                 snv_df = load_data.load_snvs_mutect(snvs,sample)
             elif snv_format == 'mutect_callstats':
                 snv_df = load_data.load_snvs_mutect_callstats(snvs)
-            dep = snv_df['ref'] + snv_df['var']            
-            snv_df = snv_df[dep>=min_dep]
+            snv_df = run_simple_snv_filter(snv_df, min_dep, blist, check_valid_chrs, valid_chrs)
     
         if sv!="":
             sv_df = load_data.load_svs(sv)
             sv_df = run_simple_filter(sv_df,rlen,insert,minsplit,minspan,sizefilter, \
-                                        min_dep,check_valid_chrs,valid_chrs)
+                                        min_dep,check_valid_chrs,valid_chrs,blist)
         
         if gml!="":
             sv_df = filter_germline(gml,sv_df,rlen,insert,gl_th)

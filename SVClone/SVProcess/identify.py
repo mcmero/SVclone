@@ -361,6 +361,18 @@ def split_mixed_svs(svs, ca, threshold):
     else:
         return svs
 
+def sv_in_blacklist(sv, blist):
+
+    for row in blist:
+        if sv['bp1_chr'] == row[0]:
+            if sv['bp1_pos'] >= row[1] and row[2] >= sv['bp1_pos']:
+                return True
+        if sv['bp2_chr'] == row[0]:
+            if sv['bp2_pos'] >= row[1] and row[2] >= sv['bp2_pos']:
+                return True
+
+    return False
+
 def preproc_svs(args):
 
     svin         = args.svin
@@ -374,6 +386,7 @@ def preproc_svs(args):
     filt_repeats = args.filt_repeats
     trust_sc_pos = args.trust_sc_pos
     rlen         = args.rlen
+    blist_file   = args.blist
 
     cfg = args.cfg
     Config = ConfigParser.ConfigParser()
@@ -400,6 +413,10 @@ def preproc_svs(args):
     else:
         svs = load_data.load_input_vcf(svin, class_field)
 
+    blist = np.empty(0)
+    if blist_file != '':
+        blist = load_data.load_blacklist(blist_file)
+
     consens_dtype = [('bp1_ca_right', int), ('bp1_ca_left', int), \
                         ('bp2_ca_right', int), ('bp2_ca_left', int)]
     ca = np.zeros(len(svs), dtype=consens_dtype)
@@ -416,6 +433,9 @@ def preproc_svs(args):
     if not use_dir:
         print('Inferring SV directions...')
         for idx, sv in enumerate(svs):
+            if len(blist) > 0 and sv_in_blacklist(sv, blist):
+                svs[idx]['classification'] = 'BLACKLIST'
+                continue
             svs[idx], ca[idx] = get_dir_info(sv, bam, max_dep, sc_len, threshold)
 
 #        tmp_out = '%s_dirout.txt' % out
@@ -445,6 +465,10 @@ def preproc_svs(args):
         print('Recalibrating consensus alignments...')
         # use directions, but recheck the consensus alignments
         for idx, sv in enumerate(svs):
+            if len(blist) > 0 and sv_in_blacklist(sv, blist):
+                svs[idx]['classification'] = 'BLACKLIST'
+                continue
+
             sv_tmp, loc1_reads, loc2_reads, err_code1, err_code2 = \
                 retrieve_loc_reads(sv.copy(), bam, max_dep, threshold)
 

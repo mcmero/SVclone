@@ -70,6 +70,10 @@ identify_parser.add_argument("--trust_sc_pos",dest="trust_sc_pos",action="store_
 identify_parser.add_argument("-r","--read_len",dest="rlen",default=-1,type=int,
                     help="Read length. If not specified, will be inferred")
 
+identify_parser.add_argument("--blacklist", dest="blist", default="",
+                    help='''Takes a file in BED format as an argument. Skip processing of any break-pairs
+                    where either SV break-end overlaps an interval specified in the supplied bed file.''')
+
 identify_parser.set_defaults(func=identify.preproc_svs)
 
 ##########################################################################################################
@@ -190,6 +194,10 @@ filter_parser.add_argument("--filter_outliers",dest="filter_outliers",action="st
 filter_parser.add_argument("--valid_chroms",dest="valid_chrs",action="store_true",
                     help='''Filters out SVs on non-valid chroms (i.e. mapping to contigs on non-
                     standard chromosomes. Can be specified in the parameters.py file.''')
+
+filter_parser.add_argument("--blacklist", dest="blist", default="",
+                    help='''Takes a file in BED format as an argument. Filter out any break-pairs where
+                    either SV break-end overlaps an interval specified in the supplied bed file.''')
 
 filter_parser.set_defaults(func=run_filter.run)
 

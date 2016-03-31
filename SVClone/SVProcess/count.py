@@ -506,11 +506,16 @@ def proc_svs(args):
     sv_id, bp1_chr, bp1_pos, bp1_dir, bp2_chr, bp2_pos, bp2_dir, sv_class = [h[0] for h in dtypes.sv_dtype]    
     svs = np.genfromtxt(svin,delimiter='\t',names=True,dtype=None,invalid_raise=False)
     print("Extracting data from %d SVs"%len(svs))
-    for row in svs:        
+    for row in svs:
         sv_prop = row[bp1_chr],row[bp1_pos],row[bp2_chr],row[bp2_pos]
         sv_str = '%s:%d|%s:%d'%sv_prop
-        print('processing %s'%sv_str)
 
+        for svc in row[sv_class].split(';'):
+            if svc in ['BLACKLIST', 'UNKNOWN_DIR', 'HIDEP', 'MIXED', 'READ_FETCH_FAILED']:
+                print('skipping %s (%s)' % (sv_str, svc))
+                continue
+
+        print('processing %s'%sv_str)
         sv_rc, split_reads, span_reads, anom_reads = \
                 get_sv_read_counts(row,bam,inserts,max_dp,min_ins,max_ins,
                     sc_len,out,split_reads,span_reads,anom_reads,norm_overlap,threshold)

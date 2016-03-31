@@ -124,3 +124,18 @@ def load_input_simple(svin,use_dir,class_field):
         svs = np.append(svs,add_sv)
         sv_id += 1
     return remove_duplicates(svs)
+
+def load_blacklist(blist_file):
+    blist = np.genfromtxt(blist_file, delimiter='\t', names=None, dtype=None, invalid_raise=False)
+    descr = blist.dtype.descr
+    descr[0] = (descr[0][0], '|S10')
+    blist = blist.astype(descr)
+    if not len(blist) > 0 or not isinstance(blist[0][1],int) or not isinstance(blist[0][2],int):
+        print('Supplied blacklist is not a valid bed file of intervals')
+        return np.empty(0)
+    else:
+        #remove chr prefixes
+        if blist[0][0].split('chr') > 1:
+            for idx,row in enumerate(blist):
+                blist[idx][0] = blist[idx][0].split('chr')[1]
+        return blist
