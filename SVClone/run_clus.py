@@ -359,9 +359,9 @@ def run_clustering(args):
                 sv_sup,sv_dep,sv_cn_states,sv_Nvar = load_data.get_sv_vals(sv_df,no_adjust)
                 sup = np.append(sup,sv_sup)
                 dep = np.append(dep,sv_dep)
-                cn_states = pd.concat([cn_states,pd.DataFrame(sv_cn_states)])[0].values
+                cn_states = pd.concat([pd.DataFrame(cn_states),pd.DataFrame(sv_cn_states)])[0].values
                 Nvar = Nvar + sv_Nvar
-                
+
                 mcmc, map_ = cluster.cluster(sup,dep,cn_states,Nvar,sample_params,cluster_params,\
                                       clus_limit,phi_limit)
                 post_process_clusters(mcmc,sv_df,snv_df,merge_clusts,clus_out_dir, \
