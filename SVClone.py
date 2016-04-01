@@ -257,6 +257,10 @@ cluster_parser.add_argument("--no_adjust",action="store_true",
                     help='''Do not use adjusted normal reads for duplications, or adjusted supporting reads 
                     for inversions''') 
 
+cluster_parser.add_argument("--smc_het",action="store_true",
+                    help='''Output results in the ICGC-TCGA DREAM somatic mutation calling challenge format in addition
+                    to the usual output.''') 
+
 cluster_parser.set_defaults(func=run_clus.run_clustering)
 
 ##########################################################################################################

@@ -2,6 +2,7 @@ import numpy as np
 import pandas as pd
 import os
 import ipdb
+import itertools
 from operator import methodcaller
 
 from . import dtypes
@@ -13,20 +14,57 @@ def dump_trace(clus_info,center_trace,outf):
     df_traces = pd.DataFrame(np.transpose(traces),columns=clus_info.clus_id)
     df_traces.to_csv(outf,sep='\t',index=False)
 
-def write_out_files(df,clus_info,clus_members,df_probs,clus_cert,clus_out_dir,sample,pi,sup,dep,cn_states,map_,are_snvs=False):
+def write_out_files(df,clus_info,clus_members,df_probs,clus_cert,clus_out_dir,sample,pi,sup,dep,cn_states,map_,z_trace,smc_het,are_snvs=False):
     if are_snvs:
         clus_out_dir = '%s/snvs'%clus_out_dir
         if not os.path.exists(clus_out_dir):
             os.makedirs(clus_out_dir)
     
+    if map_ is not None:
+        run_fit = pd.DataFrame([['BIC', map_.BIC], ['AIC', map_.AIC]])
+        run_fit.to_csv('%s/%s_fit.txt' % (clus_out_dir, sample), sep='\t', index=False, header=False)
+
     clus_info['CCF'] = clus_info.phi.values
     clus_info['phi'] = clus_info.phi.values*pi #convert to proportions
     clus_info = clus_info[['clus_id','size','phi','CCF']]
     rename_cols =  {'clus_id': 'cluster', 'size': 'n_ssms', 'phi': 'proportion'}
+    clus_info = clus_info.rename(columns = rename_cols)
     
-    clus_info = clus_info.rename(columns = rename_cols)    
-    clus_info.to_csv('%s/%s_subclonal_structure.txt'%(clus_out_dir,sample),sep='\t',index=False)
+    if smc_het:
+        purity = min(max(pi, 0), 1)
+        out_file = '%s/smc_1A_cellularity.txt' % clus_out_dir
+        with open(out_file, 'w') as outf:
+            outf.write('%f\n' % purity)
+        with open('%s/smc_1B_number_of_clusters.txt'%clus_out_dir,'w') as outf:
+            outf.write('%d\n' % len(clus_info))
 
+        # convert cluster numbers to clean 1..n sequence
+        smc_clus_info = clus_info.copy()
+        smc_clus_info['new_clus'] = range(1, len(smc_clus_info)+1)
+        smc_cert = clus_cert[['most_likely_assignment']]
+        for idx, clus in smc_clus_info.iterrows():
+            pd.options.mode.chained_assignment = None
+            smc_cert.loc[smc_cert.most_likely_assignment == clus.cluster, 'most_likely_assignment'] = int(clus.new_clus)
+        smc_cert.to_csv('%s/smc_2A_mutations_to_clusters.txt' % clus_out_dir, sep='\t', index=False, header=False)
+        
+        smc_clus_info.cluster = smc_clus_info.new_clus
+        smc_clus_info = smc_clus_info[['cluster', 'n_ssms', 'proportion']]
+        smc_clus_info.to_csv('%s/smc_1C_cluster_structure.txt' % clus_out_dir,sep='\t',index=False, header=False)
+
+        npoints = len(df)
+        coclust = pd.DataFrame(index=range(npoints),columns=range(npoints))
+        coclust = coclust.fillna(1.0)
+        combs = [x for x in itertools.combinations(range(npoints),2)]
+
+        niter = len(z_trace)
+        for i,j in combs:
+            cc = sum([z_trace[idx][i] == z_trace[idx][j] for idx in range(niter)]) / float(niter)
+            # ^ proportion of iterations vars were in same cluster
+            coclust.loc[i,j] = cc
+            coclust.loc[j,i] = cc
+        coclust.to_csv('%s/smc_2B_coclustering_matrix.txt' % clus_out_dir, sep='\t', index=False, header=False)
+    
+    clus_info.to_csv('%s/%s_subclonal_structure.txt'%(clus_out_dir,sample),sep='\t',index=False)
     with open('%s/number_of_clusters.txt'%clus_out_dir,'w') as outf:
         outf.write("sample\tclusters\n")
         outf.write('%s\t%d\n'%(sample,len(clus_info)))
@@ -130,8 +168,3 @@ def write_out_files(df,clus_info,clus_members,df_probs,clus_cert,clus_out_dir,sa
     pd.DataFrame(cn_vect).to_csv('%s/%s_copynumber.txt'%(clus_out_dir,sample),sep='\t',index=False)
     df_probs.to_csv('%s/%s_assignment_probability_table.txt'%(clus_out_dir,sample),sep='\t',index=False)
     clus_cert.to_csv('%s/%s_cluster_certainty.txt'%(clus_out_dir,sample),sep='\t',index=False)
-
-    if map_ is not None:
-        run_fit = pd.DataFrame([['BIC', map_.BIC], ['AIC', map_.AIC]])
-        run_fit.to_csv('%s/%s_fit.txt' % (clus_out_dir, sample), sep='\t', index=False, header=False)
-
