@@ -168,7 +168,7 @@ def filter_outlying_norm_wins(df_flt):
     
     return df_flt
 
-def run_cnv_filter(df_flt,cnv,neutral,filter_outliers,are_snvs=False):
+def run_cnv_filter(df_flt, cnv, neutral, filter_outliers, strict_cnv_filt, ploidy, are_snvs=False):
     '''
     filter based on either CNV neutral, or presence of CNV vals
     '''
@@ -206,8 +206,15 @@ def run_cnv_filter(df_flt,cnv,neutral,filter_outliers,are_snvs=False):
         if are_snvs:
             df_flt = df_flt.fillna('')
             df_flt['gtype'] = map(remove_zero_copynumbers,df_flt.gtype.values)
-            df_flt = df_flt[df_flt.gtype.values!='']
-            print('Filtered out %d SNVs which did not have copy-numbers' % (n_df - len(df_flt)))
+
+            if strict_cnv_filt:
+                df_flt = df_flt[df_flt.gtype.values!='']
+                print('Filtered out %d SNVs with missing or invalid copy-numbers' % (n_df - len(df_flt)))
+            else:
+                maj_allele = round(ploidy/2) if round(ploidy) > 1 else 1
+                min_allele = round(ploidy/2) if round(ploidy) > 1 else 0
+                default_gtype = '%d,%d,1.0' % (maj_allele, min_allele)
+                df_flt.gtype[df_flt.gtype.values==''] = default_gtype
 
             if filter_outliers:
                 # weight ranges by copy-numbers
@@ -221,14 +228,22 @@ def run_cnv_filter(df_flt,cnv,neutral,filter_outliers,are_snvs=False):
                 df_flt = df_flt[np.logical_and(depths>dep_ranges[0],depths<dep_ranges[1])]
                 print('Filtered out %d SNVs which had outlying depths' % (n_df - len(df_flt)))
         else:
-            #df_flt = df_flt[np.logical_or(df_flt.gtype1.values!='',df_flt.gtype2.values!='')]
-            #gt1_is_zero = np.array(map(is_copynumber_zero,df_flt.gtype1.values))
-            #gt2_is_zero = np.array(map(is_copynumber_zero,df_flt.gtype2.values))
+            df_flt['gtype1'].fillna('')
+            df_flt['gtype2'].fillna('')
             df_flt['gtype1'] = np.array(map(remove_zero_copynumbers,df_flt.gtype1.values))
             df_flt['gtype2'] = np.array(map(remove_zero_copynumbers,df_flt.gtype2.values))
-            df_flt = df_flt[np.logical_or(df_flt.gtype1!='', df_flt.gtype2!='')] #remove breakpairs with cnv state missing
-            #df_flt = df_flt[np.logical_and(gt1_is_zero==False,gt2_is_zero==False)]
-            print('Filtered out %d SVs without copy-numbers or with 0,0 copy-numbers' % (n_df - len(df_flt)))
+
+            if strict_cnv_filt:
+                # filter out if both CNV states are missing
+                df_flt = df_flt[np.logical_or(df_flt.gtype1!='', df_flt.gtype2!='')]
+                print('Filtered out %d SVs with missing or invalid copy-numbers' % (n_df - len(df_flt)))
+            else:
+                maj_allele = round(ploidy/2) if round(ploidy) > 1 else 1
+                min_allele = round(ploidy/2) if round(ploidy) > 1 else 0
+                default_gtype = '%d,%d,1.0' % (maj_allele, min_allele)
+                df_flt.gtype1[df_flt.gtype1.values==''] = default_gtype
+                df_flt.gtype2[df_flt.gtype2.values==''] = default_gtype
+
             n_df = len(df_flt)            
 
             if filter_outliers:
@@ -634,7 +649,9 @@ def run(args):
     subsample   = args.subsample
     cfg         = args.cfg
     blist_file  = args.blist
-    check_valid_chrs  = args.valid_chrs
+
+    check_valid_chrs = args.valid_chrs
+    strict_cnv_filt  = args.strict_cnv_filt
 
     Config = ConfigParser.ConfigParser()
     cfg_file = Config.read(cfg)
@@ -722,26 +739,33 @@ def run(args):
                 sv_df = match_copy_numbers(sv_df,cnv_df,sv_offset) 
                 sv_df = match_copy_numbers(sv_df,cnv_df,sv_offset,['bp2_chr','bp2_pos','bp2_dir','classification','bp1_pos'],'gtype2') 
                 #sv_df = reprocess_unmatched_cnvs(sv_df,cnv_df)
-                sv_df = run_cnv_filter(sv_df,cnv,neutral,filter_otl)
+                sv_df = run_cnv_filter(sv_df,cnv,neutral,filter_otl,strict_cnv_filt,ploidy)
                 print('Keeping %d SVs' % len(sv_df))
         
             if len(snv_df)>0:
                 print('Matching copy-numbers for SNVs...')
                 snv_df = match_snv_copy_numbers(snv_df,cnv_df,sv_offset)
-                snv_df = run_cnv_filter(snv_df,cnv,neutral,filter_otl,are_snvs=True)
+                snv_df = run_cnv_filter(snv_df,cnv,neutral,filter_otl,strict_cnv_filt,ploidy,are_snvs=True)
                 print('Keeping %d SNVs' % len(snv_df))
         else:
-
+            print('No CNV input defined, assuming all loci major/minor allele copy-numbers are ploidy/2')
             if len(sv_df)>0:
-                print('No Battenberg input defined, assuming all loci are copy-number neutral')
-                sv_df['gtype1'] = '1,1,1.000000'
-                sv_df['gtype2'] = '1,1,1.000000'
-                sv_df = run_cnv_filter(sv_df,cnv,neutral,filter_otl)
+                maj_allele = round(ploidy/2) if round(ploidy) > 1 else 1
+                min_allele = round(ploidy/2) if round(ploidy) > 1 else 0
+                default_gtype = '%d,%d,1.0' % (maj_allele, min_allele)
+                sv_df['gtype1'] = default_gtype
+                sv_df['gtype2'] = default_gtype
+                if filter_otl:
+                    sv_df = run_cnv_filter(sv_df,cnv,neutral,filter_otl,strict_cnv_filt,ploidy)
                 print('Retained %d SVs' % len(sv_df))
 
             if len(snv_df)>0:
-                snv_df['gtype'] = '1,1,1.000000'
-                snv_df = run_cnv_filter(snv_df,cnv,neutral,filter_otl,are_snvs=True)
+                maj_allele = round(ploidy/2) if round(ploidy) > 1 else 1
+                min_allele = round(ploidy/2) if round(ploidy) > 1 else 0
+                default_gtype = '%d,%d,1.0' % (maj_allele, min_allele)
+                snv_df['gtype'] = default_gtype
+                if filter_otl:
+                    snv_df = run_cnv_filter(snv_df,cnv,neutral,filter_otl,strict_cnv_filt,ploidy,are_snvs=True)
                 print('Retained %d SNVs' % len(snv_df))
         
         if len(sv_df)>0:

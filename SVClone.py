@@ -144,8 +144,8 @@ filter_parser.add_argument("-g","--germline",dest="germline",default="",
 filter_parser.add_argument("-c","--cnvs",dest="cnvs",default="",
                     help='''Phased copy-number states from Battenberg. If not provided, all SVs assumed copy-neutral.''')
 
-filter_parser.add_argument("--min_depth",dest="min_dep",type=float,default=4,
-                    help='''Filter out any variants with total depth below this value (default = 4). Applies to
+filter_parser.add_argument("--min_depth",dest="min_dep",type=float,default=2,
+                    help='''Filter out any variants with total depth below this value (default = 2). Applies to
                     SVs and SNVs.''')
 
 filter_parser.add_argument("--params",dest="params_file",default="",
@@ -198,6 +198,10 @@ filter_parser.add_argument("--valid_chroms",dest="valid_chrs",action="store_true
 filter_parser.add_argument("--blacklist", dest="blist", default="",
                     help='''Takes a file in BED format as an argument. Filter out any break-pairs where
                     either SV break-end overlaps an interval specified in the supplied bed file.''')
+
+filter_parser.add_argument("--strict_cnv_filt", dest="strict_cnv_filt", action="store_true",
+                    help='''Removes variants with no matched CNV state, otherwise assumes the CNV state
+                    is ploidy/2 for major and minor (when round(ploidy) < 2, state becomes 1-0).''')
 
 filter_parser.set_defaults(func=run_filter.run)
 
