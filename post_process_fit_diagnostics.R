@@ -244,7 +244,7 @@ for (run in runs) {
     ic <- read.table(paste(run, '/', snv_dir, id, '_fit.txt', sep=''), 
                      sep='\t', header=F, stringsAsFactors = F)
     #ic <- cbind(ic[1,],ic[2,]); colnames(ic) <- colnames(tabout)
-    ic <- data.frame(t(ic)); colnames(ic) <- ic['V1',];ic <- ic[-1,]
+    ic <- data.frame(t(ic)); colnames(ic) <- c('BIC','AIC'); ic <- ic[-1,]
     ic_tab <- tableGrob(ic, rows=c())
     sc_tab <- tableGrob(tabout, rows=c())
         
