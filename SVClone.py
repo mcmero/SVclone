@@ -261,6 +261,10 @@ cluster_parser.add_argument("--smc_het",action="store_true",
                     help='''Output results in the ICGC-TCGA DREAM somatic mutation calling challenge format in addition
                     to the usual output.''') 
 
+cluster_parser.add_argument("--write_matrix",action="store_true",
+                    help='''Write an N by N co-clustering matrix, giving the probabilities that variant i and j 
+                    are in the same cluster. WARNING: this may take a very long time with a large number (>1000) of variants.''') 
+
 cluster_parser.set_defaults(func=run_clus.run_clustering)
 
 ##########################################################################################################

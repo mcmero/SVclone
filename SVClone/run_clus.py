@@ -156,7 +156,7 @@ def merge_results(clus_merged, merged_ids, df_probs, ccert):
 
     return df_probs_new,ccert_new
 
-def post_process_clusters(mcmc,sv_df,snv_df,merge_clusts,clus_out_dir,sup,dep,cn_states,plot,sparams,cparams,subclone_diff,clus_limit,phi_limit,map_,smc_het):
+def post_process_clusters(mcmc,sv_df,snv_df,merge_clusts,clus_out_dir,sup,dep,cn_states,plot,sparams,cparams,subclone_diff,clus_limit,phi_limit,map_,smc_het,write_matrix):
     # assign points to highest probabiliy cluster
     npoints = len(snv_df) + len(sv_df)
 
@@ -199,6 +199,7 @@ def post_process_clusters(mcmc,sv_df,snv_df,merge_clusts,clus_out_dir,sup,dep,cn
     ccert = clus_max_df.join(phi_matrix)
     clus_info.index = range(len(clus_info))
     print(clus_info)
+    print('Compiling and writing output...')
 
     dump_out_dir = clus_out_dir
     if len(snv_df)>0 and len(sv_df)==0:
@@ -243,7 +244,7 @@ def post_process_clusters(mcmc,sv_df,snv_df,merge_clusts,clus_out_dir,sup,dep,cn
         snv_cn_states = cn_states[:len(snv_df)]
         write_output.write_out_files(snv_df,clus_info,snv_members,
                 snv_probs,snv_ccert,clus_out_dir,sparams['sample'],sparams['pi'],snv_sup,
-                snv_dep,snv_cn_states,map_,z_trace,smc_het,are_snvs=True)
+                snv_dep,snv_cn_states,map_,z_trace,smc_het,write_matrix,are_snvs=True)
     
     sv_probs = pd.DataFrame()
     sv_ccert = pd.DataFrame()
@@ -268,7 +269,7 @@ def post_process_clusters(mcmc,sv_df,snv_df,merge_clusts,clus_out_dir,sup,dep,cn
         sv_cn_states = cn_states[lb:lb+len(sv_df)]
         write_output.write_out_files(sv_df,clus_info,sv_members,
                     sv_probs,sv_ccert,clus_out_dir,sparams['sample'],sparams['pi'],sv_sup,
-                    sv_dep,sv_cn_states,map_,z_trace,smc_het)
+                    sv_dep,sv_cn_states,map_,z_trace,write_matrix,smc_het)
     
 def run_clustering(args):
     
@@ -286,6 +287,7 @@ def run_clustering(args):
     params_file     = args.params_file
     cfg             = args.cfg
     smc_het         = args.smc_het
+    write_matrix    = args.write_matrix
 
     Config = ConfigParser.ConfigParser()
     cfg_file = Config.read(cfg)
@@ -366,7 +368,7 @@ def run_clustering(args):
                                       clus_limit,phi_limit)
                 post_process_clusters(mcmc,sv_df,snv_df,merge_clusts,clus_out_dir, \
                                       sup,dep,cn_states,plot,sample_params,cluster_params, \
-                                      subclone_diff, clus_limit, phi_limit, map_, smc_het)
+                                      subclone_diff, clus_limit, phi_limit, map_, smc_het, write_matrix)
             else:
                 print('Cannot cocluster - check that valid SV and SNV input is supplied')
         else:            
@@ -380,7 +382,7 @@ def run_clustering(args):
                                        clus_limit,phi_limit)
                 post_process_clusters(mcmc,pd.DataFrame(),snv_df,merge_clusts,clus_out_dir, \
                                       sup,dep,cn_states,plot,sample_params,cluster_params, \
-                                      subclone_diff, clus_limit, phi_limit, map_, smc_het)
+                                      subclone_diff, clus_limit, phi_limit, map_, smc_het, write_matrix)
 
             if len(sv_df)>0:
                 sup,dep,cn_states,Nvar = load_data.get_sv_vals(sv_df,no_adjust)
@@ -390,5 +392,5 @@ def run_clustering(args):
                                        clus_limit,phi_limit)
                 post_process_clusters(mcmc,sv_df,pd.DataFrame(),merge_clusts,clus_out_dir, \
                                       sup,dep,cn_states,plot,sample_params,cluster_params, \
-                                      subclone_diff, clus_limit, phi_limit, map_, smc_het)
+                                      subclone_diff, clus_limit, phi_limit, map_, smc_het, write_matrix)
 
