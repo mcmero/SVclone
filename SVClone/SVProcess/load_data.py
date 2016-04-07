@@ -164,7 +164,7 @@ def get_purity_ploidy(pp_file, sample, out):
     if not os.path.exists(default_loc):
         with open('%s/purity_ploidy.txt'%out,'w') as outf:
             outf.write("sample\tpurity\tploidy\n")
-            outf.write('%s\t%f\t%f\n'%(sample,pi,ploidy))
+            outf.write('%s\t%f\t%f\n'%(sample,pi,pl))
     
     return pi, pl
   
