@@ -5,6 +5,7 @@ import numpy as np
 import vcf
 import pysam
 import ipdb
+import os
 
 from . import load_data
 from . import count
@@ -378,6 +379,7 @@ def preproc_svs(args):
     svin         = args.svin
     bam          = args.bam
     out          = args.out
+    sample       = args.sample
     simple       = args.simple_svs
     socrates     = args.socrates
     use_dir      = args.use_dir
@@ -403,7 +405,12 @@ def preproc_svs(args):
     filt_repeats = filt_repeats.split(', ') if filt_repeats != '' else filt_repeats
     filt_repeats = [rep for rep in filt_repeats if rep != '']
 
-    outname = '%s_svin.txt'%out
+    out = sample if out == "" else out
+    outname = '%s/%s_svin.txt' % (out, sample)
+
+    dirname = os.path.dirname(out)
+    if dirname!='' and not os.path.exists(dirname):
+        os.makedirs(dirname)
 
     svs = np.empty(0)
     if simple:

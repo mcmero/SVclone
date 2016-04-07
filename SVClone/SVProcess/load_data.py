@@ -1,6 +1,7 @@
 import vcf
 import numpy as np
 import ipdb
+import os
 from collections import OrderedDict
 from .. import dtypes
 
@@ -139,3 +140,59 @@ def load_blacklist(blist_file):
             for idx,row in enumerate(blist):
                 blist[idx][0] = blist[idx][0].split('chr')[1]
         return blist
+
+def get_purity_ploidy(pp_file, sample, out):
+    '''
+    Gets purity/ploidy values from input file,
+    if not found, returns defaults. Writes the 
+    purity/ploidy file to the default loc if it
+    doesn't exist.
+    '''
+    pi      = 1. #default purity
+    pl      = 2. #default ploidy
+    
+    default_loc = '%s/purity_ploidy.txt' % out
+    pp_file = default_loc if pp_file == '' else pp_file
+    
+    if os.path.exists(pp_file):
+        pur_pl  = np.genfromtxt(pp_file,delimiter='\t',names=True,dtype=None,invalid_raise=False)
+        pi      = float(pur_pl['purity'])
+        pl      = float(pur_pl['ploidy'])
+    else:
+        print('WARNING: No purity/ploidy file found. Assuming purity = %f, ploidy = %f' % (pi,pl))
+
+    if not os.path.exists(default_loc):
+        with open('%s/purity_ploidy.txt'%out,'w') as outf:
+            outf.write("sample\tpurity\tploidy\n")
+            outf.write('%s\t%f\t%f\n'%(sample,pi,ploidy))
+    
+    return pi, pl
+  
+def get_read_params(params_file, sample, out):
+    '''
+    Gets read parameter values from input file,
+    if not found, returns defaults. Writes the 
+    purity/ploidy file to the default loc if it
+    doesn't exist.
+    '''
+    rlen    = 100 #default read length
+    insert  = 300 #default insert size
+    std     = 20
+
+    default_loc =  '%s/read_params.txt' % out 
+    params_file = default_loc if params_file == '' else params_file
+
+    if os.path.exists(params_file):
+        read_params = np.genfromtxt(params_file,delimiter='\t',names=True,dtype=None,invalid_raise=False)
+        rlen        = int(read_params['read_len'])
+        insert      = float(read_params['insert_mean'])
+        std         = float(read_params['insert_std'])
+    else:
+        print('WARNING: read_params.txt file not found! Assuming read length = %d, mean insert length = %d' % (rlen,insert)) 
+
+    if not os.path.exists(default_loc):
+        with open('%s/read_params.txt'%out,'w') as outf:
+            outf.write("sample\tread_len\tinsert_mean\tinsert_std\n")
+            outf.write('%s\t%f\t%f\t%f\n\n'%(sample,rlen,insert,std))
+       
+    return rlen, insert, std

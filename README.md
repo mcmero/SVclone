@@ -54,10 +54,11 @@ Optionally a classification field may be specified with --sv_class, or direction
 
 * -i or --input : structural variants input file (see above).
 * -b or --bam : bam file with corresponding index file.
-* -o or --out : output base name. Will create processed output file as <name>_svinfo.txt, parameters output as <name>_params.txt and database output as <name>_svinfo.db
+* -s or --sample : Sample name. Will create processed output file as <outdir>/<sample>_svinfo.txt, parameters output as <outdir>/<sample>_params.txt.
 
 #### Optional Parameters ####
 
+* -o or --outdir <outdir> : output directory to create files. Default: the sample name.
 * -cgf or --config <config.ini>: SVClone configuration file with additional parameters (svclone_config.ini is the default).
 * -r or --read_len : Read length of the bam file. Will be inferred if not specified (WARNING: if your read lengths are not constant, you will have to manually specify this parameter).
 * --simple : Run using simple file format type as input (see File Formats section).
@@ -67,6 +68,7 @@ Optionally a classification field may be specified with --sv_class, or direction
 * --sv_class_field : If your SV list has classifications and you would like to use them, specify the field name. 
 * --min_mapq : Filter out SVs with lower average MAPQ than this value. SOCRATES INPUT ONLY (default 0).
 * --trust_sc_pos : Use specified breaks without checking for differing soft-clip consensus position. Cannot be skipped if directionality must be inferred. If your SV caller offsets breaks due to micro-homology, e.g. Socrates, using this option is not recommended.
+* --blacklist <file.bed> : Takes a list of intervals in BED format. Skip processing of any break-pairs where either SV break-end overlaps an interval specified in the supplied bed file. 
 
 ### Count step (SV read counting) ###
 
@@ -80,10 +82,11 @@ The classification strings are not used by the program, except for DNA-gain even
 
 * -i or --input : structural variants input file. This should be the output file from the Identify step. 
 * -b or --bam : bam file with corresponding index file.
-* -o or --out : output base name. Will create processed output file as <name>_svinfo.txt, parameters output as <name>_params.txt and database output as <name>_svinfo.db
+* -s or --sample : Sample name. Will create processed output file as <outdir>/<sample>_svinfo.txt, parameters output as <outdir>/<sample>_params.txt.
 
 #### Optional Parameters ####
 
+* -o or --outdir <outdir> : output directory to create files. Default: the sample name.
 * -cgf or --config <config.ini>: SVClone configuration file with additional parameters (svclone_config.ini is the default).
 * -d or --depth <value> (default = 50) : average depth of coverage for corresponding BAM file. Used to skip areas of higher than expected coverage. Note that highly accurate figures are not necessary, a rough estimate will do.
 * -r or --read_len <value> (automatically inferred if not supplied) :  specify if the read length is known, otherwise the program will infer this through the supplied bam file. If you have varying read sizes, we suggest you trim these reads to a constant size. The program will likely crash if it detects different read sizes, unless this parameter is supplied. 
@@ -103,18 +106,17 @@ Running the flat clustering approach on a single sample (the only currently supp
 
 * -s or --sample <name> : sample name, currently only a single sample is supported. WARNING: if clustering using mutect SNVs, the sample name must match the sample name in the vcf file.
 * -i or --input <svinfo.txt> : sv info file from SV pre-processing script output.
-* -o or --outdir <outdir> : output directory to create files.
 
 #### Optional Parameters ####
 
 Note that read length and insert sizes used by the filter step are provided as outputs from the pre-processing script (<out>_params.txt), based on the first 1000 sampled reads in the bam file. 
 
+* -o or --outdir <outdir> : output directory to create files. Default: the sample name.
 * -cgf or --config <config.ini>: SVClone configuration file with additional parameters (svclone_config.ini is the default).
 * --params <params.txt> : Parameters file from processing step containing read information. If not supplied, the default search path is <outdir>/<sample>_params.txt'
 * -c or --cnvs <cnv file> : Battenberg subclones.txt file containing segmented copy-numbers for patient sample. If not supplied, will assume that all regions are copy-number neutral (Major = 1, Minor = 1).
-* -p or --purity <value> (default = 1.0) : Tumour purity. A floating point number between 0 - 1 indicating the percentage of tumour cells.
+* -p <file> : Tumour purity and ploidy in text file. Purity must be between 0 and 1. Ploidy can be a floating point number.
 * -g or --germline <germline_svinfo.txt> : Germline SVs; will filter out any tumour SVs which have >1 supporting read in the germline. Excpects the same input format as the sv info file (you can run sv_process on the tumour SVs against the germline bam file to obtain this).
-* -y or --ploidy <value> (default = 1.0) : tumour ploidy, affects the phi parameter (base model assumes variants occur on one copy only). Setting the ploidy to 1 gives the raw frequencies (it ignores ploidy).
 * --neutral : Keep only copy-number neutral SVs.
 * --snvs <snv_file> : SNVs in VCF format to (optionally) compare the clustering with SVs.
 * --snv_format <sanger,mutect,mutect_callstats> (default = sanger) : Specify VCF input format (only if clustering SNVs).
@@ -124,7 +126,17 @@ Note that read length and insert sizes used by the filter step are provided as o
 * --filter_outliers <value> : Filter out SVs with depth values that are considers outliers, based on the copy-number adjusted distribution of depths.
 * --valid_chroms : Filter out SVs not on standard chromosomes (i.e. mapping to contigs). The list of valid chromosomes is specified in the SVClone/parameters.py file. 
 * --min_depth : Filter any variants with total depth below this value (default = 4). Applies to both SVs and SNVs.
+* --blacklist <file.bed> : Takes a list of intervals in BED format. Skip processing of any break-pairs where either SV break-end overlaps an interval specified in the supplied bed file.
+* --strict_cnv_filt : Removes variants with no matched CNV state, otherwise assumes the CNV state is ploidy/2 for major and minor (when round(ploidy) < 2, state becomes 1-0).
 
+### Purity/ploidy file ###
+
+Purity/ploidy file must have the following layout (tab-separated):
+
+```
+sample	purity	ploidy
+<sample>	<float between 0 - 1>	<positive float or integer>
+```
 ### Clustering SVs ###
 
 Once we have the filtered SV and/or SNV counts, we can run the clustering:
@@ -216,12 +228,13 @@ clus_limit: 25
 # ^ max number of possible clusters
 subclone_diff: 0.10
 # ^ max difference in CCF between subclones to not recluster
+hpd_alpha: 0.05
+# ^ credible interval (for computing highest posterior density interval)
 
 [BetaParameters]
 # Control cluster sensitivity
-shape: 0.9
-scale: 1/0.9
-init: 2
+alpha: 0.9
+beta: 1
 
 ```
 
@@ -256,4 +269,4 @@ print((mean(x[x$V3!=0,’V3’])*rlen)/interval
 
 ### Who do I talk to? ###
 
-For queries, contact cmerom@gmail.com
+For queries, contact cmerom[at]gmail.com

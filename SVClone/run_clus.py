@@ -21,6 +21,7 @@ from pymc.utils import hpd
 from . import cluster
 from . import load_data
 from . import write_output
+from SVProcess import load_data as svp_load
 
 import numpy as np
 from numpy import loadtxt
@@ -283,8 +284,9 @@ def run_clustering(args):
     merge_clusts    = args.merge_clusts
     cocluster       = args.cocluster
     out             = args.outdir
+    param_file      = args.param_file
+    pp_file         = args.pp_file
     no_adjust       = args.no_adjust
-    params_file     = args.params_file
     cfg             = args.cfg
     smc_het         = args.smc_het
     write_matrix    = args.write_matrix
@@ -305,29 +307,13 @@ def run_clustering(args):
     subclone_diff = float(Config.get('ClusterParameters', 'subclone_diff'))
     hpd_alpha = float(Config.get('ClusterParameters', 'hpd_alpha'))
 
-    purity_ploidy_file = '%s/purity_ploidy.txt' % out
+    out = sample if out == "" else out
+    dirname = os.path.dirname(out)
+    if dirname!='' and not os.path.exists(dirname):
+        os.makedirs(dirname)
 
-    pi      = 1.
-    pl      = 2. #ploidy
-    if os.path.exists(purity_ploidy_file):
-        pur_pl  = pd.read_csv(purity_ploidy_file,delimiter='\t',dtype=None,header=0)
-        pi      = float(pur_pl.purity.values[0])
-        pl      = float(pur_pl.ploidy.values[0])
-    else:
-        print('purity_ploidy.txt file not found! Assuming purity = %f, ploidy = %f'%(pi,pl)) 
-   
-    #defaults
-    rlen    = 100
-    insert  = 300
-
-    if params_file=='':
-        params_file = '%s/read_params.txt' % out 
-    if os.path.exists(params_file):
-        read_params = pd.read_csv(params_file,delimiter='\t',dtype=None,header=0)
-        rlen        = int(read_params.read_len.values[0])
-        insert      = float(read_params.insert_mean.values[0])
-    else:
-        print('read_params.txt file not found! Assuming read length = %d, mean insert length = %d'%(rlen,insert)) 
+    pi, pl = svp_load.get_purity_ploidy(pp_file, sample, out)
+    rlen, insert, std = svp_load.get_read_params(param_file, sample, out)
 
     sample_params  = { 'sample': sample, 'ploidy': pl, 'pi': pi, 'rlen': rlen, 'insert': insert }
     cluster_params = { 'n_iter': n_iter, 'burn': burn, 'thin': thin, 'beta': beta, 'use_map': use_map, 'hpd_alpha': hpd_alpha }

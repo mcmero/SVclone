@@ -635,12 +635,11 @@ def run(args):
     gml         = args.germline
     cnvs        = args.cnvs
     out         = args.outdir
-    params_file = args.params_file 
+    param_file  = args.param_file 
     snvs        = args.snvs
     snv_format  = args.snv_format
     neutral     = args.neutral
-    pi          = args.pi
-    ploidy      = args.ploidy
+    pp_file     = args.pp_file
     minsplit    = int(args.minsplit)
     minspan     = int(args.minspan)
     sizefilter  = int(args.sizefilter)
@@ -663,137 +662,114 @@ def run(args):
     gl_th = int(Config.get('GlobalParameters', 'germline_threshold'))
     sv_offset = int(Config.get('GlobalParameters', 'sv_offset'))
    
-    def proc_arg(arg,n_args=1,of_type=str):
-        arg = str.split(arg,',')
-        arg = arg * n_args if len(arg)==1 else arg
-        if of_type==int or of_type==float:
-            return map(eval,arg)
-        else:
-            return map(of_type,arg)
+#    def proc_arg(arg,n_args=1,of_type=str):
+#        arg = str.split(arg,',')
+#        arg = arg * n_args if len(arg)==1 else arg
+#        if of_type==int or of_type==float:
+#            return map(eval,arg)
+#        else:
+#            return map(of_type,arg)
 
-    sample  = proc_arg(sample)
-    n       = len(sample)
-    svs     = proc_arg(svs)
-    cnvs    = proc_arg(cnvs)
-    pi      = proc_arg(pi,n,float)
-    ploidy  = proc_arg(ploidy,n,float)    
+    out = sample if out == "" else out
+    dirname = os.path.dirname(out)
+    if dirname!='' and not os.path.exists(dirname):
+        os.makedirs(dirname)
 
-    # defaults
-    rlen    = 100
-    insert  = 300
-
+    pi, ploidy = svp_load.get_purity_ploidy(pp_file, sample, out)
+    rlen, insert, insert_std = svp_load.get_read_params(param_file, sample, out)
+   
     blist = pd.DataFrame()
     if blist_file != '':
         blist = pd.DataFrame(svp_load.load_blacklist(blist_file))
 
-    for p in pi:
-        if p<0 or p>1:
-            raise ValueError("Tumour purity value not between 0 and 1!")
+    if pi < 0 or pi > 1:
+        raise ValueError("Tumour purity value not between 0 and 1!")
             
-    if len(svs)!=n or len(cnvs)!=n:
-        raise ValueError("Number of samples does not match number of input files")
+#    if len(svs)!=n or len(cnvs)!=n:
+#        raise ValueError("Number of samples does not match number of input files")
 
-    if not os.path.exists(out):
-        os.makedirs(out)
+#    if len(sample)>1:
+#        print("Multiple sample processing not yet implemented")
+#        #TODO: processing of multiple samples
+#    else:
+#        sample,sv,cnv,pi,ploidy = sample[0],svs[0],cnvs[0],pi[0],ploidy[0]
+    sv_df  = pd.DataFrame()
+    cnv_df = pd.DataFrame()
+    snv_df = pd.DataFrame()
+   
+    if snvs!="":
+        if snv_format == 'sanger':
+            snv_df = load_data.load_snvs_sanger(snvs)
+        elif snv_format == 'mutect':
+            snv_df = load_data.load_snvs_mutect(snvs,sample)
+        elif snv_format == 'mutect_callstats':
+            snv_df = load_data.load_snvs_mutect_callstats(snvs)
+        snv_df = run_simple_snv_filter(snv_df, min_dep, blist, check_valid_chrs, valid_chrs)
 
-    if len(sample)>1:
-        print("Multiple sample processing not yet implemented")
-        #TODO: processing of multiple samples
-    else:
-        sample,sv,cnv,pi,ploidy = sample[0],svs[0],cnvs[0],pi[0],ploidy[0]
-        sv_df  = pd.DataFrame()
-        cnv_df = pd.DataFrame()
-        snv_df = pd.DataFrame()
-       
-        if params_file=='':
-            params_file = '%s/%s_params.txt' % (out,sample) 
-        if os.path.exists(params_file):
-            read_params = pd.read_csv(params_file,delimiter='\t',dtype=None,header=0)
-            rlen        = int(read_params.read_len.values[0])
-            insert      = float(read_params.insert_mean.values[0])
-        else:
-            print('%s/%s_params.txt file not found! Assuming read length = 100, mean insert length = 100' % (out,sample)) 
-
-        if snvs!="":
-            if snv_format == 'sanger':
-                snv_df = load_data.load_snvs_sanger(snvs)
-            elif snv_format == 'mutect':
-                snv_df = load_data.load_snvs_mutect(snvs,sample)
-            elif snv_format == 'mutect_callstats':
-                snv_df = load_data.load_snvs_mutect_callstats(snvs)
-            snv_df = run_simple_snv_filter(snv_df, min_dep, blist, check_valid_chrs, valid_chrs)
+    if svs!="":
+        sv_df = load_data.load_svs(svs)
+        sv_df = run_simple_filter(sv_df,rlen,insert,minsplit,minspan,sizefilter, \
+                                    min_dep,check_valid_chrs,valid_chrs,blist)
     
-        if sv!="":
-            sv_df = load_data.load_svs(sv)
-            sv_df = run_simple_filter(sv_df,rlen,insert,minsplit,minspan,sizefilter, \
-                                        min_dep,check_valid_chrs,valid_chrs,blist)
-        
-        if gml!="":
-            sv_df = filter_germline(gml,sv_df,rlen,insert,gl_th)
-       
-        if cnv!="":
-            cnv_df = load_data.load_cnvs(cnv)
+    if gml!="":
+        sv_df = filter_germline(gml,sv_df,rlen,insert,gl_th)
+   
+    if cnvs!="":
+        cnv_df = load_data.load_cnvs(cnvs)
 
-            if len(sv_df)>0:
-                print('Matching copy-numbers for SVs...')
-                sv_df = match_copy_numbers(sv_df,cnv_df,sv_offset) 
-                sv_df = match_copy_numbers(sv_df,cnv_df,sv_offset,['bp2_chr','bp2_pos','bp2_dir','classification','bp1_pos'],'gtype2') 
-                #sv_df = reprocess_unmatched_cnvs(sv_df,cnv_df)
-                sv_df = run_cnv_filter(sv_df,cnv,neutral,filter_otl,strict_cnv_filt,ploidy)
-                print('Keeping %d SVs' % len(sv_df))
-        
-            if len(snv_df)>0:
-                print('Matching copy-numbers for SNVs...')
-                snv_df = match_snv_copy_numbers(snv_df,cnv_df,sv_offset)
-                snv_df = run_cnv_filter(snv_df,cnv,neutral,filter_otl,strict_cnv_filt,ploidy,are_snvs=True)
-                print('Keeping %d SNVs' % len(snv_df))
-        else:
-            print('No CNV input defined, assuming all loci major/minor allele copy-numbers are ploidy/2')
-            if len(sv_df)>0:
-                maj_allele = round(ploidy/2) if round(ploidy) > 1 else 1
-                min_allele = round(ploidy/2) if round(ploidy) > 1 else 0
-                default_gtype = '%d,%d,1.0' % (maj_allele, min_allele)
-                sv_df['gtype1'] = default_gtype
-                sv_df['gtype2'] = default_gtype
-                if filter_otl:
-                    sv_df = run_cnv_filter(sv_df,cnv,neutral,filter_otl,strict_cnv_filt,ploidy)
-                print('Retained %d SVs' % len(sv_df))
-
-            if len(snv_df)>0:
-                maj_allele = round(ploidy/2) if round(ploidy) > 1 else 1
-                min_allele = round(ploidy/2) if round(ploidy) > 1 else 0
-                default_gtype = '%d,%d,1.0' % (maj_allele, min_allele)
-                snv_df['gtype'] = default_gtype
-                if filter_otl:
-                    snv_df = run_cnv_filter(snv_df,cnv,neutral,filter_otl,strict_cnv_filt,ploidy,are_snvs=True)
-                print('Retained %d SNVs' % len(snv_df))
-        
         if len(sv_df)>0:
-            sv_df.index = range(len(sv_df)) #reindex
-            sv_df = adjust_sv_read_counts(sv_df,pi,ploidy,min_dep,rlen,Config)
-            sv_df.to_csv('%s/%s_filtered_svs.tsv'%(out,sample),sep='\t',index=False,na_rep='')
-        
-        if len(snv_df)>0: 
-            if subsample > 0 and subsample < len(snv_df):
-                keep = random.sample(snv_df.index, subsample)
-                snv_df = snv_df.loc[keep]
-                print('Subsampling %d SNVs' % subsample)
-            snv_df = sort_by_loc(snv_df)
-            snv_df.index = range(len(snv_df)) #reindex
-            snv_df.to_csv('%s/%s_filtered_snvs.tsv'%(out,sample),sep='\t',index=False,na_rep='')
-        
-        with open('%s/purity_ploidy.txt'%out,'w') as outf:
-            outf.write("sample\tpurity\tploidy\n")
-            outf.write('%s\t%f\t%f\n'%(sample,pi,ploidy))
-        
-        with open('%s/read_params.txt'%out,'w') as outf:
-            outf.write("sample\tread_len\tinsert_mean\n")
-            outf.write('%s\t%f\t%f\n\n'%(sample,rlen,insert))
-        
-        # pr.disable()
-        # s = StringIO.StringIO()
-        # sortby = 'cumulative'
-        # ps = pstats.Stats(pr, stream=s).sort_stats(sortby)
-        # ps.print_stats()
-        # print s.getvalue()
+            print('Matching copy-numbers for SVs...')
+            sv_df = match_copy_numbers(sv_df,cnv_df,sv_offset) 
+            sv_df = match_copy_numbers(sv_df,cnv_df,sv_offset,\
+                    ['bp2_chr','bp2_pos','bp2_dir','classification','bp1_pos'],'gtype2') 
+            #sv_df = reprocess_unmatched_cnvs(sv_df,cnv_df)
+            sv_df = run_cnv_filter(sv_df,cnvs,neutral,filter_otl,strict_cnv_filt,ploidy)
+            print('Keeping %d SVs' % len(sv_df))
+    
+        if len(snv_df)>0:
+            print('Matching copy-numbers for SNVs...')
+            snv_df = match_snv_copy_numbers(snv_df,cnv_df,sv_offset)
+            snv_df = run_cnv_filter(snv_df,cnvs,neutral,filter_otl,strict_cnv_filt,ploidy,are_snvs=True)
+            print('Keeping %d SNVs' % len(snv_df))
+    else:
+        print('No CNV input defined, assuming all loci major/minor allele copy-numbers are ploidy/2')
+        if len(sv_df)>0:
+            maj_allele = round(ploidy/2) if round(ploidy) > 1 else 1
+            min_allele = round(ploidy/2) if round(ploidy) > 1 else 0
+            default_gtype = '%d,%d,1.0' % (maj_allele, min_allele)
+            sv_df['gtype1'] = default_gtype
+            sv_df['gtype2'] = default_gtype
+            if filter_otl:
+                sv_df = run_cnv_filter(sv_df,cnvs,neutral,filter_otl,strict_cnv_filt,ploidy)
+            print('Retained %d SVs' % len(sv_df))
+
+        if len(snv_df)>0:
+            maj_allele = round(ploidy/2) if round(ploidy) > 1 else 1
+            min_allele = round(ploidy/2) if round(ploidy) > 1 else 0
+            default_gtype = '%d,%d,1.0' % (maj_allele, min_allele)
+            snv_df['gtype'] = default_gtype
+            if filter_otl:
+                snv_df = run_cnv_filter(snv_df,cnvs,neutral,filter_otl,strict_cnv_filt,ploidy,are_snvs=True)
+            print('Retained %d SNVs' % len(snv_df))
+    
+    if len(sv_df)>0:
+        sv_df.index = range(len(sv_df)) #reindex
+        sv_df = adjust_sv_read_counts(sv_df,pi,ploidy,min_dep,rlen,Config)
+        sv_df.to_csv('%s/%s_filtered_svs.tsv'%(out,sample),sep='\t',index=False,na_rep='')
+    
+    if len(snv_df)>0: 
+        if subsample > 0 and subsample < len(snv_df):
+            keep = random.sample(snv_df.index, subsample)
+            snv_df = snv_df.loc[keep]
+            print('Subsampling %d SNVs' % subsample)
+        snv_df = sort_by_loc(snv_df)
+        snv_df.index = range(len(snv_df)) #reindex
+        snv_df.to_csv('%s/%s_filtered_snvs.tsv'%(out,sample),sep='\t',index=False,na_rep='')
+    
+    # pr.disable()
+    # s = StringIO.StringIO()
+    # sortby = 'cumulative'
+    # ps = pstats.Stats(pr, stream=s).sort_stats(sortby)
+    # ps.print_stats()
+    # print s.getvalue()
 

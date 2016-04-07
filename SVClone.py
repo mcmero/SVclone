@@ -31,17 +31,11 @@ identify_parser.add_argument("-i","--input",dest="svin",required=True,
 identify_parser.add_argument("-b","--bam",dest="bam",required=True,
                     help="Corresponding indexed BAM file")
 
-identify_parser.add_argument("-o","--out",dest="out",required=True,
-                    help='''Output base name. May contain directories. Will create pre-processed output as 
-                    <name>_svin.txt''')
+identify_parser.add_argument("-s","--sample",dest="sample",required=True,
+                    help='''Sample name. Output is written to <out_dir>/<sample>_svin.txt.''')
 
-#identify_parser.add_argument("-cn","--max_cn",dest="max_cn",default=10,type=int,
-#                    help='''Optional: maximum expected copy-number. Will skip the processing of any areas 
-#                    where reads > average coverage * max_cn''')
-#
-#identify_parser.add_argument("-d","--mean_depth",dest="mean_dp",type=float,default=50,
-#                    help='''Average coverage for BAM file in covered region. May be calculated across 
-#                    binned intervals and may be approximate''')
+identify_parser.add_argument("-o","--out",dest="out",default="",
+                    help='''Output directory. Sample name by default.''')
 
 identify_parser.add_argument("--simple",dest="simple_svs",action="store_true",
                     help="Whether sv input is in a simple format (see README), otherwise VCF format is assumed.")
@@ -89,22 +83,11 @@ count_parser.add_argument("-i","--input",dest="svin",required=True,
 count_parser.add_argument("-b","--bam",dest="bam",required=True,
                     help="Corresponding indexed BAM file")
 
-count_parser.add_argument("-o","--out",dest="out",required=True,
-                    help='''Output base name. May contain directories. Will create processed output as 
-                    <name>_svinfo.txt.''')
+count_parser.add_argument("-s","--sample",dest="sample",required=True,
+                    help='''Sample name. Output is written to <out_dir>/<sample>_svinfo.txt.''')
 
-#count_parser.add_argument("-d","--mean_depth",dest="mean_dp",type=float,default=50,
-#                    help='''Average coverage for BAM file in covered region. May be calculated across 
-#                    binned intervals and may be approximate''')
-#
-#count_parser.add_argument("-sc","--softclip",dest="sc_len",default=10,type=int,
-#                    help='''Optional: minimum number of basepairs by which reads spanning the break are 
-#                    considered support the breakpoint. Also affects number of base-pairs a normal read 
-#                    must overlap the break to be counted. Default = 10''')
-#
-#count_parser.add_argument("-cn","--max_cn",dest="max_cn",default=10,type=int,
-#                    help='''Optional: maximum expected copy-number. Will skip the processing of any areas 
-#                    where reads > average coverage * max_cn''')
+count_parser.add_argument("-o","--outdir",dest="outdir",default="",
+                    help='''Output directory. Default: sample name.''')
 
 count_parser.add_argument("-r","--read_len",dest="rlen",default=-1,type=int,
                     help="Read length. If not specified, will be inferred")
@@ -148,10 +131,10 @@ filter_parser.add_argument("--min_depth",dest="min_dep",type=float,default=2,
                     help='''Filter out any variants with total depth below this value (default = 2). Applies to
                     SVs and SNVs.''')
 
-filter_parser.add_argument("--params",dest="params_file",default="",
-                    help='''Parameters file from processing step. If not supplied, the default search path 
-                    is <outdir>/<sample>_params.txt. If the file does not exist, a read length and mean
-                    insert length of 100 will be selected.''')
+filter_parser.add_argument("--params",dest="param_file",default="",
+                    help='''Read parameters file containing read length, average insert and insert standard
+                    deviation (see README). If not supplied, the default search path is <outdir>/<sample>_params.txt. 
+                    If the file does not exist, a read length of 100 and mean insert length of 300 will be allocated.''')
 
 filter_parser.add_argument("--neutral",dest="neutral",action="store_true",
                     help="Keep only copy-number neutral SVs.")
@@ -167,14 +150,15 @@ filter_parser.add_argument("--snv_format",dest="snv_format",
 filter_parser.add_argument("--subsample",dest="subsample",default=0,type=int,
                     help="Subsample N SNVs from total filtered output.")
 
-filter_parser.add_argument("-o","--outdir",dest="outdir",default=".",
-                    help="Output directory. Default: current directory")
+filter_parser.add_argument("-o","--outdir",dest="outdir",default="",
+                    help='''Output directory. Default: sample name.''')
 
-filter_parser.add_argument("-p","--purity",dest="pi",default="1.",
-                    help='''Tumour puritie for given sample. Default is 100%% purity.''')
+filter_parser.add_argument("-p","--purity_ploidy",dest="pp_file",default="",
+                    help='''Tumour purity ploidy file. See README for format. The default file path is 
+                    <outdir>/purity_ploidy.txt. If not found, default purity = 1 (100%); default ploidy = 2.''')
 
-filter_parser.add_argument("-y","--ploidy",dest="ploidy",default="2.0",
-                    help="Tumour ploidy; default = 2 (diploid).")
+#filter_parser.add_argument("-y","--ploidy",dest="ploidy",default="2.0",
+#                    help="Tumour ploidy; default = 2 (diploid).")
 
 filter_parser.add_argument("--minsplit",dest="minsplit",default=1,
                     help="Require at least N split reads to keep SV (default = 1).")
@@ -215,8 +199,8 @@ cluster_parser.add_argument("-cfg","--config",dest="cfg",default="svclone_config
 cluster_parser.add_argument("-s","--sample",dest="sample",required=True,
                     help='''Sample name.''')
 
-cluster_parser.add_argument("-o","--outdir",dest="outdir",default=".",
-                    help="Output directory. Default: current directory")
+cluster_parser.add_argument("-o","--outdir",dest="outdir",default="",
+                    help="Output directory. Default: sample name.")
 
 cluster_parser.add_argument("-n","--n_runs",dest="n_runs",default=1,type=int,
                     help="Number of times to run whole rounds of sampling.")
@@ -224,9 +208,14 @@ cluster_parser.add_argument("-n","--n_runs",dest="n_runs",default=1,type=int,
 cluster_parser.add_argument("-t","--n_iter",dest="n_iter",default=10000,type=int,
                     help="Number of MCMC iterations.")
 
-cluster_parser.add_argument("--params",dest="params_file",default="",
-                    help='''Parameters file from processing step. If not supplied, the default search path 
-                    is <outdir>/<sample>_params.txt''')
+cluster_parser.add_argument("--params",dest="param_file",default="",
+                    help='''Read parameters file containing read length, average insert and insert standard
+                    deviation (see README). If not supplied, the default search path is <outdir>/<sample>_params.txt. 
+                    If the file does not exist, a read length of 100 and mean insert length of 300 will be allocated.''')
+
+cluster_parser.add_argument("-p","--purity_ploidy",dest="pp_file",default="",
+                    help='''Tumour purity ploidy file. See README for format. The default file path is 
+                    <outdir>/purity_ploidy.txt. If not found, default purity = 1 (100%); default ploidy = 2.''')
 
 cluster_parser.add_argument("--burn",dest="burn",default=0,type=int,
                     help="Burn-in for MCMC (default 0.)")
@@ -236,11 +225,6 @@ cluster_parser.add_argument("--thin",dest="thin",default=1,type=int,
 
 cluster_parser.add_argument("--no_plot",dest="plot",action="store_false",default=True,
                     help="Do not create output plot")
-
-#cluster_parser.add_argument("--beta",dest="beta",default="0.9,1/0.9,2",type=str,
-#                    help='''Comma separated; first two values determine the shape and scale (1/rate) 
-#                    parameters used in the Dirichlet Processes' gamma function. The third value is the 
-#                    initial value. Default values: "0.9,1/0.9,2" (shape = 0.9, scale = 1/0.9, init = 2)''')
 
 cluster_parser.add_argument("--merge",dest="merge_clusts",action="store_true",
                     help="Set to merge clusters.")

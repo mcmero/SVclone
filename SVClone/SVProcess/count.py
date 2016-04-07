@@ -391,7 +391,8 @@ def get_sv_read_counts(row,bam,inserts,max_dp,min_ins,max_ins,sc_len,out,split_r
     print('processed %d reads at loc1; %d reads at loc2' % (len(loc1_reads),len(loc2_reads)))
     return rc, split_reads, span_reads, anom_reads
 
-def get_params(bam,mean_cov,max_cn,rlen,insert_mean,insert_std,out):
+def get_params(bam,mean_cov,max_cn,rlen,insert_mean,insert_std,sample,out):
+
     inserts = [insert_mean,insert_std]
     if rlen<0:
         rlen = bamtools.estimateTagSize(bam)
@@ -400,14 +401,16 @@ def get_params(bam,mean_cov,max_cn,rlen,insert_mean,insert_std,out):
         inserts = (max(rlen*2,inserts[0]),inserts[1])
     else:
         inserts[0] = inserts[0]
-    
+
     max_ins = inserts[0]+(3*inserts[1]) #max fragment size = mean fragment len + (fragment std * 3)
     min_ins = rlen*2
     max_dp = ((mean_cov*(max_ins*2))/rlen)*max_cn
-    
-    with open('%s_params.txt'%out,'w') as outp:
-        outp.write('read_len\tinsert_mean\tinsert_std\tinsert_min\tinsert_max\tmax_dep\n')
-        outp.write('%d\t%f\t%f\t%f\t%f\t%d'%(rlen,inserts[0],inserts[1],min_ins,max_ins,max_dp))
+
+    default_loc = '%s/read_params.txt'%out
+    if not os.path.exists(default_loc):
+        with open(default_loc,'w') as outp:
+            outp.write('sample\tread_len\tinsert_mean\tinsert_std\n')
+            outp.write('%s\t%d\t%f\t%f\n\n'%(sample,rlen,inserts[0],inserts[1]))
 
     return rlen, inserts, max_dp, max_ins, min_ins
 
@@ -466,7 +469,8 @@ def proc_svs(args):
     
     svin         = args.svin
     bam          = args.bam
-    out          = args.out
+    sample       = args.sample
+    out          = args.outdir
     rlen         = int(args.rlen)
     insert_mean  = float(args.insert_mean)
     insert_std   = float(args.insert_std)
@@ -485,12 +489,14 @@ def proc_svs(args):
     threshold = int(Config.get('GlobalParameters', 'threshold'))
     norm_overlap = int(Config.get('GlobalParameters', 'norm_overlap'))
 
-    outname = '%s_svinfo.txt'%out
+    out = sample if out == "" else out
+    outname = '%s/%s_svinfo.txt' % (out, sample)
+
     dirname = os.path.dirname(out)
     if dirname!='' and not os.path.exists(dirname):
         os.makedirs(dirname)
-
-    rlen, inserts, max_dp, max_ins, min_ins = get_params(bam, mean_cov, max_cn, rlen, insert_mean, insert_std, out)
+    
+    rlen, inserts, max_dp, max_ins, min_ins = get_params(bam, mean_cov, max_cn, rlen, insert_mean, insert_std, sample, out)
 
     # write header output
     header_out = [h[0] for idx,h in enumerate(dtypes.sv_out_dtype)]
