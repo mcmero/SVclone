@@ -671,9 +671,9 @@ def run(args):
 #            return map(of_type,arg)
 
     out = sample if out == "" else out
-    dirname = os.path.dirname(out)
-    if dirname!='' and not os.path.exists(dirname):
-        os.makedirs(dirname)
+
+    if out!='' and not os.path.exists(out):
+        os.makedirs(out)
 
     pi, ploidy = svp_load.get_purity_ploidy(pp_file, sample, out)
     rlen, insert, insert_std = svp_load.get_read_params(param_file, sample, out)

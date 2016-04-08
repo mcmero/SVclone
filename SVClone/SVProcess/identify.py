@@ -408,9 +408,8 @@ def preproc_svs(args):
     out = sample if out == "" else out
     outname = '%s/%s_svin.txt' % (out, sample)
 
-    dirname = os.path.dirname(out)
-    if dirname!='' and not os.path.exists(dirname):
-        os.makedirs(dirname)
+    if out!='' and not os.path.exists(out):
+        os.makedirs(out)
 
     svs = np.empty(0)
     if simple:

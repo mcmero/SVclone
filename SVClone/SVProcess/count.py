@@ -492,9 +492,8 @@ def proc_svs(args):
     out = sample if out == "" else out
     outname = '%s/%s_svinfo.txt' % (out, sample)
 
-    dirname = os.path.dirname(out)
-    if dirname!='' and not os.path.exists(dirname):
-        os.makedirs(dirname)
+    if out!='' and not os.path.exists(out):
+        os.makedirs(out)
     
     rlen, inserts, max_dp, max_ins, min_ins = get_params(bam, mean_cov, max_cn, rlen, insert_mean, insert_std, sample, out)
 
