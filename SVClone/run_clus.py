@@ -274,6 +274,7 @@ def post_process_clusters(mcmc,sv_df,snv_df,merge_clusts,clus_out_dir,sup,dep,cn
     
 def run_clustering(args):
     
+    snv_file        = args.snv_file
     sample          = args.sample
     n_runs          = args.n_runs
     n_iter          = args.n_iter
