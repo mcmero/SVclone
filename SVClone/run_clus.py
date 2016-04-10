@@ -275,6 +275,7 @@ def post_process_clusters(mcmc,sv_df,snv_df,merge_clusts,clus_out_dir,sup,dep,cn
 def run_clustering(args):
     
     snv_file        = args.snv_file
+    sv_file         = args.sv_file
     sample          = args.sample
     n_runs          = args.n_runs
     n_iter          = args.n_iter
@@ -322,8 +323,11 @@ def run_clustering(args):
     sv_df       = pd.DataFrame()
     snv_df      = pd.DataFrame()
 
-    sv_file     = '%s/%s_filtered_svs.tsv' % (out,sample)
-    snv_file    = '%s/%s_filtered_snvs.tsv' % (out,sample)
+    sv_file     = sv_file if sv_file != '' else '%s/%s_filtered_svs.tsv' % (out,sample)
+    snv_file    = snv_file if snv_file != '' else '%s/%s_filtered_snvs.tsv' % (out,sample)
+
+    if not os.path.exists(snv_file) and not os.path.exists(sv_file):
+        raise OSError('Neither SNV nor SV input files were found!')
 
     if os.path.exists(sv_file):
         sv_df = pd.read_csv(sv_file,delimiter='\t',dtype=None,header=0,low_memory=False)
@@ -332,7 +336,7 @@ def run_clustering(args):
     if os.path.exists(snv_file):
         snv_df = pd.read_csv(snv_file,delimiter='\t',dtype=None,header=0,low_memory=False)
         snv_df = pd.DataFrame(snv_df).fillna('')
-    
+
     clus_info,center_trace,ztrace,clus_members = None,None,None,None    
     for i in range(n_runs):
         print("Cluster run: %d"%i)

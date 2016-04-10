@@ -196,6 +196,9 @@ cluster_parser = subparsers.add_parser('cluster', help='Run clustering step')
 cluster_parser.add_argument("-cfg","--config",dest="cfg",default="svclone_config.ini",
                     help="Config file.")
 
+cluster_parser.add_argument("-i","--input",default="",dest="sv_file",
+                    help="Filtered structural variant input from filter step. Default loc: <outdir>/<sample>_filtered_svs.tsv")
+
 cluster_parser.add_argument("-s","--sample",dest="sample",required=True,
                     help='''Sample name.''')
 
@@ -246,7 +249,7 @@ cluster_parser.add_argument("--smc_het",action="store_true",
                     to the usual output.''') 
 
 cluster_parser.add_argument("--snvs",dest="snv_file",default="",
-                    help="To specify filtered SNVs output from Filter Step")
+                    help="To specify filtered SNVs output from Filter Step. Default loc: <outdir>/<sample>_filtered_snvs.tsv")
 
 cluster_parser.add_argument("--write_matrix",action="store_true",
                     help='''Write an N by N co-clustering matrix, giving the probabilities that variant i and j 
