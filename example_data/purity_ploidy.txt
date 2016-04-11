@@ -1,0 +1,2 @@
+sample	purity	ploidy
+tumour_p100_INV	0.800000	2.000000

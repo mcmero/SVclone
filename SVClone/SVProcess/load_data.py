@@ -161,7 +161,7 @@ def get_purity_ploidy(pp_file, sample, out):
     else:
         print('WARNING: No purity/ploidy file found. Assuming purity = %f, ploidy = %f' % (pi,pl))
 
-    if not os.path.exists(default_loc):
+    if pp_file != default_loc:
         with open('%s/purity_ploidy.txt'%out,'w') as outf:
             outf.write("sample\tpurity\tploidy\n")
             outf.write('%s\t%f\t%f\n'%(sample,pi,pl))
@@ -190,7 +190,7 @@ def get_read_params(params_file, sample, out):
     else:
         print('WARNING: read_params.txt file not found! Assuming read length = %d, mean insert length = %d' % (rlen,insert)) 
 
-    if not os.path.exists(default_loc):
+    if params_file != default_loc:
         with open('%s/read_params.txt'%out,'w') as outf:
             outf.write("sample\tread_len\tinsert_mean\tinsert_std\n")
             outf.write('%s\t%f\t%f\t%f\n\n'%(sample,rlen,insert,std))

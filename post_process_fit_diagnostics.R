@@ -241,16 +241,22 @@ for (run in runs) {
     
     #attach table for convenience, also add BIC/AIC
     tabout <- sv_clust[order(as.numeric(sv_clust[,3]),decreasing=TRUE),]
-    ic <- read.table(paste(run, '/', snv_dir, id, '_fit.txt', sep=''), 
-                     sep='\t', header=F, stringsAsFactors = F)
-    #ic <- cbind(ic[1,],ic[2,]); colnames(ic) <- colnames(tabout)
-    ic <- data.frame(t(ic)); colnames(ic) <- c('BIC','AIC'); ic <- ic[-1,]
-    ic_tab <- tableGrob(ic, rows=c())
     sc_tab <- tableGrob(tabout, rows=c())
+    if (map) {
+        ic <- read.table(paste(run, '/', snv_dir, id, '_fit.txt', sep=''), 
+                     sep='\t', header=F, stringsAsFactors = F)
+        ic <- data.frame(t(ic)); colnames(ic) <- c('BIC','AIC'); ic <- ic[-1,]
+        ic_tab <- tableGrob(ic, rows=c())
         
-    height <- 7+round(nrow(tabout)*0.2)
-    pdf(paste(id, run, 'fit.pdf',sep='_'),height=height)
-    grid.arrange(arrangeGrob(sc_tab, ic_tab, nrow=1), plot1, plot2, ncol=1)
-    dev.off()
+        height <- 7+round(nrow(tabout)*0.2)
+        pdf(paste(id, run, 'fit.pdf',sep='_'), height=height)
+        grid.arrange(arrangeGrob(sc_tab, ic_tab, nrow=1), plot1, plot2, ncol=1)
+        dev.off()
+    } else {
+        height <- 7+round(nrow(tabout)*0.2)
+        pdf(paste(id, run, 'fit.pdf',sep='_'), height=height)
+        grid.arrange(sc_tab, plot1, plot2, ncol=1)
+        dev.off()
+    }
 }
 
