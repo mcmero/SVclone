@@ -7,7 +7,6 @@ import ConfigParser
 import numpy as np
 import pysam
 import csv
-import ipdb
 import vcf
 
 from collections import OrderedDict

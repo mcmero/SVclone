@@ -1,14 +1,14 @@
 from setuptools import setup
 
-setup(name='SVClone',
+setup(name='SVclone',
       version='0.1.1',
       description='Cluster structural variants of subclonal origin',
       url='https://bitbucket.org/mcmero/svclone',
       author='Marek Cmero',
-      author_email='mcmero@student.unimelb.edu.au',
+      author_email='cmerom[at]gmail.com',
       license='',
-      packages=['SVClone'],
-      scripts=['SVClone.py'],
+      packages=['SVclone'],
+      scripts=['SVclone.py'],
       long_description=open('README.md').read(),
       zip_safe=False)
 

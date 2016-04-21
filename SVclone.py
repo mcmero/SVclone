@@ -4,17 +4,17 @@
 Commandline input for running SV
 '''
 
-from SVClone import run_filter
-from SVClone import run_clus
-from SVClone.SVProcess import identify
-from SVClone.SVProcess import count
+from SVclone import run_filter
+from SVclone import run_clus
+from SVclone.SVprocess import identify
+from SVclone.SVprocess import count
 
 import argparse
 import numpy as np
 
-parser = argparse.ArgumentParser(prog='SVClone')
+parser = argparse.ArgumentParser(prog='SVclone')
 
-parser.add_argument('--version', action='version', version='SVClone-1.0.0')
+parser.add_argument('--version', action='version', version='SVclone-1.0.0')
 
 subparsers = parser.add_subparsers()
 

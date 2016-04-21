@@ -6,7 +6,6 @@ from __future__ import print_function
 import os
 import ConfigParser
 import numpy as np
-import ipdb
 import re
 import pandas as pd
 import vcf
@@ -14,7 +13,7 @@ import random
 # import cProfile, pstats, StringIO
 
 from operator import methodcaller
-from SVProcess import load_data as svp_load
+from SVprocess import load_data as svp_load
 from . import run_clus
 from . import cluster
 from . import load_data

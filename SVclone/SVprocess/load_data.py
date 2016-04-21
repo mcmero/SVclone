@@ -1,6 +1,5 @@
 import vcf
 import numpy as np
-import ipdb
 import os
 from collections import OrderedDict
 from . import dtypes

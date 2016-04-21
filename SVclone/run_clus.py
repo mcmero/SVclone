@@ -4,7 +4,6 @@ Facilitates clustering of SVs
 from __future__ import print_function
 
 import subprocess
-import ipdb
 import os
 import ConfigParser
 import pandas as pd
@@ -21,7 +20,7 @@ from pymc.utils import hpd
 from . import cluster
 from . import load_data
 from . import write_output
-from SVProcess import load_data as svp_load
+from SVprocess import load_data as svp_load
 
 import numpy as np
 from numpy import loadtxt

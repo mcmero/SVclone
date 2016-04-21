@@ -4,7 +4,6 @@ import ConfigParser
 import numpy as np
 import vcf
 import pysam
-import ipdb
 import os
 
 from . import load_data
