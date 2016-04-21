@@ -3,7 +3,7 @@ import numpy as np
 import ipdb
 import os
 from collections import OrderedDict
-from .. import dtypes
+from . import dtypes
 
 def remove_duplicates(svs):
     for idx,row in enumerate(svs):
@@ -13,7 +13,7 @@ def remove_duplicates(svs):
             svs[idx] = (sv_id, bp2_chr,bp2_pos,bp2_dir,bp1_chr,bp1_pos,bp1_dir,sv_class)
     return np.unique(svs)
 
-def load_input_vcf(svin,class_field):
+def load_input_vcf(svin,class_field,use_dir):
     sv_dtype = [s for i,s in enumerate(dtypes.sv_dtype)]
     
     sv_vcf = vcf.Reader(filename=svin)
@@ -24,7 +24,8 @@ def load_input_vcf(svin,class_field):
             if len(sv.FILTER)>0:
                 continue
         
-        sv_dict[sv.ID] = {'CHROM': sv.CHROM, 'POS': sv.POS, 'INFO': sv.INFO}
+        sv_dict[sv.ID] = {'CHROM': sv.CHROM, 'POS': sv.POS, 'INFO': sv.INFO, 
+                          'REF': str(sv.REF[0]), 'ALT': str(sv.ALT[0])}
 
     svs = np.empty(0,sv_dtype)
     procd = np.empty(0,dtype='S50')
@@ -33,20 +34,30 @@ def load_input_vcf(svin,class_field):
         try:
             sv = sv_dict[sv_id]
             mate_id = sv['INFO']['MATEID']
+            if type(mate_id) == type([]): 
+                mate_id = mate_id[0]
             mate = sv_dict[mate_id]
             
             if (sv_id in procd) or (mate_id in procd): 
                 continue
             
+            bp1_dir, bp2_dir = '?', '?'
             bp1_chr = sv['CHROM']
             bp1_pos = sv['POS']
             bp2_chr = mate['CHROM']
             bp2_pos = mate['POS']
             sv_class = sv['INFO'][class_field] if class_field!='' else ''
 
+            if use_dir:
+                if sv['ALT'].startswith(']') or sv['ALT'].startswith('['): bp1_dir = '-'
+                if sv['ALT'].endswith('[') or sv['ALT'].endswith(']'): bp1_dir = '+'
+                if mate['ALT'].startswith(']') or mate['ALT'].startswith('['): bp2_dir = '-'
+                if mate['ALT'].endswith('[') or mate['ALT'].endswith(']'): bp2_dir = '+'
+
             procd = np.append(procd,[sv_id,mate_id])
-            new_id = int(sv_id.split('_')[0])
-            new_sv = np.array([(new_id,bp1_chr,bp1_pos,'?',bp2_chr,bp2_pos,'?',sv_class)],dtype=sv_dtype)        
+            new_id = sv_id.split('_')
+            new_id = int(new_id[0]) if len(new_id) > 1 else 0
+            new_sv = np.array([(new_id,bp1_chr,bp1_pos,bp1_dir,bp2_chr,bp2_pos,bp2_dir,sv_class)],dtype=sv_dtype)
             svs = np.append(svs,new_sv)
         except KeyError:
             print("SV %s improperly paired or missing attributes"%sv_id)

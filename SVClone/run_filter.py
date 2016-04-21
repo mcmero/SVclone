@@ -751,7 +751,10 @@ def run(args):
             if filter_otl:
                 snv_df = run_cnv_filter(snv_df,cnvs,neutral,filter_otl,strict_cnv_filt,ploidy,are_snvs=True)
             print('Retained %d SNVs' % len(snv_df))
-    
+   
+    if len(sv_df)==0 and len(snv_df)==0:
+        raise ValueError('No variants found to output!')
+
     if len(sv_df)>0:
         sv_df.index = range(len(sv_df)) #reindex
         sv_df = adjust_sv_read_counts(sv_df,pi,ploidy,min_dep,rlen,Config)

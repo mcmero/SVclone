@@ -11,7 +11,7 @@ from . import load_data
 from . import count
 from . import svDetectFuncs as svd
 from . import bamtools
-from .. import dtypes
+from . import dtypes
 
 def classify_event(sv, sv_id, svd_prev_result, prev_sv):
     svd_result = svd.detect(prev_sv, svd_prev_result, sv)
@@ -374,6 +374,39 @@ def sv_in_blacklist(sv, blist):
 
     return False
 
+def infer_sv_dirs(svs, ca, bam, max_dep, sc_len, threshold, blist):
+
+    print('Inferring SV directions...')
+    for idx, sv in enumerate(svs):
+        if len(blist) > 0 and sv_in_blacklist(sv, blist):
+            svs[idx]['classification'] = 'BLACKLIST'
+            continue
+        svs[idx], ca[idx] = get_dir_info(sv, bam, max_dep, sc_len, threshold)
+
+#        tmp_out = '%s_dirout.txt' % out
+#        svs = np.genfromtxt(tmp_out, delimiter='\t', names=True, dtype=None, invalid_raise=False)
+         # write directionality output (for debugging)
+#        with open(tmp_out, 'w') as outf:
+#            writer = csv.writer(outf, delimiter='\t', quoting=csv.QUOTE_NONE, quotechar='')
+#            header = [field for field, dtype in dtypes.sv_dtype]
+#            writer.writerow(header)
+#            for sv_out in svs:
+#                writer.writerow(sv_out)
+
+    while num_mixed_svs(svs)>0:
+
+        before = num_mixed_svs(svs)
+        svs = split_mixed_svs(svs, ca, threshold)
+        after = num_mixed_svs(svs)
+        print('%d mixed classifications remain' % after)
+
+        # to prevent infinite loops...
+        if before == after:
+            print('Failed to fix mixed direction SVs. Skipping...')
+            break
+
+    return svs, ca
+
 def preproc_svs(args):
 
     svin         = args.svin
@@ -412,12 +445,13 @@ def preproc_svs(args):
         os.makedirs(out)
 
     svs = np.empty(0)
+    print('Loading SV calls...')
     if simple:
         svs = load_data.load_input_simple(svin, use_dir, class_field)
     elif socrates:
         svs = load_data.load_input_socrates(svin, use_dir, min_mapq, filt_repeats, Config)
     else:
-        svs = load_data.load_input_vcf(svin, class_field)
+        svs = load_data.load_input_vcf(svin, class_field, use_dir)
 
     blist = np.empty(0)
     if blist_file != '':
@@ -437,36 +471,7 @@ def preproc_svs(args):
     max_dep = ((mean_cov*(max_ins*2))/rlen)*max_cn
     
     if not use_dir:
-        print('Inferring SV directions...')
-        for idx, sv in enumerate(svs):
-            if len(blist) > 0 and sv_in_blacklist(sv, blist):
-                svs[idx]['classification'] = 'BLACKLIST'
-                continue
-            svs[idx], ca[idx] = get_dir_info(sv, bam, max_dep, sc_len, threshold)
-
-#        tmp_out = '%s_dirout.txt' % out
-#        svs = np.genfromtxt(tmp_out, delimiter='\t', names=True, dtype=None, invalid_raise=False)
-    
-        # write directionality output (for debugging)
-#        with open(tmp_out, 'w') as outf:
-#            writer = csv.writer(outf, delimiter='\t', quoting=csv.QUOTE_NONE, quotechar='')
-#            header = [field for field, dtype in dtypes.sv_dtype]
-#            writer.writerow(header)
-#            for sv_out in svs:
-#                writer.writerow(sv_out)
-                
-        while num_mixed_svs(svs)>0:
-
-            before = num_mixed_svs(svs)
-            svs = split_mixed_svs(svs, ca, threshold)
-            after = num_mixed_svs(svs)
-            print('%d mixed classifications remain' % after)
-            
-            # to prevent infinite loops...
-            if before == after:
-                print('Failed to fix mixed direction SVs. Skipping...')
-                break
-
+        svs, ca = infer_sv_dirs(svs, ca, bam, max_dep, sc_len, threshold, blist)
     elif not trust_sc_pos:
         print('Recalibrating consensus alignments...')
         # use directions, but recheck the consensus alignments

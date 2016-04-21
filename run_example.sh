@@ -1,6 +1,6 @@
 #!/bin/sh
 
-input=example_data/tumour_p80_DEL_svin.txt
+input=example_data/tumour_p80_DEL_svs_simple.txt
 bam=example_data/tumour_p80_DEL_sv_extract_sorted.bam
 sample=tumour_p80_DEL
 
@@ -12,4 +12,4 @@ sample=tumour_p80_DEL
 
 ./SVClone.py cluster -s $sample -n 4 --map --burn 2000
 
-Rscript post_process_fit_diagnostics.R $sample $sample
+Rscript post_process_fit_diagnostics.R $sample $sample --map
