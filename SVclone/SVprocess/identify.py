@@ -406,20 +406,16 @@ def infer_sv_dirs(svs, ca, bam, max_dep, sc_len, threshold, blist):
 
     return svs, ca
 
+def string_to_bool(v):
+  return v.lower() in ("yes", "true", "t", "1")
+
 def preproc_svs(args):
 
     svin         = args.svin
     bam          = args.bam
     out          = args.out
     sample       = args.sample
-    simple       = args.simple_svs
-    socrates     = args.socrates
-    use_dir      = args.use_dir
-    min_mapq     = args.min_mapq
-    class_field  = args.class_field
-    filt_repeats = args.filt_repeats
-    trust_sc_pos = args.trust_sc_pos
-    rlen         = args.rlen
+    sv_format    = args.sv_format
     blist_file   = args.blist
 
     cfg = args.cfg
@@ -429,13 +425,23 @@ def preproc_svs(args):
     if len(cfg_file)==0:
         raise ValueError('No configuration file found')
 
-    max_cn   = int(Config.get('GlobalParameters', 'max_cn'))
-    mean_cov = int(Config.get('GlobalParameters', 'mean_cov'))
-    sc_len   = int(Config.get('GlobalParameters', 'sc_len'))
-    threshold = int(Config.get('GlobalParameters', 'threshold'))
+    max_cn       = int(Config.get('BamParameters', 'max_cn'))
+    mean_cov     = int(Config.get('BamParameters', 'mean_cov'))
+    rlen         = int(Config.get('BamParameters', 'read_len'))
 
+    use_dir      = string_to_bool(Config.get('SVidentifyParameters', 'use_dir'))
+    trust_sc_pos = string_to_bool(Config.get('SVidentifyParameters', 'trust_sc_position'))
+    sc_len       = int(Config.get('SVcountParameters', 'sc_len'))
+    threshold    = int(Config.get('SVcountParameters', 'threshold'))
+
+    min_mapq     = int(Config.get('SocratesOpts', 'min_mapq'))
+    filt_repeats = str(Config.get('SocratesOpts', 'filter_repeats'))
+    filt_repeats = '' if filt_repeats == 'none' else filt_repeats
     filt_repeats = filt_repeats.split(', ') if filt_repeats != '' else filt_repeats
     filt_repeats = [rep for rep in filt_repeats if rep != '']
+
+    class_field  = str(Config.get('SVidentifyParameters', 'sv_class_field'))
+    class_field  = '' if class_field == 'none' else class_field
 
     out = sample if out == "" else out
     outname = '%s/%s_svin.txt' % (out, sample)
@@ -445,12 +451,14 @@ def preproc_svs(args):
 
     svs = np.empty(0)
     print('Loading SV calls...')
-    if simple:
+    if sv_format == 'vcf':
+        svs = load_data.load_input_vcf(svin, class_field, use_dir)
+    elif sv_format == 'simple':
         svs = load_data.load_input_simple(svin, use_dir, class_field)
-    elif socrates:
+    elif sv_format == 'socrates':
         svs = load_data.load_input_socrates(svin, use_dir, min_mapq, filt_repeats, Config)
     else:
-        svs = load_data.load_input_vcf(svin, class_field, use_dir)
+        raise ValueError('Valid input format not specified.')
 
     blist = np.empty(0)
     if blist_file != '':

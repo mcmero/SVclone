@@ -228,6 +228,7 @@ def post_process_clusters(mcmc,sv_df,snv_df,merge_clusts,clus_out_dir,sup,dep,cn
     snv_probs = pd.DataFrame()
     snv_ccert = pd.DataFrame()
     snv_members = np.empty(0)
+    
     if len(snv_df)>0:
         snv_pos = ['chrom','pos']
         snv_probs = df_probs.loc[:len(snv_df)-1]
@@ -269,29 +270,22 @@ def post_process_clusters(mcmc,sv_df,snv_df,merge_clusts,clus_out_dir,sup,dep,cn
         sv_cn_states = cn_states[lb:lb+len(sv_df)]
         write_output.write_out_files(sv_df,clus_info,sv_members,
                     sv_probs,sv_ccert,clus_out_dir,sparams['sample'],sparams['pi'],sv_sup,
-                    sv_dep,sv_cn_states,map_,z_trace,write_matrix,smc_het)
-    
+                    sv_dep,sv_cn_states,map_,z_trace,smc_het,write_matrix)
+
+def string_to_bool(v):
+  return v.lower() in ("yes", "true", "t", "1")
+
 def run_clustering(args):
     
     snv_file        = args.snv_file
     sv_file         = args.sv_file
     sample          = args.sample
-    n_runs          = args.n_runs
-    n_iter          = args.n_iter
-    burn            = args.burn
-    thin            = args.thin
-    plot            = args.plot
-    use_map         = args.use_map
-    merge_clusts    = args.merge_clusts
-    cocluster       = args.cocluster
     out             = args.outdir
     param_file      = args.param_file
     pp_file         = args.pp_file
-    no_adjust       = args.no_adjust
     cfg             = args.cfg
-    smc_het         = args.smc_het
-    write_matrix    = args.write_matrix
 
+    out = sample if out == "" else out
     Config = ConfigParser.ConfigParser()
     cfg_file = Config.read(cfg)
 
@@ -300,15 +294,26 @@ def run_clustering(args):
 
     shape  = Config.get('BetaParameters', 'alpha')
     scale  = Config.get('BetaParameters', 'beta')
-    #init   = Config.get('BetaParameters', 'init')
     beta   = ','.join([str(shape),str(scale)])
 
-    phi_limit = float(Config.get('ClusterParameters', 'phi_limit'))
-    clus_limit = int(Config.get('ClusterParameters', 'clus_limit'))
-    subclone_diff = float(Config.get('ClusterParameters', 'subclone_diff'))
-    hpd_alpha = float(Config.get('ClusterParameters', 'hpd_alpha'))
+    phi_limit       = float(Config.get('ClusterParameters', 'phi_limit'))
+    clus_limit      = int(Config.get('ClusterParameters', 'clus_limit'))
+    subclone_diff   = float(Config.get('ClusterParameters', 'subclone_diff'))
+    hpd_alpha       = float(Config.get('ClusterParameters', 'hpd_alpha'))
 
-    out = sample if out == "" else out
+    n_runs          = int(Config.get('ClusterParameters', 'n_runs'))
+    n_iter          = int(Config.get('ClusterParameters', 'n_iter'))
+    burn            = int(Config.get('ClusterParameters', 'burn'))
+    thin            = int(Config.get('ClusterParameters', 'thin'))
+
+    use_map         = string_to_bool(Config.get('ClusterParameters', 'map'))
+    merge_clusts    = string_to_bool(Config.get('ClusterParameters', 'merge'))
+    cocluster       = string_to_bool(Config.get('ClusterParameters', 'cocluster'))
+    no_adjust       = string_to_bool(Config.get('ClusterParameters', 'adjusted'))
+
+    plot            = string_to_bool(Config.get('OutputParameters', 'plot'))
+    smc_het         = string_to_bool(Config.get('OutputParameters', 'smc_het'))
+    write_matrix    = string_to_bool(Config.get('OutputParameters', 'coclus_matrix'))
 
     if out!='' and not os.path.exists(out):
         os.makedirs(out)

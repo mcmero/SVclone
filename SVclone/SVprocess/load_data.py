@@ -129,8 +129,12 @@ def load_input_simple(svin,use_dir,class_field):
         bp2_pos = int(row['bp2_pos'])
         sv_class = row[class_field] if class_field!='' else ''
         add_sv = np.empty(0)
-        bp1_dir = str(row['bp1_dir']) if use_dir else '?'
-        bp2_dir = str(row['bp2_dir']) if use_dir else '?'
+
+        bp1_dir, bp2_dir = '?', '?'
+        if use_dir:
+            bp1_dir = str(row['bp1_dir'])
+            bp2_dir = str(row['bp2_dir'])
+
         add_sv = np.array([(sv_id,bp1_chr,bp1_pos,bp1_dir,bp2_chr,bp2_pos,bp2_dir,sv_class)],dtype=sv_dtype)
         svs = np.append(svs,add_sv)
         sv_id += 1

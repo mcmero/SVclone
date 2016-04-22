@@ -26,7 +26,7 @@ def get_outlier_ranges(vals):
     upper = q3 + 1.5*iqr
     return [lower,upper]
 
-def run_simple_filter(df,rlen,insert,minsplit,minspan,sizefilter,min_dep,check_valid_chrs,valid_chrs,blist):
+def run_simple_filter(df,rlen,insert,minsplit,minspan,sizefilter,min_dep,filter_chrs,valid_chrs,blist):
     '''
     filter based on presence of supporting reads and > fragment length
     ''' 
@@ -48,7 +48,7 @@ def run_simple_filter(df,rlen,insert,minsplit,minspan,sizefilter,min_dep,check_v
 
     print('Filtered out %d SVs based on size limits' % (len(df_flt) - len(df_flt2)))
 
-    if check_valid_chrs:
+    if filter_chrs:
         chr1 = np.array([chrom in valid_chrs for chrom in df_flt2.bp1_chr])
         chr2 = np.array([chrom in valid_chrs for chrom in df_flt2.bp2_chr])
         df_flt3 = df_flt2[np.logical_and(chr1,chr2)]
@@ -75,13 +75,13 @@ def run_simple_filter(df,rlen,insert,minsplit,minspan,sizefilter,min_dep,check_v
 
     return df_flt2
 
-def run_simple_snv_filter(snv_df, min_dep, blist, check_valid_chrs, valid_chrs):
+def run_simple_snv_filter(snv_df, min_dep, blist, filter_chrs, valid_chrs):
 
     dep = snv_df['ref'] + snv_df['var']
     snv_df_flt = snv_df[dep>=min_dep]
     print('Filtered out %d SNVs based on minimum depth' % (len(snv_df) - len(snv_df_flt)))
 
-    if check_valid_chrs:
+    if filter_chrs:
         chr_flt = np.array([chrom in valid_chrs for chrom in snv_df_flt.chrom])
         snv_df_tmp = snv_df_flt[chr_flt]
 
@@ -527,9 +527,9 @@ def filter_germline(gml_file,sv_df,rlen,insert,gl_th):
     return sv_df.drop(germline,axis=0)
 
 def adjust_sv_read_counts(sv_df,pi,pl,min_dep,rlen,Config):
-    dna_gain_class = Config.get('SVClasses', 'dna_gain_class').split(',')
-    dna_loss_class = Config.get('SVClasses', 'dna_loss_class').split(',')
-    support_adjust_factor = float(Config.get('GlobalParameters', 'support_adjust_factor'))
+    dna_gain_class = Config.get('SVclasses', 'dna_gain_class').split(',')
+    dna_loss_class = Config.get('SVclasses', 'dna_loss_class').split(',')
+    support_adjust_factor = float(Config.get('FilterParameters', 'support_adjust_factor'))
 
     n = zip(np.array(sv_df.norm1.values),np.array(sv_df.norm2.values))
     s = np.array(sv_df.bp1_split.values+sv_df.bp2_split.values)
@@ -625,6 +625,9 @@ def sort_by_loc(snv_df):
 
     return snv_df
 
+def string_to_bool(v):
+  return v.lower() in ("yes", "true", "t", "1")
+
 def run(args):    
     # pr = cProfile.Profile()
     # pr.enable()    
@@ -637,19 +640,9 @@ def run(args):
     param_file  = args.param_file 
     snvs        = args.snvs
     snv_format  = args.snv_format
-    neutral     = args.neutral
     pp_file     = args.pp_file
-    minsplit    = int(args.minsplit)
-    minspan     = int(args.minspan)
-    sizefilter  = int(args.sizefilter)
-    filter_otl  = args.filter_outliers
-    min_dep     = args.min_dep
-    subsample   = args.subsample
     cfg         = args.cfg
     blist_file  = args.blist
-
-    check_valid_chrs = args.valid_chrs
-    strict_cnv_filt  = args.strict_cnv_filt
 
     Config = ConfigParser.ConfigParser()
     cfg_file = Config.read(cfg)
@@ -657,9 +650,19 @@ def run(args):
     if len(cfg_file)==0:
         raise ValueError('No configuration file found')
 
-    valid_chrs = Config.get('ValidationParameters', 'chroms').split(',')
-    gl_th = int(Config.get('GlobalParameters', 'germline_threshold'))
-    sv_offset = int(Config.get('GlobalParameters', 'sv_offset'))
+    valid_chrs  = Config.get('ValidationParameters', 'chroms').split(',')
+
+    gl_th       = int(Config.get('FilterParameters', 'germline_threshold'))
+    sv_offset   = int(Config.get('FilterParameters', 'sv_offset'))
+    minsplit    = int(Config.get('FilterParameters', 'min_split'))
+    minspan     = int(Config.get('FilterParameters', 'min_span'))
+    sizefilter  = int(Config.get('FilterParameters', 'size_filter'))
+    min_dep     = int(Config.get('FilterParameters', 'min_dep'))
+    subsample   = int(Config.get('FilterParameters', 'subsample'))
+    filter_chrs = string_to_bool(Config.get('FilterParameters', 'filter_chroms'))
+    neutral     = string_to_bool(Config.get('FilterParameters', 'neutral'))
+    filter_otl  = string_to_bool(Config.get('FilterParameters', 'filter_outliers'))
+    strict_cnv_filt = string_to_bool(Config.get('FilterParameters', 'strict_cnv_filt'))
    
 #    def proc_arg(arg,n_args=1,of_type=str):
 #        arg = str.split(arg,',')
@@ -678,7 +681,7 @@ def run(args):
     rlen, insert, insert_std = svp_load.get_read_params(param_file, sample, out)
    
     blist = pd.DataFrame()
-    if blist_file != '':
+    if blist_file != '' and blist_file.lower() != 'none':
         blist = pd.DataFrame(svp_load.load_blacklist(blist_file))
 
     if pi < 0 or pi > 1:
@@ -703,12 +706,12 @@ def run(args):
             snv_df = load_data.load_snvs_mutect(snvs,sample)
         elif snv_format == 'mutect_callstats':
             snv_df = load_data.load_snvs_mutect_callstats(snvs)
-        snv_df = run_simple_snv_filter(snv_df, min_dep, blist, check_valid_chrs, valid_chrs)
+        snv_df = run_simple_snv_filter(snv_df, min_dep, blist, filter_chrs, valid_chrs)
 
     if svs!="":
         sv_df = load_data.load_svs(svs)
         sv_df = run_simple_filter(sv_df,rlen,insert,minsplit,minspan,sizefilter, \
-                                    min_dep,check_valid_chrs,valid_chrs,blist)
+                                    min_dep,filter_chrs,valid_chrs,blist)
     
     if gml!="":
         sv_df = filter_germline(gml,sv_df,rlen,insert,gl_th)

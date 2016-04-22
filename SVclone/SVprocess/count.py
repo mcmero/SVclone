@@ -464,16 +464,15 @@ def recount_anomalous_reads(bam,outname,anom_reads,max_dp,max_ins):
             writer = csv.writer(outf,delimiter='\t',quoting=csv.QUOTE_NONE)
             writer.writerow(row)            
 
+def string_to_bool(v):
+  return v.lower() in ("yes", "true", "t", "1")
+
 def proc_svs(args):
     
     svin         = args.svin
     bam          = args.bam
     sample       = args.sample
     out          = args.outdir
-    rlen         = int(args.rlen)
-    insert_mean  = float(args.insert_mean)
-    insert_std   = float(args.insert_std)
-    write_anom   = args.write_anom
     cfg          = args.cfg
 
     Config = ConfigParser.ConfigParser()
@@ -482,11 +481,18 @@ def proc_svs(args):
     if len(cfg_file)==0:
         raise ValueError('No configuration file found')
 
-    max_cn    = int(Config.get('GlobalParameters', 'max_cn'))
-    mean_cov  = int(Config.get('GlobalParameters', 'mean_cov'))
-    sc_len    = int(Config.get('GlobalParameters', 'sc_len'))    
-    threshold = int(Config.get('GlobalParameters', 'threshold'))
-    norm_overlap = int(Config.get('GlobalParameters', 'norm_overlap'))
+    max_cn       = int(Config.get('BamParameters', 'max_cn'))
+    mean_cov     = int(Config.get('BamParameters', 'mean_cov'))
+    sc_len       = int(Config.get('SVcountParameters', 'sc_len'))
+    threshold    = int(Config.get('SVcountParameters', 'threshold'))
+    norm_overlap = int(Config.get('SVcountParameters', 'norm_overlap'))
+
+    max_cn       = int(Config.get('BamParameters', 'max_cn'))
+    mean_cov     = int(Config.get('BamParameters', 'mean_cov'))
+    rlen         = int(Config.get('BamParameters', 'read_len'))
+    insert_mean  = float(Config.get('BamParameters', 'insert_mean'))
+    insert_std   = float(Config.get('BamParameters', 'insert_std'))
+    write_anom   = string_to_bool(Config.get('DebugParameters', 'write_anomalous'))
 
     out = sample if out == "" else out
     outname = '%s/%s_svinfo.txt' % (out, sample)
@@ -499,7 +505,7 @@ def proc_svs(args):
     # write header output
     header_out = [h[0] for idx,h in enumerate(dtypes.sv_out_dtype)]
     
-    with open(outname,'w') as outf:        
+    with open(outname,'w') as outf:
         writer = csv.writer(outf,delimiter='\t',quoting=csv.QUOTE_NONE)
         writer.writerow(header_out)
 
