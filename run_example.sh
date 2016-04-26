@@ -12,4 +12,4 @@ sample=tumour_p80_DEL
 
 ./SVclone.py cluster -s $sample
 
-#Rscript post_process_fit_diagnostics.R $sample $sample --map
+Rscript post_process_fit_diagnostics.R $sample $sample

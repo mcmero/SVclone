@@ -196,11 +196,11 @@ def get_most_likely_cn_states(cn_states,s,d,phi,pi):
 
     return most_likely_cn, most_likely_pv
 
-def cluster(sup,dep,cn_states,Nvar,sparams,cparams,clus_limit,phi_limit):
+def cluster(sup,dep,cn_states,Nvar,sparams,cparams,phi_limit):
     '''
     clustering model using Dirichlet Process
     '''
-    Ndp = clus_limit
+    Ndp = cparams['clus_limit']
     sens = 1.0 / ((sparams['pi']/float(sparams['ploidy']))*np.mean(dep))
     beta_a, beta_b = map(lambda x: float(eval(x)), cparams['beta'].split(','))
     alpha = pm.Gamma('alpha',beta_a,beta_b)#,value=beta_init)

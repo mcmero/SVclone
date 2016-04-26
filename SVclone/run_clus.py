@@ -12,6 +12,7 @@ matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 import colorsys
 import IPython
+import multiprocessing
 
 from collections import OrderedDict
 from IPython.core.pylabtools import figsize
@@ -156,7 +157,16 @@ def merge_results(clus_merged, merged_ids, df_probs, ccert):
 
     return df_probs_new,ccert_new
 
-def post_process_clusters(mcmc,sv_df,snv_df,merge_clusts,clus_out_dir,sup,dep,cn_states,plot,sparams,cparams,subclone_diff,clus_limit,phi_limit,map_,smc_het,write_matrix):
+def post_process_clusters(mcmc,sv_df,snv_df,clus_out_dir,sup,dep,cn_states,sparams,cparams,output_params,map_):
+
+    merge_clusts  = cparams['merge_clusts']
+    subclone_diff = cparams['subclone_diff']
+    phi_limit     = cparams['phi_limit']
+    merge_clusts  = cparams['merge_clusts']
+    smc_het       = output_params['smc_het']
+    write_matrix  = output_params['write_matrix']
+    plot          = output_params['plot']
+
     # assign points to highest probabiliy cluster
     npoints = len(snv_df) + len(sv_df)
 
@@ -272,6 +282,37 @@ def post_process_clusters(mcmc,sv_df,snv_df,merge_clusts,clus_out_dir,sup,dep,cn
                     sv_probs,sv_ccert,clus_out_dir,sparams['sample'],sparams['pi'],sv_sup,
                     sv_dep,sv_cn_states,map_,z_trace,smc_het,write_matrix)
 
+def run_sv_cluster(sv_df, snv_df, clus_out_dir, sample_params, cluster_params, output_params):
+    Nvar, sup, dep, cn_states = None, None, None, None
+
+    if cluster_params['cocluster'] and len(sv_df)>0 and len(snv_df)>0:
+        sup,dep,cn_states,Nvar = load_data.get_snv_vals(snv_df)
+        sv_sup,sv_dep,sv_cn_states,sv_Nvar = load_data.get_sv_vals(sv_df,no_adjust)
+        sup = np.append(sup,sv_sup)
+        dep = np.append(dep,sv_dep)
+        cn_states = pd.concat([pd.DataFrame(cn_states),pd.DataFrame(sv_cn_states)])[0].values
+        Nvar = Nvar + sv_Nvar
+        print("Coclustering %d SVs & %d SNVs..." % (len(sv_df),len(snv_df)))
+
+    elif len(snv_df) > 0:
+        if not os.path.exists('%s/snvs'%clus_out_dir):
+            os.makedirs('%s/snvs'%clus_out_dir)
+        sup,dep,cn_states,Nvar = load_data.get_snv_vals(snv_df)
+        print('Clustering %d SNVs...' % len(snv_df))
+
+    elif len(sv_df)>0:
+        print('Clustering %d SVs...' % len(sv_df))
+    else:
+        raise ValueError("No valid variants to cluster!")
+
+    sup,dep,cn_states,Nvar = load_data.get_sv_vals(sv_df,cluster_params['no_adjust'])    
+    mcmc, map_ = cluster.cluster(sup, dep, cn_states, Nvar, sample_params, 
+                                 cluster_params, cluster_params['phi_limit'])
+
+    if mcmc:
+        post_process_clusters(mcmc, sv_df, snv_df, clus_out_dir, sup, dep, cn_states, 
+                          sample_params, cluster_params, output_params, map_) 
+
 def string_to_bool(v):
   return v.lower() in ("yes", "true", "t", "1")
 
@@ -305,6 +346,7 @@ def run_clustering(args):
     n_iter          = int(Config.get('ClusterParameters', 'n_iter'))
     burn            = int(Config.get('ClusterParameters', 'burn'))
     thin            = int(Config.get('ClusterParameters', 'thin'))
+    threads         = int(Config.get('ClusterParameters', 'threads'))
 
     use_map         = string_to_bool(Config.get('ClusterParameters', 'map'))
     merge_clusts    = string_to_bool(Config.get('ClusterParameters', 'merge'))
@@ -322,7 +364,10 @@ def run_clustering(args):
     rlen, insert, std = svp_load.get_read_params(param_file, sample, out)
 
     sample_params  = { 'sample': sample, 'ploidy': pl, 'pi': pi, 'rlen': rlen, 'insert': insert }
-    cluster_params = { 'n_iter': n_iter, 'burn': burn, 'thin': thin, 'beta': beta, 'use_map': use_map, 'hpd_alpha': hpd_alpha }
+    cluster_params = { 'n_iter': n_iter, 'burn': burn, 'thin': thin, 'beta': beta, 'use_map': use_map, 'hpd_alpha': hpd_alpha,
+                       'merge_clusts': merge_clusts, 'no_adjust': no_adjust, 'phi_limit': phi_limit, 'clus_limit': clus_limit,
+                       'subclone_diff': subclone_diff, 'cocluster': cocluster }
+    output_params  = { 'plot': plot, 'write_matrix': write_matrix, 'smc_het': smc_het }
     
     sv_df       = pd.DataFrame()
     snv_df      = pd.DataFrame()
@@ -341,51 +386,29 @@ def run_clustering(args):
         snv_df = pd.read_csv(snv_file,delimiter='\t',dtype=None,header=0,low_memory=False)
         snv_df = pd.DataFrame(snv_df).fillna('')
 
-    clus_info,center_trace,ztrace,clus_members = None,None,None,None    
-    for i in range(n_runs):
-        print("Cluster run: %d"%i)
-
-        clus_out_dir = '%s/run%d'%(out,i)
-        if not os.path.exists(clus_out_dir):
-            os.makedirs(clus_out_dir)    
+    clus_info,center_trace,ztrace,clus_members = None,None,None,None
         
-        if cocluster:
-            if len(sv_df)>0 and len(snv_df)>0:
-                print("Coclustering %d SVs & %d SNVs..." % (len(sv_df),len(snv_df)))
-                sup,dep,cn_states,Nvar = load_data.get_snv_vals(snv_df)
-                sv_sup,sv_dep,sv_cn_states,sv_Nvar = load_data.get_sv_vals(sv_df,no_adjust)
-                sup = np.append(sup,sv_sup)
-                dep = np.append(dep,sv_dep)
-                cn_states = pd.concat([pd.DataFrame(cn_states),pd.DataFrame(sv_cn_states)])[0].values
-                Nvar = Nvar + sv_Nvar
+    conc_runs = max(1, n_runs / threads) if n_runs % threads == 0 else (n_runs / threads) + 1
 
-                mcmc, map_ = cluster.cluster(sup,dep,cn_states,Nvar,sample_params,cluster_params,\
-                                      clus_limit,phi_limit)
-                post_process_clusters(mcmc,sv_df,snv_df,merge_clusts,clus_out_dir, \
-                                      sup,dep,cn_states,plot,sample_params,cluster_params, \
-                                      subclone_diff, clus_limit, phi_limit, map_, smc_het, write_matrix)
-            else:
-                print('Cannot cocluster - check that valid SV and SNV input is supplied')
-        else:            
-            if len(snv_df)>0:
-                if not os.path.exists('%s/snvs'%clus_out_dir):
-                    os.makedirs('%s/snvs'%clus_out_dir)
-                sup,dep,cn_states,Nvar = load_data.get_snv_vals(snv_df)
+    for i in range(conc_runs):
+        jobs = []
 
-                print('Clustering %d SNVs...' % len(snv_df))
-                mcmc, map_ = cluster.cluster(sup,dep,cn_states,Nvar,sample_params,cluster_params,\
-                                       clus_limit,phi_limit)
-                post_process_clusters(mcmc,pd.DataFrame(),snv_df,merge_clusts,clus_out_dir, \
-                                      sup,dep,cn_states,plot,sample_params,cluster_params, \
-                                      subclone_diff, clus_limit, phi_limit, map_, smc_het, write_matrix)
+        for j in range(threads):
 
-            if len(sv_df)>0:
-                sup,dep,cn_states,Nvar = load_data.get_sv_vals(sv_df,no_adjust)
+            run = j + (i * threads)
+            if not run > n_runs-1:
+                print("Thread %d; cluster run: %d" % (j, run))
 
-                print('Clustering %d SVs...' % len(sv_df))
-                mcmc, map_ = cluster.cluster(sup,dep,cn_states,Nvar,sample_params,cluster_params,\
-                                       clus_limit,phi_limit)
-                post_process_clusters(mcmc,sv_df,pd.DataFrame(),merge_clusts,clus_out_dir, \
-                                      sup,dep,cn_states,plot,sample_params,cluster_params, \
-                                      subclone_diff, clus_limit, phi_limit, map_, smc_het, write_matrix)
+                clus_out_dir = '%s/run%d'%(out,run)
+                if not os.path.exists(clus_out_dir):
+                    os.makedirs(clus_out_dir)
+
+                process = multiprocessing.Process(target=run_sv_cluster,args=(sv_df,snv_df,clus_out_dir,
+                                                  sample_params,cluster_params,output_params))
+                jobs.append(process)
+
+        for j in jobs:
+            j.start()
+        for j in jobs:
+            j.join()
 

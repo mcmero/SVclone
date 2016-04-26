@@ -34,7 +34,7 @@ def write_out_files(df,clus_info,clus_members,df_probs,clus_cert,clus_out_dir,sa
         out_file = '%s/smc_1A_cellularity.txt' % clus_out_dir
         with open(out_file, 'w') as outf:
             outf.write('%f\n' % purity)
-        with open('%s/smc_1B_number_of_clusters.txt'%clus_out_dir,'w') as outf:
+        with open('%s/smc_1B_number_of_clusters.txt' % clus_out_dir,'w') as outf:
             outf.write('%d\n' % len(clus_info))
 
         # convert cluster numbers to clean 1..n sequence

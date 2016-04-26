@@ -10,7 +10,6 @@ import re
 import pandas as pd
 import vcf
 import random
-# import cProfile, pstats, StringIO
 
 from operator import methodcaller
 from SVprocess import load_data as svp_load
@@ -32,7 +31,6 @@ def run_simple_filter(df,rlen,insert,minsplit,minspan,sizefilter,min_dep,filter_
     ''' 
     span = np.array(df.spanning)
     split = np.array(df.bp1_split+df.bp2_split)
-    #df_flt = df[(span+split)>=1]
     df_flt = df[np.logical_and(span>=minspan,split>=minsplit)]
 
     dep1 = df_flt.support + df_flt.norm1
@@ -414,87 +412,6 @@ def gtypes_match(gtype1,gtype2):
     gtype2 = [map(float,x.split(',')[:2]) for x in gtype2.split('|')]
     return np.all(np.array(gtype1)==np.array(gtype2))
 
-#def reprocess_unmatched_cnvs(sv_df, cnv_df):
-#    gtypes1, gtypes2 = sv_df.gtype1.values, sv_df.gtype2.values
-#    unmatched = gtypes1 != gtypes2
-#    not_itrx  = sv_df.classification.values!=params.itrx_class
-#    
-#    proximity = params.sv_offset*2 #max SV proximity from CNV we tolerate
-#    for idx,sv in sv_df.iterrows():
-#
-#        if sv.gtype1 == sv.gtype2 or sv.classification==params.itrx_class:
-#            continue
-#        
-#        # check subclonal gtypes
-#        if gtypes_match(sv.gtype1,sv.gtype2):
-#            continue
-#    
-#        cnv_tmp = cnv_df[cnv_df['chr']==sv['bp1_chr']]
-#        
-#        start_match = abs(sv.bp1_pos - cnv_tmp.startpos).values < proximity
-#        end_match   = abs(sv.bp2_pos - cnv_tmp.endpos).values < proximity
-#        both_match  = np.logical_and(start_match,end_match)        
-#        tmp_sv = sv.copy()
-#
-#        if sum(both_match)==1:
-#            # state matching start/end boundaries of single CNV
-#            sv_df.loc[idx,'gtype1'] = cnv_tmp[both_match].gtype.values[0]
-#            sv_df.loc[idx,'gtype2'] = cnv_tmp[both_match].gtype.values[0]
-#        
-#        elif sum(start_match)==1 and sum(end_match)==0:
-#            cnv_pos = cnv_tmp[start_match].startpos.values[0]
-#            adj_cnv = get_adjacent_cnv(cnv_tmp,start_match,sv.bp1_pos,cnv_pos,False)
-#            sv_df.loc[idx,'gtype1'] = adj_cnv.gtype.values[0] if len(adj_cnv)>0 else ''
-#
-#        elif sum(start_match)==0 and sum(end_match)==1:
-#            cnv_pos = cnv_tmp[end_match].endpos.values[0]
-#            adj_cnv = get_adjacent_cnv(cnv_tmp,end_match,sv.bp2_pos,cnv_pos)
-#            sv_df.loc[idx,'gtype2']  = adj_cnv.gtype.values[0] if len(adj_cnv)>0  else ''            
-#             
-#        elif sum(start_match)==1 and sum(end_match)==1:
-#            # one or both points may have different cnv state
-#            # check all combinations of bordering cnvs
-#            cnv_pos = cnv_tmp[start_match].startpos.values[0]
-#            adj_cnv = get_adjacent_cnv(cnv_tmp,start_match,sv.bp1_pos,cnv_pos,False)
-#            adj_gtype1 = adj_cnv.gtype.values[0] if len(adj_cnv)>0 else ''
-#
-#            cnv_pos = cnv_tmp[end_match].endpos.values[0]
-#            adj_cnv = get_adjacent_cnv(cnv_tmp,end_match,sv.bp2_pos,cnv_pos)
-#            adj_gtype2 = adj_cnv.gtype.values[0] if len(adj_cnv)>0 else ''
-#
-#            if sv.classification in params.deletion_class:
-#                # if there's a CNV match, choose the CNV loss
-#                 cn1,cn2 = get_weighted_cns([sv.gtype1,adj_gtype1])
-#                 loss_cn = sv.gtype1 if cn1 <= cn2 else adj_gtype1
-#                 if loss_cn not in [sv.gtype2, adj_gtype2]:
-#                    sv_df.loc[idx,'gtype1']  = loss_cn
-#                    sv_df.loc[idx,'gtype2']  = loss_cn
-#
-#            elif sv.classification in params.dna_gain_class:
-#                # if there's a CNV match, choose the CNV gain
-#                 cn1,cn2 = get_weighted_cns([sv.gtype1,adj_gtype1])
-#                 gain_cn = sv.gtype1 if cn1 >= cn2 else adj_gtype1
-#                 if gain_cn in [sv.gtype2, adj_gtype2]:
-#                    sv_df.loc[idx,'gtype1'] = gain_cn
-#                    sv_df.loc[idx,'gtype2'] = gain_cn
-#
-#            if sv_df.loc[idx,'gtype1'] != sv_df.loc[idx,'gtype2']:
-#                #TODO: if both svs share an adjacent cnv state
-#                #that matches, picking the genotype is completely
-#                #arbitrary - is there a better way to do this?
-#                if adj_gtype1 in [sv.gtype2,adj_gtype2]:
-#                    sv_df.loc[idx,'gtype1'] = adj_gtype1
-#                    sv_df.loc[idx,'gtype2'] = adj_gtype1
-#                elif adj_gtype2 in [sv.gtype1,adj_gtype1]:
-#                    sv_df.loc[idx,'gtype1'] = adj_gtype2
-#                    sv_df.loc[idx,'gtype2'] = adj_gtype2
-#            
-##        if sv_df.loc[idx,'bp1_chr']==sv_df.loc[idx,'bp2_chr']:
-##            if sv_df.loc[idx,'gtype1']!=sv_df.loc[idx,'gtype2']:
-##                ipdb.set_trace()
-#    
-#    return sv_df
-
 def is_same_sv_germline(sv1,sv2,gl_th):
     sv1_chr1, sv1_bp1, sv1_chr2, sv1_bp2 = sv1
     sv2_chr1, sv2_bp1, sv2_chr2, sv2_bp2 = sv2
@@ -540,15 +457,7 @@ def adjust_sv_read_counts(sv_df,pi,pl,min_dep,rlen,Config):
     # pick side closest to the above-threshold norm mean count
     norm_vals = np.append(sv_df.norm1.values,sv_df.norm2.values)
     norm_mean = np.mean(norm_vals[norm_vals > min_dep])
-    #sides = np.array([0 if a > b else 1 for a,b in zip(abs(sv_df.norm1.values-norm_mean),abs(sv_df.norm2.values-norm_mean))])
     sides = np.array([0 if a < b else 1 for a,b in zip(sv_df.norm1.values,sv_df.norm2.values)])
-    #gts_match = np.array([gtypes_match(gt1,gt2) for gt1,gt2 in zip(sv_df.gtype1.values,sv_df.gtype2.values)])
-
-    # if low normal depth on one side only, pick other side 
-#    sides = np.zeros(Nvar,dtype=int)
-#    low_norm_dep = np.logical_xor(sv_df.norm1.values<min_dep,sv_df.norm2.values<min_dep)
-#    low_norm_vals = zip(sv_df.norm1.values[low_norm_dep],sv_df.norm2.values[low_norm_dep])
-#    sides[low_norm_dep] = [ 0 if n1 < min_dep else 1 for n1, n2 in low_norm_vals ]
     
     # if one side doesn't have CNV data, pick the other side
     if np.any(sv_df.gtype1.values==''):
@@ -567,30 +476,21 @@ def adjust_sv_read_counts(sv_df,pi,pl,min_dep,rlen,Config):
     has_both_gts = np.logical_and(sv_df.gtype1.values!='',sv_df.gtype2.values!='')
     cn_states = [cn[side] for cn,side in zip(combos,sides)]
    
-#    # both sides have genotypes, both either subclonal or clonal
-#    # in this case, just take the simple normal mean of the two sides
-#    both_gts_same_type = np.logical_and(has_both_gts,one_sc==False)
-#    norm[both_gts_same_type] = map(np.mean,np.array(n)[both_gts_same_type])
-    
     norm = np.array([float(ni[si]) for ni,si in zip(n,sides)])
 
     try:
-
         # read value adjustments for specific types of events
         # currently the adjustments are quite simple
         sv_classes = sv_df.classification.values
-        #invs = [ idx in inversion_class for idx,sv_class in enumerate(sv_classes) ]
         dups = np.array([ sv_class in dna_gain_class for idx,sv_class in enumerate(sv_classes) ])
         loss = np.array([ sv_class in dna_loss_class for idx,sv_class in enumerate(sv_classes) ])
-        #dels = np.array([ sv_class in deletion_class for idx,sv_class in enumerate(sv_classes) ])
         
-        # normal read counts for duplications are adjusted by purity and ploidy
+        # normal read counts for DNA gains are adjusted by purity and ploidy
         if sum(dups)>0:
             # estimate adjustment from normal counts for SV events where there is no gain of DNA
             # if these events don't exist, adjust by:
             # normal component + 1/ploidy (estimated half tumour normal) + estimated bias of normal reads 
             # not counted due to norm overlap threshold cutoff
-            #alt_adjust = (1-float(pi)) + (1/float(pl))*pi + float(pi)*(svp_norm_overlap/float(rlen))
             alt_adjust = 1./(1+(float(pi)/pl))
             adjust_factor = np.mean(norm[loss])/np.mean(norm[dups]) if sum(loss)>5 else alt_adjust
             if adjust_factor < 1:
@@ -629,9 +529,6 @@ def string_to_bool(v):
   return v.lower() in ("yes", "true", "t", "1")
 
 def run(args):    
-    # pr = cProfile.Profile()
-    # pr.enable()    
-
     sample      = args.sample
     svs         = args.procd_svs
     gml         = args.germline
@@ -695,6 +592,7 @@ def run(args):
 #        #TODO: processing of multiple samples
 #    else:
 #        sample,sv,cnv,pi,ploidy = sample[0],svs[0],cnvs[0],pi[0],ploidy[0]
+
     sv_df  = pd.DataFrame()
     cnv_df = pd.DataFrame()
     snv_df = pd.DataFrame()
@@ -724,7 +622,6 @@ def run(args):
             sv_df = match_copy_numbers(sv_df,cnv_df,sv_offset) 
             sv_df = match_copy_numbers(sv_df,cnv_df,sv_offset,\
                     ['bp2_chr','bp2_pos','bp2_dir','classification','bp1_pos'],'gtype2') 
-            #sv_df = reprocess_unmatched_cnvs(sv_df,cnv_df)
             sv_df = run_cnv_filter(sv_df,cnvs,neutral,filter_otl,strict_cnv_filt,ploidy)
             print('Keeping %d SVs' % len(sv_df))
     
@@ -771,10 +668,3 @@ def run(args):
         snv_df.index = range(len(snv_df)) #reindex
         snv_df.to_csv('%s/%s_filtered_snvs.tsv'%(out,sample),sep='\t',index=False,na_rep='')
     
-    # pr.disable()
-    # s = StringIO.StringIO()
-    # sortby = 'cumulative'
-    # ps = pstats.Stats(pr, stream=s).sort_stats(sortby)
-    # ps.print_stats()
-    # print s.getvalue()
-
