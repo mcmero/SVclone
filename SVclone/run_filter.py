@@ -447,14 +447,26 @@ def adjust_sv_read_counts(sv_df,pi,pl,min_dep,rlen,Config):
     dna_gain_class = Config.get('SVclasses', 'dna_gain_class').split(',')
     dna_loss_class = Config.get('SVclasses', 'dna_loss_class').split(',')
     support_adjust_factor = float(Config.get('FilterParameters', 'support_adjust_factor'))
+    filter_subclonal_cnvs = string_to_bool(Config.get('FilterParameters', 'filter_subclonal_cnvs'))
 
+    gt1_sc  = np.array(map(len,map(methodcaller("split","|"),sv_df.gtype1.values)))>1
+    gt2_sc  = np.array(map(len,map(methodcaller("split","|"),sv_df.gtype2.values)))>1
+    one_sc  = np.logical_xor(gt1_sc,gt2_sc)
+    any_sc  = np.logical_or(gt1_sc,gt2_sc)
+
+    if filter_subclonal_cnvs:
+        sv_filt = sv_df.loc[np.invert(any_sc)].copy()
+        print('Filtered out %d SVs with any subclonal CNV states.' % (len(sv_df) - len(sv_filt)))
+        sv_df = sv_filt
+
+    print('Keeping %d SVs' % len(sv_df))
     n = zip(np.array(sv_df.norm1.values),np.array(sv_df.norm2.values))
     s = np.array(sv_df.bp1_split.values+sv_df.bp2_split.values)
     d = np.array(sv_df.spanning.values)
     sup = np.array(d+s,dtype=float)
     Nvar = len(sv_df)
     
-    # pick side closest to the above-threshold norm mean count
+    # pick side with the lower norm count (proxy for lower CNV val)
     norm_vals = np.append(sv_df.norm1.values,sv_df.norm2.values)
     norm_mean = np.mean(norm_vals[norm_vals > min_dep])
     sides = np.array([0 if a < b else 1 for a,b in zip(sv_df.norm1.values,sv_df.norm2.values)])
@@ -465,18 +477,14 @@ def adjust_sv_read_counts(sv_df,pi,pl,min_dep,rlen,Config):
     if np.any(sv_df.gtype2.values==''):
         sides[sv_df.gtype2.values==''] = 0
 
-    # prefer sides with subclonal genotype data    
-    gt1_sc = np.array(map(len,map(methodcaller("split","|"),sv_df.gtype1.values)))>1
-    gt2_sc = np.array(map(len,map(methodcaller("split","|"),sv_df.gtype2.values)))>1    
-    one_sc = np.logical_xor(gt1_sc,gt2_sc)
+    if not filter_subclonal_cnvs:
+        # prefer sides with subclonal genotype data
+        exclusive_subclones = zip(sv_df.gtype1.values[one_sc],sv_df.gtype2.values[one_sc])
+        sides[one_sc] = [0 if len(gt1.split('|'))>1 else 1 for gt1,gt2 in exclusive_subclones]
     
-    combos = sv_df.apply(cluster.get_sv_allele_combos,axis=1)
-    exclusive_subclones = zip(sv_df.gtype1.values[one_sc],sv_df.gtype2.values[one_sc]) 
-    sides[one_sc] = [0 if len(gt1.split('|'))>1 else 1 for gt1,gt2 in exclusive_subclones]
-    has_both_gts = np.logical_and(sv_df.gtype1.values!='',sv_df.gtype2.values!='')
-    cn_states = [cn[side] for cn,side in zip(combos,sides)]
-   
     norm = np.array([float(ni[si]) for ni,si in zip(n,sides)])
+    combos = sv_df.apply(cluster.get_sv_allele_combos,axis=1)
+    cn_states = [cn[side] for cn,side in zip(combos,sides)]
 
     try:
         # read value adjustments for specific types of events
@@ -623,7 +631,6 @@ def run(args):
             sv_df = match_copy_numbers(sv_df,cnv_df,sv_offset,\
                     ['bp2_chr','bp2_pos','bp2_dir','classification','bp1_pos'],'gtype2') 
             sv_df = run_cnv_filter(sv_df,cnvs,neutral,filter_otl,strict_cnv_filt,ploidy)
-            print('Keeping %d SVs' % len(sv_df))
     
         if len(snv_df)>0:
             print('Matching copy-numbers for SNVs...')
@@ -640,7 +647,6 @@ def run(args):
             sv_df['gtype2'] = default_gtype
             if filter_otl:
                 sv_df = run_cnv_filter(sv_df,cnvs,neutral,filter_otl,strict_cnv_filt,ploidy)
-            print('Retained %d SVs' % len(sv_df))
 
         if len(snv_df)>0:
             maj_allele = round(ploidy/2) if round(ploidy) > 1 else 1
@@ -649,7 +655,7 @@ def run(args):
             snv_df['gtype'] = default_gtype
             if filter_otl:
                 snv_df = run_cnv_filter(snv_df,cnvs,neutral,filter_otl,strict_cnv_filt,ploidy,are_snvs=True)
-            print('Retained %d SNVs' % len(snv_df))
+            print('Keeping %d SNVs' % len(snv_df))
    
     if len(sv_df)==0 and len(snv_df)==0:
         raise ValueError('No variants found to output!')

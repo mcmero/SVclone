@@ -208,6 +208,8 @@ def post_process_clusters(mcmc,sv_df,snv_df,clus_out_dir,sup,dep,cn_states,spara
     phi_matrix.index = range(len(phi_matrix))
     ccert = clus_max_df.join(phi_matrix)
     clus_info.index = range(len(clus_info))
+
+    print('\n\n')
     print(clus_info)
     print('Compiling and writing output...')
 
