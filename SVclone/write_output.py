@@ -102,10 +102,12 @@ def write_out_files(df, clus_info, clus_members, df_probs, clus_cert, clus_out_d
             tot_cn1 = maj_cn1 + min_cn1
             tot_cn2 = maj_cn2+min_cn2 if not are_snvs else 0
 
-            bp1_chr = str(var['bp1_chr'])
-            bp1_pos = int(var['bp1_pos'])
-            bp2_chr = str(var['bp2_chr'])
-            bp2_pos = int(var['bp2_pos'])
+            chr1 = str(var['chr1'])
+            pos1 = int(var['pos1'])
+            dir1 = str(var['dir1'])
+            chr2 = str(var['chr2'])
+            pos2 = int(var['pos2'])
+            dir2 = str(var['dir2'])
 
             ref_cn, sc_cn, freq = cns[idx]
             pv = pvs[idx]
@@ -115,17 +117,18 @@ def write_out_files(df, clus_info, clus_members, df_probs, clus_cert, clus_out_d
             sc_cn = 0 if np.isnan(sc_cn) else sc_cn
             freq = 0 if np.isnan(freq) else freq
 
-            cn_new_row = np.array([(bp1_chr, bp1_pos, tot_cn1, chrs_bearing_mut,
-                                    bp2_chr, bp2_pos, tot_cn2, chrs_bearing_mut)], dtype=cn_dtype)
-            ml_new_row = np.array([(bp1_chr, bp1_pos, bp2_chr, bp2_pos, var['gtype1'], var['gtype2'],
-                                    ref_cn, sc_cn, freq, sup[idx], dep[idx], pv)], dtype=mlcn_dtype)
+            cn_new_row = np.array([(chr1, pos1, dir1, tot_cn1, chrs_bearing_mut,
+                                    chr2, pos2, dir2, tot_cn2, chrs_bearing_mut)], dtype=cn_dtype)
+            ml_new_row = np.array([(chr1, pos1, dir1, chr2, pos2, dir2, 
+                                    var['gtype1'], var['gtype2'], ref_cn, sc_cn, freq, sup[idx], dep[idx], pv)], 
+                                    dtype=mlcn_dtype)
             
             var_states = cn_states[idx]
             tot_opts = ','.join(map(str,[int(x[1]) for x in var_states]))
             var_opts = ','.join(map(str,[int(round(x[1]*x[2])) for x in var_states]))
             probs =  cluster.get_probs(var_states, sup[idx], dep[idx], phis[idx], pi)
             
-            mult_new_row = np.array([(bp1_chr, bp1_pos, bp2_chr, bp2_pos, sc_cn,
+            mult_new_row = np.array([(chr1, pos1, dir1, chr2, pos2, dir2, sc_cn,
                                      int(round(freq*sc_cn)), tot_opts, var_opts, probs)], dtype=mult_dtype)
             
             cn_vect   = np.append(cn_vect, cn_new_row)
@@ -163,9 +166,7 @@ def write_out_files(df, clus_info, clus_members, df_probs, clus_cert, clus_out_d
     clus_cert['95p_HPD_hi'] = clus_cert['95p_HPD_hi'].values*pi
 
     #rename cols
-    rename_cols =  {'bp1_chr': 'chr1', 'bp1_pos': 'pos1', 
-                    'bp2_chr': 'chr2', 'bp2_pos': 'pos2', 
-                    'average_ccf': 'average_proportion'}
+    rename_cols =  {'average_ccf': 'average_proportion'}
     clus_cert = clus_cert.rename(columns = rename_cols)
     df_probs = df_probs.rename(columns = rename_cols)
 

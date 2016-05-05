@@ -7,9 +7,9 @@ from . import dtypes
 def remove_duplicates(svs):
     for idx,row in enumerate(svs):
         #reorder breakpoints based on position or chromosomes
-        sv_id, bp1_chr, bp1_pos, bp1_dir, bp2_chr, bp2_pos, bp2_dir, sv_class = row
-        if (bp1_chr!=bp2_chr and bp1_chr>bp2_chr) or (bp1_chr==bp2_chr and bp1_pos > bp2_pos):
-            svs[idx] = (sv_id, bp2_chr,bp2_pos,bp2_dir,bp1_chr,bp1_pos,bp1_dir,sv_class)
+        sv_id, chr1, pos1, dir1, chr2, pos2, dir2, sv_class = row
+        if (chr1!=chr2 and chr1>chr2) or (chr1==chr2 and pos1 > pos2):
+            svs[idx] = (sv_id, chr2,pos2,dir2,chr1,pos1,dir1,sv_class)
     return np.unique(svs)
 
 def load_input_vcf(svin,class_field,use_dir):
@@ -40,23 +40,23 @@ def load_input_vcf(svin,class_field,use_dir):
             if (sv_id in procd) or (mate_id in procd): 
                 continue
             
-            bp1_dir, bp2_dir = '?', '?'
-            bp1_chr = sv['CHROM']
-            bp1_pos = sv['POS']
-            bp2_chr = mate['CHROM']
-            bp2_pos = mate['POS']
+            dir1, dir2 = '?', '?'
+            chr1 = sv['CHROM']
+            pos1 = sv['POS']
+            chr2 = mate['CHROM']
+            pos2 = mate['POS']
             sv_class = sv['INFO'][class_field] if class_field!='' else ''
 
             if use_dir:
-                if sv['ALT'].startswith(']') or sv['ALT'].startswith('['): bp1_dir = '-'
-                if sv['ALT'].endswith('[') or sv['ALT'].endswith(']'): bp1_dir = '+'
-                if mate['ALT'].startswith(']') or mate['ALT'].startswith('['): bp2_dir = '-'
-                if mate['ALT'].endswith('[') or mate['ALT'].endswith(']'): bp2_dir = '+'
+                if sv['ALT'].startswith(']') or sv['ALT'].startswith('['): dir1 = '-'
+                if sv['ALT'].endswith('[') or sv['ALT'].endswith(']'): dir1 = '+'
+                if mate['ALT'].startswith(']') or mate['ALT'].startswith('['): dir2 = '-'
+                if mate['ALT'].endswith('[') or mate['ALT'].endswith(']'): dir2 = '+'
 
             procd = np.append(procd,[sv_id,mate_id])
             new_id = sv_id.split('_')
             new_id = int(new_id[0]) if len(new_id) > 1 else 0
-            new_sv = np.array([(new_id,bp1_chr,bp1_pos,bp1_dir,bp2_chr,bp2_pos,bp2_dir,sv_class)],dtype=sv_dtype)
+            new_sv = np.array([(new_id,chr1,pos1,dir1,chr2,pos2,dir2,sv_class)],dtype=sv_dtype)
             svs = np.append(svs,new_sv)
         except KeyError:
             print("SV %s improperly paired or missing attributes"%sv_id)
@@ -68,10 +68,10 @@ def load_input_vcf(svin,class_field,use_dir):
 def load_input_socrates(svin,use_dir,min_mapq,filt_repeats,Config):
     #sv_dtype =  [s for s in dtypes.sv_dtype] if use_dir else [s for i,s in enumerate(dtypes.sv_dtype) if i not in [2,5]]
     sv_dtype = dtypes.sv_dtype
-    bp1_pos_field = Config.get('SocratesFields', 'bp1_pos')
-    bp2_pos_field = Config.get('SocratesFields', 'bp2_pos')
-    bp1_dir_field = Config.get('SocratesFields', 'bp1_dir')
-    bp2_dir_field = Config.get('SocratesFields', 'bp2_dir')
+    pos_field1 = Config.get('SocratesFields', 'pos1')
+    pos_field2 = Config.get('SocratesFields', 'pos2')
+    dir_field1 = Config.get('SocratesFields', 'dir1')
+    dir_field2 = Config.get('SocratesFields', 'dir2')
     avg_mapq1_field = Config.get('SocratesFields', 'avg_mapq1')
     avg_mapq2_field = Config.get('SocratesFields', 'avg_mapq2')
     repeat1_field = Config.get('SocratesFields', 'repeat1')
@@ -85,10 +85,10 @@ def load_input_socrates(svin,use_dir,min_mapq,filt_repeats,Config):
     sv_id = 0
     for row in soc_in:
         try: 
-            bp1 = row[bp1_pos_field].split(':')
-            bp2 = row[bp2_pos_field].split(':')
-            bp1_chr, bp1_pos = bp1[0], int(bp1[1]) 
-            bp2_chr, bp2_pos = bp2[0], int(bp2[1])
+            bp1 = row[pos_field1].split(':')
+            bp2 = row[pos_field2].split(':')
+            chr1, pos1 = bp1[0], int(bp1[1]) 
+            chr2, pos2 = bp2[0], int(bp2[1])
             #classification = row['classification']
             if 'normal' in row.dtype.names:
                 # has germline info, filter out
@@ -103,10 +103,10 @@ def load_input_socrates(svin,use_dir,min_mapq,filt_repeats,Config):
                     continue
             add_sv = np.empty(0)
             
-            bp1_dir = row[bp1_dir_field] if use_dir else '?'
-            bp2_dir = row[bp2_dir_field] if use_dir else '?'
+            dir1 = row[dir_field1] if use_dir else '?'
+            dir2 = row[dir_field2] if use_dir else '?'
             
-            add_sv = np.array([(sv_id,bp1_chr,bp1_pos,bp1_dir,bp2_chr,bp2_pos,bp2_dir,'')],dtype=sv_dtype)
+            add_sv = np.array([(sv_id,chr1,pos1,dir1,chr2,pos2,dir2,'')],dtype=sv_dtype)
             svs = np.append(svs,add_sv)
             sv_id += 1
         except IndexError:
@@ -123,19 +123,19 @@ def load_input_simple(svin,use_dir,class_field):
     svs = np.empty(0,dtype=sv_dtype)
     sv_id = 0
     for row in sv_tmp:
-        bp1_chr = str(row['bp1_chr'])
-        bp1_pos = int(row['bp1_pos'])
-        bp2_chr = str(row['bp2_chr'])
-        bp2_pos = int(row['bp2_pos'])
+        chr1 = str(row['chr1'])
+        pos1 = int(row['pos1'])
+        chr2 = str(row['chr2'])
+        pos2 = int(row['pos2'])
         sv_class = row[class_field] if class_field!='' else ''
         add_sv = np.empty(0)
 
-        bp1_dir, bp2_dir = '?', '?'
+        dir1, dir2 = '?', '?'
         if use_dir:
-            bp1_dir = str(row['bp1_dir'])
-            bp2_dir = str(row['bp2_dir'])
+            dir1 = str(row['dir1'])
+            dir2 = str(row['dir2'])
 
-        add_sv = np.array([(sv_id,bp1_chr,bp1_pos,bp1_dir,bp2_chr,bp2_pos,bp2_dir,sv_class)],dtype=sv_dtype)
+        add_sv = np.array([(sv_id,chr1,pos1,dir1,chr2,pos2,dir2,sv_class)],dtype=sv_dtype)
         svs = np.append(svs,add_sv)
         sv_id += 1
     return remove_duplicates(svs)

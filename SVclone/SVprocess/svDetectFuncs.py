@@ -123,13 +123,13 @@ def detect (prevSV,prevResult,sv):
         prevResult=prevResult[0]
     result=-1
     #anchor_chrom,c1_anchor,c1_anchor_dir,realign_chrom,c1_realign,c1_realign_dir = sv
-    anchor_chrom,c1_anchor,c1_anchor_dir = sv['bp1_chr'],sv['bp1_pos'],sv['bp1_dir']
-    realign_chrom,c1_realign,c1_realign_dir = sv['bp2_chr'],sv['bp2_pos'],sv['bp2_dir']
+    anchor_chrom,c1_anchor,c1_anchor_dir = sv['chr1'],sv['pos1'],sv['dir1']
+    realign_chrom,c1_realign,c1_realign_dir = sv['chr2'],sv['pos2'],sv['dir2']
 
     if realign_chrom == anchor_chrom:
         if c1_realign < c1_anchor:
-            anchor_chrom,c1_anchor,c1_anchor_dir = sv['bp2_chr'],sv['bp2_pos'],sv['bp2_dir']
-            realign_chrom,c1_realign,c1_realign_dir = sv['bp1_chr'],sv['bp1_pos'],sv['bp1_dir']
+            anchor_chrom,c1_anchor,c1_anchor_dir = sv['chr2'],sv['pos2'],sv['dir2']
+            realign_chrom,c1_realign,c1_realign_dir = sv['chr1'],sv['pos1'],sv['dir1']
 
 #    line=line.strip().split(delimeter) 
 #    c1_realign=line[0].split(':')[1]
@@ -185,12 +185,12 @@ def detect (prevSV,prevResult,sv):
         
         #if two lines, interspersed duplication = del + tandem
         if prevSV:
-            panchor_chrom,pc1_anchor,pc1_anchor_dir = prevSV['bp1_chr'],prevSV['bp1_pos'],prevSV['bp1_dir']
-            prealign_chrom,pc1_realign,pc1_realign_dir = prevSV['bp2_chr'],prevSV['bp2_pos'],prevSV['bp2_dir']
+            panchor_chrom,pc1_anchor,pc1_anchor_dir = prevSV['chr1'],prevSV['pos1'],prevSV['dir1']
+            prealign_chrom,pc1_realign,pc1_realign_dir = prevSV['chr2'],prevSV['pos2'],prevSV['dir2']
             if prealign_chrom == anchor_chrom:
                 if pc1_realign < pc1_anchor:
-                    anchor_chrom,pc1_anchor,pc1_anchor_dir = prevSV['bp2_chr'],prevSV['bp2_pos'],prevSV['bp2_dir']
-                    prealign_chrom,pc1_realign,pc1_realign_dir = prevSV['bp1_chr'],prevSV['bp1_pos'],prevSV['bp1_dir']
+                    anchor_chrom,pc1_anchor,pc1_anchor_dir = prevSV['chr2'],prevSV['pos2'],prevSV['dir2']
+                    prealign_chrom,pc1_realign,pc1_realign_dir = prevSV['chr1'],prevSV['pos1'],prevSV['dir1']
             distance1 = pc1_realign-int(c1_realign)
             distance2 = pc1_anchor-int(c1_anchor)
             if abs(distance1)<blurbp2 or abs(distance2)<blurbp2:#if this two events are nearby.
@@ -218,10 +218,10 @@ def detectTransloc(idx,sv_info,tolerance):
         return []    
     sv1 = sv_info[idx-1]
     sv2 = sv_info[idx]
-    p1 = int(sv1['bp1_pos'])
-    p2 = int(sv2['bp1_pos'])
-    p3 = int(sv1['bp2_pos'])
-    p4 = int(sv2['bp2_pos'])
+    p1 = int(sv1['pos1'])
+    p2 = int(sv2['pos1'])
+    p3 = int(sv1['pos2'])
+    p4 = int(sv2['pos2'])
     mobilePart = [p1,p2] if abs(p2-p1) > tolerance else [p3,p4]
     # flip coords if loc1 > loc2
     mobilePart = mobilePart if mobilePart[0]<mobilePart[1] else [mobilePart[1],mobilePart[0]]
@@ -229,8 +229,8 @@ def detectTransloc(idx,sv_info,tolerance):
     translocs = []
     for i,sv in enumerate(sv_info):
         if sv['classification']==getResultType([SVtypes.deletion]):
-            p1 = int(sv['bp1_pos'])
-            p2 = int(sv['bp2_pos'])
+            p1 = int(sv['pos1'])
+            p2 = int(sv['pos2'])
             if abs(mobilePart[0]-p1)<tolerance and abs(mobilePart[1]-p2)<tolerance:
                 translocs = [idx-1,idx,i]
                 break

@@ -222,8 +222,13 @@ def cluster(sup,dep,cn_states,Nvar,sparams,cparams,phi_limit):
     def p_var(z=z,phi_k=phi_k):
         most_lik_cn_states, pvs = get_most_likely_cn_states(cn_states,sup,dep,phi_k[z],sparams['pi'])
         return pvs
-        
+
     cbinom = pm.Binomial('cbinom', dep, p_var, observed=True, value=sup)
+    #cm = pm.Uniform('cm', 0.00001, 0.4)
+    #cvar = pm.Gamma('cvar', cm, 1)
+    #cbinom = pm.NegativeBinomial('cbinom', dep, p_var, cvar, observed=True)
+
     model = pm.Model([alpha,h,p,phi_k,z,p_var,cbinom])
     mcmc, map_ = fit_and_sample(model,cparams['n_iter'],cparams['burn'],cparams['thin'],cparams['use_map'])
+
     return mcmc, map_

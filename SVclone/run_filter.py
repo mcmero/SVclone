@@ -30,7 +30,7 @@ def run_simple_filter(df,rlen,insert,minsplit,minspan,sizefilter,min_dep,filter_
     filter based on presence of supporting reads and > fragment length
     ''' 
     span = np.array(df.spanning)
-    split = np.array(df.bp1_split+df.bp2_split)
+    split = np.array(df.split1+df.split2)
     df_flt = df[np.logical_and(span>=minspan,split>=minsplit)]
 
     dep1 = df_flt.support + df_flt.norm1
@@ -39,16 +39,16 @@ def run_simple_filter(df,rlen,insert,minsplit,minspan,sizefilter,min_dep,filter_
 
     print('Filtered out %d SVs based on minimum depth and spanning/split read limits' % (len(df) - len(df_flt)))
 
-    itx = df_flt['bp1_chr']!=df_flt['bp2_chr']
+    itx = df_flt['chr1']!=df_flt['chr2']
     frag_len = 2*rlen+insert
     sizefilter = sizefilter if sizefilter>=0 else frag_len
-    df_flt2 = df_flt[ itx | (abs(df_flt['bp1_pos']-df_flt['bp2_pos'])>sizefilter) ]
+    df_flt2 = df_flt[ itx | (abs(df_flt['pos1']-df_flt['pos2'])>sizefilter) ]
 
     print('Filtered out %d SVs based on size limits' % (len(df_flt) - len(df_flt2)))
 
     if filter_chrs:
-        chr1 = np.array([chrom in valid_chrs for chrom in df_flt2.bp1_chr])
-        chr2 = np.array([chrom in valid_chrs for chrom in df_flt2.bp2_chr])
+        chr1 = np.array([chrom in valid_chrs for chrom in df_flt2.chr1])
+        chr2 = np.array([chrom in valid_chrs for chrom in df_flt2.chr2])
         df_flt3 = df_flt2[np.logical_and(chr1,chr2)]
 
         print('Filtered out %d SVs that had non-standard chromosomes' % (len(df_flt2) - len(df_flt3)))
@@ -57,11 +57,11 @@ def run_simple_filter(df,rlen,insert,minsplit,minspan,sizefilter,min_dep,filter_
     if len(blist) > 0:
         keep = []
         for idx,sv in df_flt2.iterrows():
-            pos_olap1 = np.logical_and(sv['bp1_pos']>=blist.f1, sv['bp1_pos']<=blist.f2)
-            olap1 = np.logical_and(sv['bp1_chr']==blist.f0, pos_olap1)
+            pos_olap1 = np.logical_and(sv['pos1']>=blist.f1, sv['pos1']<=blist.f2)
+            olap1 = np.logical_and(sv['chr1']==blist.f0, pos_olap1)
 
-            pos_olap2 = np.logical_and(sv['bp2_pos']>=blist.f1, sv['bp2_pos']<=blist.f2)
-            olap2 = np.logical_and(sv['bp2_chr']==blist.f0, pos_olap2)
+            pos_olap2 = np.logical_and(sv['pos2']>=blist.f1, sv['pos2']<=blist.f2)
+            olap2 = np.logical_and(sv['chr2']==blist.f0, pos_olap2)
 
             olaps = blist[np.logical_or(olap1, olap2)]
             if len(olaps) > 0:
@@ -141,27 +141,27 @@ def get_weighted_cns(gtypes):
     return np.array(cn_vals)/2
 
 def normalise_wins_by_cn(df_flt):
-    bp1_win = df_flt.bp1_win_norm.map(float).values
-    bp2_win = df_flt.bp2_win_norm.map(float).values
+    win1 = df_flt.win_norm1.map(float).values
+    win2 = df_flt.win_norm2.map(float).values
     
-    bp1_wcn = get_weighted_cns(df_flt.gtype1.values)
-    bp2_wcn = get_weighted_cns(df_flt.gtype2.values)
+    wcn1 = get_weighted_cns(df_flt.gtype1.values)
+    wcn2 = get_weighted_cns(df_flt.gtype2.values)
 
-    bp1_nonzero = np.logical_not(bp1_wcn==0)
-    bp2_nonzero = np.logical_not(bp2_wcn==0)
-    bp1_win[bp1_nonzero] = (bp1_win[bp1_nonzero]/bp1_wcn[bp1_nonzero])
-    bp2_win[bp2_nonzero] = (bp2_win[bp2_nonzero]/bp2_wcn[bp2_nonzero])
+    nonzero1 = np.logical_not(wcn1==0)
+    nonzero2 = np.logical_not(wcn2==0)
+    win1[nonzero1] = (win1[nonzero1]/wcn1[nonzero1])
+    win2[nonzero2] = (win2[nonzero2]/wcn2[nonzero2])
     
-    return bp1_win,bp2_win
+    return win1,win2
 
 def filter_outlying_norm_wins(df_flt):
-    bp1_win, bp2_win = normalise_wins_by_cn(df_flt)
-    bp1_ranges = get_outlier_ranges(bp1_win)
-    bp2_ranges = get_outlier_ranges(bp2_win)
+    win1, win2 = normalise_wins_by_cn(df_flt)
+    ranges1 = get_outlier_ranges(win1)
+    ranges2 = get_outlier_ranges(win2)
 
-    bp1_flt = np.logical_and(bp1_win>bp1_ranges[0],bp1_win<bp1_ranges[1])
-    bp2_flt = np.logical_and(bp2_win>bp2_ranges[0],bp2_win<bp2_ranges[1])
-    df_flt = df_flt[np.logical_and(bp1_flt,bp2_flt)]
+    flt1 = np.logical_and(win1>ranges1[0],win1<ranges1[1])
+    flt2 = np.logical_and(win2>ranges2[0],win2<ranges2[1])
+    df_flt = df_flt[np.logical_and(flt1,flt2)]
     
     return df_flt
 
@@ -289,7 +289,7 @@ def match_snv_copy_numbers(snv_df, cnv_df, sv_offset):
         snv_df.loc[snv_indexes,'gtype'] = gtypes
     return snv_df
 
-def match_copy_numbers(var_df, cnv_df, sv_offset, bp_fields=['bp1_chr','bp1_pos','bp1_dir','classification','bp2_pos'], gtype_field='gtype1'):
+def match_copy_numbers(var_df, cnv_df, sv_offset, bp_fields=['chr1','pos1','dir1','classification','pos2'], gtype_field='gtype1'):
     
     chrom_field, pos_field, dir_field, class_field, other_pos_field = bp_fields
 
@@ -431,11 +431,11 @@ def filter_germline(gml_file,sv_df,rlen,insert,gl_th):
     germline = []
     
     for idx_sv,sv in sv_df.iterrows():
-        sv_loc = [str(sv.bp1_chr),int(sv.bp1_pos),str(sv.bp2_chr),int(sv.bp2_pos)]
-        same_chrs = np.logical_and(df_gml.bp1_chr.values==sv_loc[0],df_gml.bp2_chr.values==sv_loc[2])
+        sv_loc = [str(sv.chr1),int(sv.pos1),str(sv.chr2),int(sv.pos2)]
+        same_chrs = np.logical_and(df_gml.chr1.values==sv_loc[0],df_gml.chr2.values==sv_loc[2])
         df_gml_tmp = df_gml[same_chrs]
         for idx_gml,sv_gml in df_gml_tmp.iterrows():
-            sv_loc_gml = [str(sv_gml.bp1_chr),int(sv_gml.bp1_pos),str(sv_gml.bp2_chr),int(sv_gml.bp2_pos)]
+            sv_loc_gml = [str(sv_gml.chr1),int(sv_gml.pos1),str(sv_gml.chr2),int(sv_gml.pos2)]
             if sv_gml.support>0 and is_same_sv_germline(sv_loc,sv_loc_gml,gl_th):
                 germline.append(idx_sv)
                 break
@@ -461,7 +461,7 @@ def adjust_sv_read_counts(sv_df,pi,pl,min_dep,rlen,Config):
 
     print('Keeping %d SVs' % len(sv_df))
     n = zip(np.array(sv_df.norm1.values),np.array(sv_df.norm2.values))
-    s = np.array(sv_df.bp1_split.values+sv_df.bp2_split.values)
+    s = np.array(sv_df.split1.values+sv_df.split2.values)
     d = np.array(sv_df.spanning.values)
     sup = np.array(d+s,dtype=float)
     Nvar = len(sv_df)
@@ -629,7 +629,7 @@ def run(args):
             print('Matching copy-numbers for SVs...')
             sv_df = match_copy_numbers(sv_df,cnv_df,sv_offset) 
             sv_df = match_copy_numbers(sv_df,cnv_df,sv_offset,\
-                    ['bp2_chr','bp2_pos','bp2_dir','classification','bp1_pos'],'gtype2') 
+                    ['chr2','pos2','dir2','classification','pos1'],'gtype2') 
             sv_df = run_cnv_filter(sv_df,cnvs,neutral,filter_otl,strict_cnv_filt,ploidy)
     
         if len(snv_df)>0:

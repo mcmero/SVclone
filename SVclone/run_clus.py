@@ -271,7 +271,7 @@ def post_process_clusters(mcmc,sv_df,snv_df,clus_out_dir,sup,dep,cn_states,spara
     if len(sv_df)>0:
         lb = len(snv_df) if len(snv_df)>0 else 0
         
-        sv_pos = ['bp1_chr','bp1_pos','bp2_chr','bp2_pos']
+        sv_pos = ['chr1','pos1','dir1','chr2','pos2','dir2']
         sv_probs = df_probs.loc[lb:lb+len(sv_df)-1]
         sv_probs.index = sv_df.index
         sv_probs = sv_df[sv_pos].join(sv_probs)

@@ -70,7 +70,7 @@ def get_consensus_align(loc_reads, pos, threshold):
 
 def get_bp_dir(sv, loc_reads, pos, sc_len, threshold, bp_num):
 
-    bp_dir = 'bp%d_dir' % bp_num
+    bp_dir = 'dir%d' % bp_num
     sv_class = str(sv['classification'])
 
     ca_right, ca_left = get_consensus_align(loc_reads, pos, threshold)
@@ -93,12 +93,12 @@ def get_bp_dir(sv, loc_reads, pos, sc_len, threshold, bp_num):
 def retrieve_loc_reads(sv, bam, max_dep, threshold):
     bp_dtype = [('chrom', 'S20'), ('start', int), ('end', int), ('dir', 'S1')]
 
-    sv_id, bp1_chr, bp1_pos, bp1_dir, \
-        bp2_chr, bp2_pos, bp2_dir, sv_class = [h[0] for h in dtypes.sv_dtype]
-    bp1 = np.array((sv[bp1_chr], sv[bp1_pos]-(threshold*2), \
-                    sv[bp1_pos]+(threshold*2), sv[bp1_dir]), dtype=bp_dtype)
-    bp2 = np.array((sv[bp2_chr], sv[bp2_pos]-(threshold*2), \
-                    sv[bp2_pos]+(threshold*2), sv[bp2_dir]), dtype=bp_dtype)
+    sv_id, chr1, pos1, dir1, \
+        chr2, pos2, dir2, sv_class = [h[0] for h in dtypes.sv_dtype]
+    bp1 = np.array((sv[chr1], sv[pos1]-(threshold*2), \
+                    sv[pos1]+(threshold*2), sv[dir1]), dtype=bp_dtype)
+    bp2 = np.array((sv[chr2], sv[pos2]-(threshold*2), \
+                    sv[pos2]+(threshold*2), sv[dir2]), dtype=bp_dtype)
 
     bamf = pysam.AlignmentFile(bam, "rb")
     loc1_reads, err_code1 = count.get_loc_reads(bp1, bamf, max_dep)
@@ -120,9 +120,9 @@ def get_dir_info(row, bam, max_dep, sc_len, threshold):
     if err_code1 != 0 or err_code2 != 0:
         return sv, (0, 0, 0, 0)
 
-    sv, bp1_ca_right, bp1_ca_left = get_bp_dir(sv, loc1_reads, sv['bp1_pos'], sc_len, threshold, 1)
-    sv, bp2_ca_right, bp2_ca_left = get_bp_dir(sv, loc2_reads, sv['bp2_pos'], sc_len, threshold, 2)
-    consens_aligns = (bp1_ca_right, bp1_ca_left, bp2_ca_right, bp2_ca_left)
+    sv, ca_right1, ca_left1 = get_bp_dir(sv, loc1_reads, sv['pos1'], sc_len, threshold, 1)
+    sv, ca_right2, ca_left2 = get_bp_dir(sv, loc2_reads, sv['pos2'], sc_len, threshold, 2)
+    consens_aligns = (ca_right1, ca_left1, ca_right2, ca_left2)
 
     return sv, consens_aligns
 
@@ -146,12 +146,12 @@ def get_matching_svs(idx, sv, bp_chr, bp_pos, svs, threshold, mixed=False):
             continue
         matches = []
 
-        if does_break_match(bp_chr, bp_pos, row['bp1_chr'], row['bp1_pos'], threshold):
+        if does_break_match(bp_chr, bp_pos, row['chr1'], row['pos1'], threshold):
             match_sv = np.array(row, dtype=dtypes.sv_dtype)
             sv_matches = np.append(sv_matches, match_sv)
             matches.append(1)
 
-        if does_break_match(bp_chr, bp_pos, row['bp2_chr'], row['bp2_pos'], threshold):
+        if does_break_match(bp_chr, bp_pos, row['chr2'], row['pos2'], threshold):
             match_sv = np.array(row, dtype=dtypes.sv_dtype)
             sv_matches = np.append(sv_matches, match_sv)
             matches.append(2)
@@ -161,14 +161,14 @@ def get_matching_svs(idx, sv, bp_chr, bp_pos, svs, threshold, mixed=False):
 
     return sv_matches, which_matches
 
-def set_dir_class(sv, bp1_dir, bp2_dir, sv_class, new_pos1, new_pos2):
-    sv['bp1_dir'] = bp1_dir
-    sv['bp2_dir'] = bp2_dir
+def set_dir_class(sv, dir1, dir2, sv_class, new_pos1, new_pos2):
+    sv['dir1'] = dir1
+    sv['dir2'] = dir2
     sv['classification'] = sv_class
     if new_pos1 != 0:
-        sv['bp1_pos'] = new_pos1
+        sv['pos1'] = new_pos1
     if new_pos2 != 0:
-        sv['bp2_pos'] = new_pos2
+        sv['pos2'] = new_pos2
     return sv
 
 def is_same_sv(sv1, sv2, threshold):
@@ -195,10 +195,10 @@ def remove_duplicates(svs, threshold):
             break
         for idx2, sv2 in enumerate(svs[idx1+1:]):
             if idx1 != idx2:
-                sv1_tmp = (sv1['bp1_chr'], sv1['bp1_pos'], sv1['bp1_dir'],\
-                           sv1['bp2_chr'], sv1['bp2_pos'], sv1['bp2_dir'])
-                sv2_tmp = (sv2['bp1_chr'], sv2['bp1_pos'], sv2['bp1_dir'],\
-                           sv2['bp2_chr'], sv2['bp2_pos'], sv1['bp2_dir'])
+                sv1_tmp = (sv1['chr1'], sv1['pos1'], sv1['dir1'],\
+                           sv1['chr2'], sv1['pos2'], sv1['dir2'])
+                sv2_tmp = (sv2['chr1'], sv2['pos1'], sv2['dir1'],\
+                           sv2['chr2'], sv2['pos2'], sv1['dir2'])
                 if is_same_sv(sv1_tmp, sv2_tmp, threshold):
                     to_delete.append(idx1)
     svs = np.delete(svs, np.array(to_delete))
@@ -210,8 +210,8 @@ def get_sv_pos_ranks(sv_list, threshold):
     return ranks for the positions of a list of svs (in order of pos and sv)
     returns an empty list if the svs are not all on the same chromosome
     '''
-    chr_list = [[x['bp1_chr'], x['bp2_chr']] for x in sv_list]
-    pos_list = [[x['bp1_pos'], x['bp2_pos']] for x in sv_list]
+    chr_list = [[x['chr1'], x['chr2']] for x in sv_list]
+    pos_list = [[x['pos1'], x['pos2']] for x in sv_list]
 
     ranks = []
     if len(set([c for chrom in chr_list for c in chrom])) == 1:
@@ -241,39 +241,39 @@ def set_svs_as_complex(svs, svmatch):
 
 def split_dirs_dual_mixed_sv(svs, row, idx, ca, threshold):
 
-    bp1_svmatch, bp1_which = get_matching_svs(idx, svs[idx], svs[idx]['bp1_chr'], \
-                                svs[idx]['bp1_pos'], svs, threshold, mixed=True)
-    bp2_svmatch, bp2_which = get_matching_svs(idx, svs[idx], svs[idx]['bp2_chr'], \
-                                svs[idx]['bp2_pos'], svs, threshold, mixed=True)
+    svmatch1, which1 = get_matching_svs(idx, svs[idx], svs[idx]['chr1'], \
+                                svs[idx]['pos1'], svs, threshold, mixed=True)
+    svmatch2, which2 = get_matching_svs(idx, svs[idx], svs[idx]['chr2'], \
+                                svs[idx]['pos2'], svs, threshold, mixed=True)
 
-    if len(bp1_svmatch) > 0 and len(bp2_svmatch) > 0:
+    if len(svmatch1) > 0 and len(svmatch2) > 0:
         
-        if len(bp1_svmatch) > 1 or len(bp2_svmatch) > 1:
+        if len(svmatch1) > 1 or len(svmatch2) > 1:
 
-            svs = set_svs_as_complex(svs, bp1_svmatch)
-            svs = set_svs_as_complex(svs, bp2_svmatch)
+            svs = set_svs_as_complex(svs, svmatch1)
+            svs = set_svs_as_complex(svs, svmatch2)
             return svs
 
         # ensure that svs are of the correct dtype
         svs = np.array(svs, dtype=dtypes.sv_dtype)
-        other_idx1 = np.where(svs==bp1_svmatch)[0][0]
-        other_idx2 = np.where(svs==bp2_svmatch)[0][0]
+        other_idx1 = np.where(svs==svmatch1)[0][0]
+        other_idx2 = np.where(svs==svmatch2)[0][0]
 
-        if bp1_svmatch[0] == bp2_svmatch[0]:
+        if svmatch1[0] == svmatch2[0]:
             # likely an inversion - both sides match same break
             # set one SV to + dirs, the other to - dirs
 
             new_sv = svs[idx].copy()
-            new_pos1, new_pos2 = ca[idx]['bp1_ca_right'], ca[idx]['bp2_ca_right']
+            new_pos1, new_pos2 = ca[idx]['ca_right1'], ca[idx]['ca_right2']
             svs[idx] = set_dir_class(new_sv, '+', '+', '', new_pos1, new_pos2)
 
-            new_pos1, new_pos2 = ca[idx]['bp1_ca_left'], ca[idx]['bp2_ca_left']
+            new_pos1, new_pos2 = ca[idx]['ca_left1'], ca[idx]['ca_left2']
             svs[other_idx1] = set_dir_class(svs[idx], '-', '-', '', new_pos1, new_pos2)
 
-        elif len(bp1_which[0]) == 1 and len(bp2_which[0]) == 1:
+        elif len(which1[0]) == 1 and len(which2[0]) == 1:
             # break partners differ, 1 side matched - check for translocation
 
-            sv1, sv2, sv3 = row, bp1_svmatch[0], bp2_svmatch[0]
+            sv1, sv2, sv3 = row, svmatch1[0], svmatch2[0]
             sv_list = [sv1, sv2, sv3]
 
             def contains_all_ranks(ranks_to_test, ranks):
@@ -289,24 +289,24 @@ def split_dirs_dual_mixed_sv(svs, row, idx, ca, threshold):
                 # translocation signature - adjust points
                 for rank, sv, idxs in zip(ranks, sv_list, indexes):
                     dirs = ['-', '+'] if rank == [1, 3] else ['+', '-']
-                    new_pos1 = ca[idxs]['bp1_ca_right'] if \
-                                dirs[0] == '+' else ca[idxs]['bp1_ca_left']
-                    new_pos2 = ca[idxs]['bp2_ca_right'] if \
-                                dirs[1] == '+' else ca[idxs]['bp2_ca_left']
+                    new_pos1 = ca[idxs]['ca_right1'] if \
+                                dirs[0] == '+' else ca[idxs]['ca_left1']
+                    new_pos2 = ca[idxs]['ca_right2'] if \
+                                dirs[1] == '+' else ca[idxs]['ca_left2']
                     svs[idxs] = set_dir_class(sv, dirs[0], dirs[1], '', new_pos1, new_pos2)
             else:                
-                svs = set_svs_as_complex(svs, bp1_svmatch)
-                svs = set_svs_as_complex(svs, bp2_svmatch)
+                svs = set_svs_as_complex(svs, svmatch1)
+                svs = set_svs_as_complex(svs, svmatch2)
                 return svs
 
-    elif len(bp1_svmatch) == 0 and len(bp2_svmatch) == 0:
+    elif len(svmatch1) == 0 and len(svmatch2) == 0:
         # probably an inversion that has no partner - not called by SV caller?
-        new_pos1, new_pos2 = ca[idx]['bp1_ca_left'], ca[idx]['bp2_ca_left']
+        new_pos1, new_pos2 = ca[idx]['ca_left1'], ca[idx]['ca_left2']
         svs[idx] = set_dir_class(svs[idx], '-', '-', '', new_pos1, new_pos2)
 
         # create a new entry for the inversion partner
         new_sv = svs[idx].copy()
-        new_pos1, new_pos2 = ca[idx]['bp1_ca_right'], ca[idx]['bp2_ca_right']
+        new_pos1, new_pos2 = ca[idx]['ca_right1'], ca[idx]['ca_right2']
         new_sv = set_dir_class(new_sv, '+', '+', '', new_pos1, new_pos2)
         new_sv['ID'] = svs[len(svs)-1]['ID']+1
         svs = np.append(svs, new_sv)
@@ -331,23 +331,23 @@ def split_mixed_svs(svs, ca, threshold):
             elif len(sv_class) > 1 and sv_class[0] == 'MIXED' and sv_class[1] == 'MIXED':
                 new_svs = split_dirs_dual_mixed_sv(svs, row, idx, ca, threshold)
 
-            elif row['bp1_dir'] in ['-','+']:
+            elif row['dir1'] in ['-','+']:
                 #set dir to -, create new sv with dir set to +                
                 new_sv = svs[idx].copy()
-                new_pos2 = ca[idx]['bp2_ca_right']
-                new_sv = set_dir_class(new_sv, row['bp1_dir'], '+', '', 0, new_pos2)
+                new_pos2 = ca[idx]['ca_right2']
+                new_sv = set_dir_class(new_sv, row['dir1'], '+', '', 0, new_pos2)
                 new_sv['ID'] = svs[len(svs)-1]['ID']+1
-                svs[idx] = set_dir_class(svs[idx], row['bp1_dir'], '-', '', 0, new_pos2)
+                svs[idx] = set_dir_class(svs[idx], row['dir1'], '-', '', 0, new_pos2)
 
                 new_svs = np.append(svs, new_sv)
 
-            elif row['bp2_dir'] in ['-','+']:
+            elif row['dir2'] in ['-','+']:
                 #set dir to -, create new sv with dir set to +
                 new_sv = svs[idx].copy()
-                new_pos1 = ca[idx]['bp1_ca_right']
-                new_sv = set_dir_class(new_sv, '+', row['bp2_dir'], '', new_pos1, 0)
+                new_pos1 = ca[idx]['ca_right1']
+                new_sv = set_dir_class(new_sv, '+', row['dir2'], '', new_pos1, 0)
                 new_sv['ID'] = svs[len(svs)-1]['ID']+1
-                svs[idx] = set_dir_class(svs[idx], '-', row['bp2_dir'], '', new_pos1, 0)
+                svs[idx] = set_dir_class(svs[idx], '-', row['dir2'], '', new_pos1, 0)
 
                 new_svs = np.append(svs, new_sv)
 
@@ -364,11 +364,11 @@ def split_mixed_svs(svs, ca, threshold):
 def sv_in_blacklist(sv, blist):
 
     for row in blist:
-        if sv['bp1_chr'] == row[0]:
-            if sv['bp1_pos'] >= row[1] and row[2] >= sv['bp1_pos']:
+        if sv['chr1'] == row[0]:
+            if sv['pos1'] >= row[1] and row[2] >= sv['pos1']:
                 return True
-        if sv['bp2_chr'] == row[0]:
-            if sv['bp2_pos'] >= row[1] and row[2] >= sv['bp2_pos']:
+        if sv['chr2'] == row[0]:
+            if sv['pos2'] >= row[1] and row[2] >= sv['pos2']:
                 return True
 
     return False
@@ -464,8 +464,8 @@ def preproc_svs(args):
     if blist_file != '':
         blist = load_data.load_blacklist(blist_file)
 
-    consens_dtype = [('bp1_ca_right', int), ('bp1_ca_left', int), \
-                        ('bp2_ca_right', int), ('bp2_ca_left', int)]
+    consens_dtype = [('ca_right1', int), ('ca_left1', int), \
+                        ('ca_right2', int), ('ca_left2', int)]
     ca = np.zeros(len(svs), dtype=consens_dtype)
 
     if rlen<0:
@@ -493,15 +493,15 @@ def preproc_svs(args):
             if err_code1 != 0 or err_code2 != 0:
                 continue
 
-            ca_right, ca_left = get_consensus_align(loc1_reads, sv['bp1_pos'], threshold)
-            new_align = ca_right if sv['bp1_dir'] == '+' else ca_left
+            ca_right, ca_left = get_consensus_align(loc1_reads, sv['pos1'], threshold)
+            new_align = ca_right if sv['dir1'] == '+' else ca_left
             if new_align != 0:
-                svs[idx]['bp1_pos'] = new_align
+                svs[idx]['pos1'] = new_align
 
-            ca_right, ca_left = get_consensus_align(loc2_reads, sv['bp2_pos'], threshold)
-            new_align = ca_right if sv['bp2_dir'] == '+' else ca_left
+            ca_right, ca_left = get_consensus_align(loc2_reads, sv['pos2'], threshold)
+            new_align = ca_right if sv['dir2'] == '+' else ca_left
             if new_align != 0:
-                svs[idx]['bp2_pos'] = new_align
+                svs[idx]['pos2'] = new_align
 
     print('Removing duplicate SVs...')
     svs = remove_duplicates(svs, threshold)

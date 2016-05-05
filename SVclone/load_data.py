@@ -37,8 +37,8 @@ def get_snv_vals(df):
 def load_svs(sv_file):
     dat = pd.read_csv(sv_file,delimiter='\t',dtype=None, low_memory=False)
     sv_df = pd.DataFrame(dat)
-    sv_df.bp1_chr = sv_df.bp1_chr.map(str)
-    sv_df.bp2_chr = sv_df.bp2_chr.map(str)
+    sv_df.chr1 = sv_df.chr1.map(str)
+    sv_df.chr2 = sv_df.chr2.map(str)
     sv_df['norm_mean'] = map(np.mean,zip(sv_df['norm1'].values,sv_df['norm2'].values))
     return sv_df
 

@@ -211,9 +211,10 @@ for (run in runs) {
         dat <- merge(dat, certain,by.x=c(1,2), by.y=c(1,2))
         dat$adjusted_vaf <- dat$var / (dat$ref + dat$var)
     } else {
-        dat <- merge(svs, mlcn, by.x=c(2,3,5,6), by.y=c(1,2,3,4))
+        merge_cols <- c('chr1', 'pos1', 'dir1', 'chr2', 'pos2', 'dir2')
+        dat <- merge(svs, mlcn, by.x=merge_cols, by.y=merge_cols)
         certain <- read.table(paste(run, '/', id, '_cluster_certainty.txt', sep=''), sep='\t', header=T)
-        dat <- merge(dat, certain,by.x=c(1,2,3,4), by.y=c(1,2,3,4))
+        dat <- merge(dat, certain,by.x=merge_cols, by.y=merge_cols)
     }
     
     dat <- cbind(dat, CCF=get_adjust_factor(dat, pur) * dat$adjusted_vaf)

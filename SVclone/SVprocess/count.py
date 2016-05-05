@@ -246,13 +246,13 @@ def get_loc_counts(bp,loc_reads,pos,rc,reproc,split,norm,min_ins,max_ins,sc_len,
             continue
         elif is_normal_across_break(x,pos,min_ins,max_ins,norm_overlap,threshold):
             norm = np.append(norm,r1)            
-            split_norm = 'bp%d_split_norm'%bp_num
-            norm_olap = 'bp%d_norm_olap_bp'%bp_num
+            split_norm = 'split_norm%d'%bp_num
+            norm_olap = 'norm_olap_bp%d'%bp_num
             rc[split_norm] = rc[split_norm]+1 
             rc[norm_olap] = rc[norm_olap]+get_normal_overlap_bases(x,pos)
         elif is_supporting_split_read(x,pos,max_ins,sc_len,threshold):
-            split_supp = 'bp%d_split'%bp_num
-            split_cnt = 'bp%d_sc_bases'%bp_num
+            split_supp = 'split%d'%bp_num
+            split_cnt = 'sc_bases%d'%bp_num
             if bp['dir'] in ['+','-']:
                 if is_supporting_split_read_wdir(bp['dir'],x,pos,max_ins,sc_len,threshold):
                     split = np.append(split,x)            
@@ -263,7 +263,7 @@ def get_loc_counts(bp,loc_reads,pos,rc,reproc,split,norm,min_ins,max_ins,sc_len,
         elif r2!=None and r1['query_name']==r2['query_name'] and is_normal_spanning(r1,r2,pos,min_ins,max_ins,sc_len):
             norm = np.append(norm,r1)            
             norm = np.append(norm,r2)            
-            span_norm = 'bp%d_span_norm'%bp_num
+            span_norm = 'span_norm%d'%bp_num
             rc[span_norm] = rc[span_norm]+1 
         else:
             reproc = np.append(reproc,x) #may be spanning support or anomalous
@@ -323,20 +323,20 @@ def get_spanning_counts(reproc,rc,bp1,bp2,inserts,min_ins,max_ins,threshold):
     return rc,span_bp1,span_bp2,anomalous
 
 def get_sv_read_counts(row,bam,inserts,max_dp,min_ins,max_ins,sc_len,out,split_reads,span_reads,anom_reads,norm_overlap,threshold):
-    
-    sv_id, bp1_chr, bp1_pos, bp1_dir, bp2_chr, bp2_pos, bp2_dir, sv_class = [h[0] for h in dtypes.sv_dtype]    
-    bp1 = np.array((row[bp1_chr],row[bp1_pos]-max_ins,
-                    row[bp1_pos]+max_ins,row[bp1_dir]),dtype=dtypes.bp_dtype)
-    bp2 = np.array((row[bp2_chr],row[bp2_pos]-max_ins,
-                    row[bp2_pos]+max_ins,row[bp2_dir]),dtype=dtypes.bp_dtype)
-    pos1, pos2 = row[bp1_pos], row[bp2_pos]
+
+    sv_id, chr1_field, pos1_field, dir1_field, chr2_field, pos2_field, dir2_field, sv_class = [h[0] for h in dtypes.sv_dtype]
+    bp1 = np.array((row[chr1_field],row[pos1_field]-max_ins,
+                    row[pos1_field]+max_ins,row[dir1_field]),dtype=dtypes.bp_dtype)
+    bp2 = np.array((row[chr2_field],row[pos2_field]-max_ins,
+                    row[pos2_field]+max_ins,row[dir2_field]),dtype=dtypes.bp_dtype)
+    pos1, pos2 = row[pos1_field], row[pos2_field]
 
     rc = np.zeros(1,dtype=dtypes.sv_out_dtype)[0]
-    rc['bp1_chr'],rc['bp1_pos'],rc['bp1_dir']=row[bp1_chr],row[bp1_pos],row[bp1_dir]
-    rc['bp2_chr'],rc['bp2_pos'],rc['bp2_dir']=row[bp2_chr],row[bp2_pos],row[bp2_dir]
+    rc['chr1'],rc['pos1'],rc['dir1']=row[chr1_field],row[pos1_field],row[dir1_field]
+    rc['chr2'],rc['pos2'],rc['dir2']=row[chr2_field],row[pos2_field],row[dir2_field]
     rc['ID'],rc['classification']=row[sv_id],row[sv_class]
    
-    if row[bp1_dir] not in ['+','-'] or row[bp2_dir] not in ['+','-']:
+    if row[dir1_field] not in ['+','-'] or row[dir2_field] not in ['+','-']:
         #one or both breaks don't have a valid direction
         return rc, split_reads, span_reads, anom_reads
 
@@ -358,8 +358,8 @@ def get_sv_read_counts(row,bam,inserts,max_dp,min_ins,max_ins,sc_len,out,split_r
             return rc, split_reads, span_reads, anom_reads
     
     reproc = np.empty([0,len(dtypes.read_dtype)],dtype=dtypes.read_dtype)    
-    rc['bp1_total_reads'] = len(loc1_reads)
-    rc['bp2_total_reads'] = len(loc2_reads)
+    rc['total_reads1'] = len(loc1_reads)
+    rc['total_reads2'] = len(loc2_reads)
 
     split_bp1 = np.empty([0,len(dtypes.read_dtype)],dtype=dtypes.read_dtype)
     split_bp2 = np.empty([0,len(dtypes.read_dtype)],dtype=dtypes.read_dtype)
@@ -370,8 +370,8 @@ def get_sv_read_counts(row,bam,inserts,max_dp,min_ins,max_ins,sc_len,out,split_r
     rc, reproc, split_bp2, norm = get_loc_counts(bp2, loc2_reads, pos2, rc, reproc, split_bp2, \
                                         norm,min_ins, max_ins, sc_len, norm_overlap, threshold, 2)
 
-    rc['bp1_win_norm'] = windowed_norm_read_count(loc1_reads,inserts,min_ins,max_ins)
-    rc['bp2_win_norm'] = windowed_norm_read_count(loc2_reads,inserts,min_ins,max_ins)    
+    rc['win_norm1'] = windowed_norm_read_count(loc1_reads,inserts,min_ins,max_ins)
+    rc['win_norm2'] = windowed_norm_read_count(loc2_reads,inserts,min_ins,max_ins)
  
     rc, span_bp1, span_bp2, anomalous = get_spanning_counts(reproc,rc,bp1,bp2,inserts,min_ins,max_ins,threshold)
     spanning = span_bp1
@@ -437,11 +437,11 @@ def recount_anomalous_reads(bam,outname,anom_reads,max_dp,max_ins):
     anom_reads = np.unique(anom_reads['query_name'])
     sv_proc = np.genfromtxt(outname,delimiter='\t',names=True,dtype=dtypes.sv_out_dtype,invalid_raise=False)
     for idx,row in enumerate(sv_proc):
-        sv_id, bp1_chr, bp1_pos, bp1_dir, bp2_chr, bp2_pos, bp2_dir, sv_class = [h[0] for h in dtypes.sv_dtype]    
-        bp1 = np.array((row[bp1_chr],row[bp1_pos]-max_ins,
-                        row[bp1_pos]+max_ins,row[bp1_dir]),dtype=dtypes.bp_dtype)
-        bp2 = np.array((row[bp2_chr],row[bp2_pos]-max_ins,
-                        row[bp2_pos]+max_ins,row[bp2_dir]),dtype=dtypes.bp_dtype)
+        sv_id, chr1_field, pos1_field, dir1_field, chr2_field, pos2_field, dir2_field, sv_class = [h[0] for h in dtypes.sv_dtype]
+        bp1 = np.array((row[chr1_field],row[pos1_field]-max_ins,
+                        row[pos1_field]+max_ins,row[dir1_field]),dtype=dtypes.bp_dtype)
+        bp2 = np.array((row[chr2_field],row[pos2_field]-max_ins,
+                        row[pos2_field]+max_ins,row[dir2_field]),dtype=dtypes.bp_dtype)
 
         bamf = pysam.AlignmentFile(bam, "rb")
         loc1_reads, err_code1 = get_loc_reads(bp1,bamf,max_dp)
@@ -454,7 +454,7 @@ def recount_anomalous_reads(bam,outname,anom_reads,max_dp,max_ins):
             anom = np.concatenate([anom1,anom2])
             anom_count = len(np.unique(anom))
             sv_proc[idx]['anomalous'] = anom_count
-            print('found %d anomalous reads at %s:%d|%s:%d' % (anom_count,row[bp1_chr],row[bp1_pos],row[bp2_chr],row[bp2_pos]))
+            print('found %d anomalous reads at %s:%d|%s:%d' % (anom_count,row[chr1_field],row[pos1_field],row[chr2_field],row[pos2_field]))
     
     with open(outname,'w') as outf:
         header_out = [h[0] for idx,h in enumerate(dtypes.sv_out_dtype)]
@@ -513,11 +513,11 @@ def proc_svs(args):
     span_reads = np.empty([0,len(dtypes.read_dtype)],dtype=dtypes.read_dtype)
     anom_reads = np.empty([0,len(dtypes.read_dtype)],dtype=dtypes.read_dtype)
     
-    sv_id, bp1_chr, bp1_pos, bp1_dir, bp2_chr, bp2_pos, bp2_dir, sv_class = [h[0] for h in dtypes.sv_dtype]    
+    sv_id, chr1_field, pos1_field, dir1_field, chr2_field, pos2_field, dir2_field, sv_class = [h[0] for h in dtypes.sv_dtype]
     svs = np.genfromtxt(svin,delimiter='\t',names=True,dtype=None,invalid_raise=False)
     print("Extracting data from %d SVs"%len(svs))
     for row in svs:
-        sv_prop = row[bp1_chr],row[bp1_pos],row[bp2_chr],row[bp2_pos]
+        sv_prop = row[chr1_field],row[pos1_field],row[chr2_field],row[pos2_field]
         sv_str = '%s:%d|%s:%d'%sv_prop
 
         for svc in row[sv_class].split(';'):
@@ -530,9 +530,9 @@ def proc_svs(args):
                 get_sv_read_counts(row,bam,inserts,max_dp,min_ins,max_ins,
                     sc_len,out,split_reads,span_reads,anom_reads,norm_overlap,threshold)
 
-        norm1 = int(sv_rc['bp1_split_norm'] + sv_rc['bp1_span_norm'])
-        norm2 = int(sv_rc['bp2_split_norm'] + sv_rc['bp2_span_norm'])
-        support = float(sv_rc['bp1_split'] + sv_rc['bp2_split'] + sv_rc['spanning'])
+        norm1 = int(sv_rc['split_norm1'] + sv_rc['span_norm1'])
+        norm2 = int(sv_rc['split_norm2'] + sv_rc['span_norm2'])
+        support = float(sv_rc['split1'] + sv_rc['split2'] + sv_rc['spanning'])
     
         sv_rc['norm1'] = norm1 
         sv_rc['norm2'] = norm2
