@@ -13,6 +13,7 @@ import matplotlib.pyplot as plt
 import colorsys
 import IPython
 import multiprocessing
+import time
 
 from collections import OrderedDict
 from IPython.core.pylabtools import figsize
@@ -87,7 +88,7 @@ def merge_clusters(clus_out_dir,clus_info,clus_merged,clus_members,merged_ids,su
             new_size = ci['size'] + cn['size']
 
             new_members = np.concatenate([clus_members[idx],clus_members[idx+1]])
-            mcmc = cluster.cluster(sup[new_members],dep[new_members],cn_states[new_members],len(new_members),sparams,cparams,clus_limit,phi_limit)
+            mcmc, map_ = cluster.cluster(sup[new_members],dep[new_members],cn_states[new_members],len(new_members),sparams,cparams,clus_limit,phi_limit)
             trace = mcmc.trace("phi_k")[:]
 
             phis = mean_confidence_interval(trace,cparams['hpd_alpha'])
@@ -166,6 +167,11 @@ def post_process_clusters(mcmc,sv_df,snv_df,clus_out_dir,sup,dep,cn_states,spara
     smc_het       = output_params['smc_het']
     write_matrix  = output_params['write_matrix']
     plot          = output_params['plot']
+
+    # fit to data frame
+    run_fit = pd.DataFrame()
+    if map_ is not None:
+        run_fit = pd.DataFrame([['BIC', map_.BIC], ['AIC', map_.AIC]])
 
     # assign points to highest probabiliy cluster
     npoints = len(snv_df) + len(sv_df)
@@ -257,7 +263,7 @@ def post_process_clusters(mcmc,sv_df,snv_df,clus_out_dir,sup,dep,cn_states,spara
         snv_cn_states = cn_states[:len(snv_df)]
         write_output.write_out_files(snv_df,clus_info,snv_members,
                 snv_probs,snv_ccert,clus_out_dir,sparams['sample'],sparams['pi'],snv_sup,
-                snv_dep,snv_cn_states,map_,z_trace,smc_het,write_matrix,are_snvs=True)
+                snv_dep,snv_cn_states,run_fit,z_trace,smc_het,write_matrix,are_snvs=True)
     
     sv_probs = pd.DataFrame()
     sv_ccert = pd.DataFrame()
@@ -282,9 +288,13 @@ def post_process_clusters(mcmc,sv_df,snv_df,clus_out_dir,sup,dep,cn_states,spara
         sv_cn_states = cn_states[lb:lb+len(sv_df)]
         write_output.write_out_files(sv_df,clus_info,sv_members,
                     sv_probs,sv_ccert,clus_out_dir,sparams['sample'],sparams['pi'],sv_sup,
-                    sv_dep,sv_cn_states,map_,z_trace,smc_het,write_matrix)
+                    sv_dep,sv_cn_states,run_fit,z_trace,smc_het,write_matrix)
 
 def cluster_and_process(sv_df, snv_df, run, out_dir, sample_params, cluster_params, output_params):
+    # set random seed
+    seed = int(round((time.time() - int(time.time())) * 10000 * (run+1)))
+    np.random.seed(seed)
+
     clus_out_dir = '%s/run%d'%(out_dir, run)
     if not os.path.exists(clus_out_dir):
         os.makedirs(clus_out_dir)
