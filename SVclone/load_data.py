@@ -6,21 +6,22 @@ import vcf
 
 from . import cluster
 
-def get_sv_vals(sv_df,no_adjust):
+def get_sv_vals(sv_df,adjusted):
     combos = sv_df.apply(cluster.get_sv_allele_combos,axis=1)
     sides = sv_df.preferred_side.values
     cn_states = [cn[side] for cn,side in zip(combos,sides)]
     cn_states = pd.DataFrame([[sv] for sv in cn_states])[0].values
-    if no_adjust:
+
+    if adjusted:
+        sup = sv_df.adjusted_support.map(float).values
+        dep = sv_df.adjusted_depth.map(float).values
+        Nvar = len(sv_df)
+        return sup,dep,cn_states,Nvar
+    else:
         sup  = sv_df.support.map(float).values
         norm = zip(sv_df.norm1.values,sv_df.norm2.values)
         norm = np.array([float(n[side]) for n,side in zip(norm,sv_df.preferred_side.values)])
         dep  = norm+sup 
-        Nvar = len(sv_df)
-        return sup,dep,cn_states,Nvar
-    else:
-        sup = sv_df.adjusted_support.map(float).values
-        dep = sv_df.adjusted_depth.map(float).values
         Nvar = len(sv_df)
         return sup,dep,cn_states,Nvar
 

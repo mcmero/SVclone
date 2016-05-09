@@ -303,7 +303,7 @@ def cluster_and_process(sv_df, snv_df, run, out_dir, sample_params, cluster_para
     if cluster_params['cocluster'] and len(sv_df)>0 and len(snv_df)>0:
         # coclustering
         sup, dep, cn_states, Nvar = load_data.get_snv_vals(snv_df)
-        sv_sup, sv_dep, sv_cn_states, sv_Nvar = load_data.get_sv_vals(sv_df, cluster_params['no_adjust'])
+        sv_sup, sv_dep, sv_cn_states, sv_Nvar = load_data.get_sv_vals(sv_df, cluster_params['adjusted'])
         sup = np.append(sup, sv_sup)
         dep = np.append(dep, sv_dep)
         cn_states = pd.concat([pd.DataFrame(cn_states),pd.DataFrame(sv_cn_states)])[0].values
@@ -326,7 +326,7 @@ def cluster_and_process(sv_df, snv_df, run, out_dir, sample_params, cluster_para
             post_process_clusters(mcmc, pd.DataFrame(), snv_df, clus_out_dir, sup, dep, cn_states,
                               sample_params, cluster_params, output_params, map_)
         if len(sv_df) > 0:
-            sup, dep, cn_states, Nvar = load_data.get_sv_vals(sv_df,cluster_params['no_adjust'])
+            sup, dep, cn_states, Nvar = load_data.get_sv_vals(sv_df,cluster_params['adjusted'])
             print('Clustering %d SVs...' % len(sv_df))
             mcmc, map_ = cluster.cluster(sup, dep, cn_states, Nvar, sample_params,
                                          cluster_params, cluster_params['phi_limit'])
@@ -374,7 +374,7 @@ def run_clustering(args):
     use_map         = string_to_bool(Config.get('ClusterParameters', 'map'))
     merge_clusts    = string_to_bool(Config.get('ClusterParameters', 'merge'))
     cocluster       = string_to_bool(Config.get('ClusterParameters', 'cocluster'))
-    no_adjust       = string_to_bool(Config.get('ClusterParameters', 'adjusted'))
+    adjusted       = string_to_bool(Config.get('ClusterParameters', 'adjusted'))
 
     plot            = string_to_bool(Config.get('OutputParameters', 'plot'))
     smc_het         = string_to_bool(Config.get('OutputParameters', 'smc_het'))
@@ -388,7 +388,7 @@ def run_clustering(args):
 
     sample_params  = { 'sample': sample, 'ploidy': pl, 'pi': pi, 'rlen': rlen, 'insert': insert }
     cluster_params = { 'n_iter': n_iter, 'burn': burn, 'thin': thin, 'beta': beta, 'use_map': use_map, 'hpd_alpha': hpd_alpha,
-                       'merge_clusts': merge_clusts, 'no_adjust': no_adjust, 'phi_limit': phi_limit, 'clus_limit': clus_limit,
+                       'merge_clusts': merge_clusts, 'adjusted': adjusted, 'phi_limit': phi_limit, 'clus_limit': clus_limit,
                        'subclone_diff': subclone_diff, 'cocluster': cocluster }
     output_params  = { 'plot': plot, 'write_matrix': write_matrix, 'smc_het': smc_het }
     

@@ -664,7 +664,7 @@ def run(args):
         sv_df.index = range(len(sv_df)) #reindex
         sv_df = adjust_sv_read_counts(sv_df,pi,ploidy,min_dep,rlen,Config)
         sv_df.to_csv('%s/%s_filtered_svs.tsv'%(out,sample),sep='\t',index=False,na_rep='')
-    
+
     if len(snv_df)>0: 
         if subsample > 0 and subsample < len(snv_df):
             keep = random.sample(snv_df.index, subsample)
