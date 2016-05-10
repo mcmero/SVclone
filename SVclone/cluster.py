@@ -28,43 +28,23 @@ from operator import methodcaller
 #    
 #    return tuple(cn_v),tuple(mu_v)
 
-def add_copynumber_combos(combos, var_maj, var_min, ref_cn):
+def add_copynumber_combos(combos, var_maj, var_min, ref_cn, frac):
     '''
     ref_cn = total reference (non-variant) copy-number
     var_total = total variant copy-number 
     mu_v = copies containing variant / var_total
     
     possible copynumber states for variant are:
-        - major / var total
-        - minor / var_total, and 
-        - 1 / var_total (if neither alleles are 1)
+        - (1 .. major) / var total
     '''
     var_total = float(var_maj + var_min)
     if var_total == 0.:
         mu_v = 0.
-    #    combos.append([ref_cn, var_total, mu_v])
-    #elif var_maj == 1.:
-    #    mu_v = 1. / var_total
-    #    combos.append([ref_cn, var_total, mu_v])
-    #elif var_maj == var_min:
-    #    mu_v = var_maj / var_total
-    #    combos.append([ref_cn, var_total, mu_v])
     else:
-        for i in range(1,int(var_maj+1)):
+        for i in range(1, int(var_maj+1)):
             mu_v = 1.0*i / var_total
-            combos.append([ref_cn, var_total, mu_v])
+            combos.append([ref_cn, var_total, mu_v, frac])
 
-    # add combos for the minor allele being the variant allele
-    #if var_maj != var_min:
-        # do the exact same thing as above, swapping
-        # the major allele for the minor
-    #    mu_v = var_min / var_total if var_total != 0 else 0.
-    #    combos.append([ref_cn, var_total, mu_v])
-
-        #if var_min > 1:
-        #    mu_v = 1. / var_total
-        #    combos.append([ref_cn, var_total, mu_v])
-    #print(combos)
     return combos
 
 def get_allele_combos(cn):
@@ -77,16 +57,16 @@ def get_allele_combos(cn):
         # split subclonal copy-numbers
         c1 = map(float,cn[0].split(','))
         c2 = map(float,cn[1].split(','))
-        major1, minor1, total1 = c1[0], c1[1], c1[0]+c1[1]
-        major2, minor2, total2 = c2[0], c2[1], c2[0]+c2[1]
-        
+        major1, minor1, total1, frac1 = c1[0], c1[1], c1[0]+c1[1], c[2]
+        major2, minor2, total2, frac2 = c2[0], c2[1], c2[0]+c2[1], c[2]
+
         # generate copynumbers for each subclone being the potential variant pop 
-        combos = add_copynumber_combos(combos, major1, minor1, total2)
-        combos = add_copynumber_combos(combos, major2, minor2, total1)
+        combos = add_copynumber_combos(combos, major1, minor1, total2, frac1)
+        combos = add_copynumber_combos(combos, major2, minor2, total1, frac2)
     else:
         c = map(float,cn[0].split(','))
-        major, minor = c[0], c[1]
-        combos = add_copynumber_combos(combos, major, minor, major + minor)
+        major, minor, frac = c[0], c[1], c[2]
+        combos = add_copynumber_combos(combos, major, minor, major + minor, frac)
 
     return filter_cns(combos)
 
@@ -110,7 +90,7 @@ def fit_and_sample(model, iters, burn, thin, use_map):
     else:
         return mcmc, None
 
-def get_pv(phi,cn_r,cn_v,mu,pi):
+def get_pv(phi,cn_r,cn_v,mu,cn_f,pi):
     #rem = 1.0 - phi
     #rem = rem.clip(min=0)
     #pr =  pi * rem * cn_r    #proportion of normal reads coming from other (reference) clusters
@@ -127,7 +107,7 @@ def filter_cns(cn_states):
     return [map(float,cn) for cn in map(methodcaller('split',','),cn_str)]
 
 def calc_lik(combo,si,di,phi_i,pi):
-    pvs = [ get_pv(phi_i,c[0],c[1],c[2],pi) for c in combo ]
+    pvs = [ get_pv(phi_i,c[0],c[1],c[2],c[3],pi) for c in combo ]
     lls = [ pm.binomial_like(si,di,pvs[i]) for i,c in enumerate(combo)]
     #currently using precision fudge factor to get 
     #around 0 probability errors when pv = 1

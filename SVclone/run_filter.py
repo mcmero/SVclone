@@ -482,9 +482,9 @@ def adjust_sv_read_counts(sv_df,pi,pl,min_dep,rlen,Config):
         exclusive_subclones = zip(sv_df.gtype1.values[one_sc],sv_df.gtype2.values[one_sc])
         sides[one_sc] = [0 if len(gt1.split('|'))>1 else 1 for gt1,gt2 in exclusive_subclones]
     
-    norm = np.array([float(ni[si]) for ni,si in zip(n,sides)])
-    combos = sv_df.apply(cluster.get_sv_allele_combos,axis=1)
-    cn_states = [cn[side] for cn,side in zip(combos,sides)]
+    norm = np.array([float(ni[si]) for ni,si in zip(n, sides)])
+    combos = sv_df.apply(cluster.get_sv_allele_combos, axis=1)
+    cn_states = [cn[side] for cn,side in zip(combos, sides)]
 
     try:
         # read value adjustments for specific types of events

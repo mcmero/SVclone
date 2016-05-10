@@ -109,7 +109,7 @@ def write_out_files(df, clus_info, clus_members, df_probs, clus_cert, clus_out_d
             pos2 = int(var['pos2'])
             dir2 = str(var['dir2'])
 
-            ref_cn, sc_cn, freq = cns[idx]
+            ref_cn, sc_cn, freq, frac = cns[idx]
             pv = pvs[idx]
             chrs_bearing_mut = int(sc_cn*freq) if (not np.isnan(sc_cn) or not np.isnan(freq)) else 0
 
@@ -143,7 +143,7 @@ def write_out_files(df, clus_info, clus_members, df_probs, clus_cert, clus_out_d
             chrom = str(var['chrom'])
             pos = int(var['pos'])
        
-            ref_cn, sc_cn, freq = cns[idx]
+            ref_cn, sc_cn, freq, frac = cns[idx]
             pv = pvs[idx]
 
             cn_new_row = np.array([(chrom, pos, tot_cn1, int(sc_cn*freq))], dtype=cn_dtype)
