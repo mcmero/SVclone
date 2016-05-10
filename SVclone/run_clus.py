@@ -14,7 +14,9 @@ import colorsys
 import IPython
 import multiprocessing
 import time
+import shutil
 
+from distutils.dir_util import copy_tree
 from collections import OrderedDict
 from IPython.core.pylabtools import figsize
 from pymc.utils import hpd
@@ -410,7 +412,7 @@ def run_clustering(args):
         snv_df = pd.DataFrame(snv_df).fillna('')
 
     clus_info,center_trace,ztrace,clus_members = None,None,None,None
-        
+
     if threads == 1:
         for run in range(n_runs):
             cluster_and_process(sv_df,snv_df,run,out,sample_params,cluster_params,output_params)
@@ -432,3 +434,40 @@ def run_clustering(args):
                 j.start()
             for j in jobs:
                 j.join()
+
+    # select the best run based on min BIC
+    if use_map:
+        bics = []
+        if len(sv_df) > 0:
+            for run in range(n_runs):
+                fit_file = '%s/run%d/%s_fit.txt' % (out, run, sample)
+                fit = pd.read_csv(fit_file, delimiter='\t', dtype=None, header=None)
+                bics.append(fit.loc[0][1])
+            bics = np.array(bics)
+            min_bic = np.where(min(bics) == bics)[0][0]
+
+            print('Selecting run %d as best run for SVs' % min_bic)
+            best_run = '%s/run%d' % (out, min_bic)
+            copy_tree(best_run, '%s/best_run_svs' % out)
+            snv_folder = '%s/best_run_svs/snvs' % out
+            if os.path.exists(snv_folder):
+                shutil.rmtree(snv_folder)
+
+        bics = []
+        if len(snv_df) > 0:
+            for run in range(n_runs):
+                fit_file = '%s/run%d/snvs/%s_fit.txt' % (out, run, sample)
+                fit = pd.read_csv(fit_file, delimiter='\t', dtype=None, header=None)
+                bics.append(fit.loc[0][1])
+            bics = np.array(bics)
+            min_bic = np.where(min(bics) == bics)[0][0]
+
+            print('Selecting run %d as best run for SNVs' % min_bic)
+            best_run = '%s/run%d/snvs' % (out, min_bic)
+            best_run_dest = '%s/best_run_snvs' % out
+            copy_tree(best_run, best_run_dest)
+
+            shutil.copyfile('%s/run%d/phi_trace.txt' % (out, min_bic), '%s/phi_trace.txt' % best_run_dest)
+            shutil.copyfile('%s/run%d/z_trace.txt' % (out, min_bic), '%s/z_trace.txt' % best_run_dest)
+            shutil.copyfile('%s/run%d/cluster_trace_hist.png' % (out, min_bic), 
+                            '%s/cluster_trace_hist.png' % best_run_dest)
