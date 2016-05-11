@@ -141,7 +141,7 @@ def load_snvs_sanger(snvs):
 
     #code adapted from: https://github.com/morrislab/phylowgs/blob/master/parser/create_phylowgs_inputs.py
     samples = vcf_reader.samples
-    if samples[0]!='NORMAL' or samples[1]!='TUMOUR':
+    if samples[0].lower()!='normal' or (samples[1].lower()!='tumour' and samples[1].lower()!='tumor'):
         raise Exception('VCF SNV file is of invalid format. Expected "NORMAL" and "TUMOUR" samples.')
 
     for record in vcf_reader:

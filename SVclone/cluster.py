@@ -191,11 +191,9 @@ def cluster(sup,dep,cn_states,Nvar,sparams,cparams,phi_limit):
     def p(h=h):
         value = [u*np.prod(1.0-h[:i]) for i,u in enumerate(h)]
         value /= np.sum(value)
-        #value[-1] = 1.0-sum(value[:-1])
         return value
 
     z = pm.Categorical('z', p=p, size=Nvar, value=np.zeros(Nvar))
-    #phi_init = (np.mean(sup/dep)/pi)*2
     phi_k = pm.Uniform('phi_k', lower=sens, upper=phi_limit, size=Ndp)#, value=[phi_init]*Ndp)
     
     @pm.deterministic
