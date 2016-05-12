@@ -478,3 +478,8 @@ def run_clustering(args):
 
             shutil.copyfile('%s/run%d/cluster_trace_hist.png' % (out, min_bic), 
                             '%s/cluster_trace_hist.png' % best_run_dest)
+
+    gz_out = '%s.tar.gz' % out
+    if os.path.exists(gz_out):
+        os.remove(gz_out)
+    subprocess.call(['tar', '-cvzf', gz_out, out])
