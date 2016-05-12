@@ -128,7 +128,7 @@ def get_probs_from_llik(cn_lik):
         probs = np.array(probs)/sum(probs)
     return probs
 
-def get_most_likely_cn_states(cn_states,s,d,phi,pi):
+def get_most_likely_cn_states(cn_states, s, d, phi, pi, pval_cutoff):
     '''
     Obtain the copy-number states which maximise the binomial likelihood
     of observing the supporting read depths at each variant location
@@ -140,13 +140,12 @@ def get_most_likely_cn_states(cn_states,s,d,phi,pi):
         else:
             return 0.0000001
 
-    def get_most_likely_cn(cn_states,cn_lik,i):
+    def get_most_likely_cn(cn_states, cn_lik, i, pval_cutoff):
         '''
         use the most likely phi state, unless p < cutoff when compared to the 
         most likely clonal (phi=1) case (log likelihood ratio test) 
         - in this case, pick the most CN state with the highest clonal likelihood
         '''
-        pval_cutoff = 0.05
         cn_lik_clonal, cn_lik_phi = cn_lik
 
         #reinstitute hack - uncomment below
@@ -170,7 +169,7 @@ def get_most_likely_cn_states(cn_states,s,d,phi,pi):
     cn_ll_phi = [ calc_lik(cn_states[i],s[i],d[i],phi[i],pi)[1] for i in range(len(cn_states)) ]
     cn_ll_combined = zip(cn_ll_clonal,cn_ll_phi)
     
-    most_likely_cn = [ get_most_likely_cn(cn_states,cn_lik,i) for i,cn_lik in enumerate(cn_ll_combined)]
+    most_likely_cn = [ get_most_likely_cn(cn_states,cn_lik,i,pval_cutoff) for i,cn_lik in enumerate(cn_ll_combined)]
     cn_ll = [ calc_lik(cn_states[i],s[i],d[i],phi[i],pi) for i in range(len(most_likely_cn)) ]
     most_likely_pv = [ get_most_likely_pv(cn_lik) for i,cn_lik in enumerate(cn_ll)]
 
@@ -184,6 +183,8 @@ def cluster(sup,dep,cn_states,Nvar,sparams,cparams,phi_limit):
     sens = 1.0 / ((sparams['pi']/float(sparams['ploidy']))*np.mean(dep))
     beta_a, beta_b = map(lambda x: float(eval(x)), cparams['beta'].split(','))
     alpha = pm.Gamma('alpha',beta_a,beta_b)#,value=beta_init)
+    pval_cutoff = cparams['clonal_cnv_pval']
+
     print("Dirichlet concentration gamma values: alpha = %f, beta= %f" % (beta_a, beta_b))
 
     h = pm.Beta('h', alpha=1, beta=alpha, size=Ndp)
@@ -198,7 +199,7 @@ def cluster(sup,dep,cn_states,Nvar,sparams,cparams,phi_limit):
     
     @pm.deterministic
     def p_var(z=z,phi_k=phi_k):
-        most_lik_cn_states, pvs = get_most_likely_cn_states(cn_states,sup,dep,phi_k[z],sparams['pi'])
+        most_lik_cn_states, pvs = get_most_likely_cn_states(cn_states, sup, dep, phi_k[z], sparams['pi'], pval_cutoff)
         return pvs
 
     cbinom = pm.Binomial('cbinom', dep, p_var, observed=True, value=sup)
