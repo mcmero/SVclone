@@ -1,4 +1,4 @@
-from setuptools import setup
+from setuptools import setup, find_packages
 
 setup(name='SVclone',
       version='0.1.1',
@@ -7,7 +7,7 @@ setup(name='SVclone',
       author='Marek Cmero',
       author_email='cmerom[at]gmail.com',
       license='',
-      packages=['SVclone'],
+      packages=['SVclone', 'SVclone.SVprocess'],
       scripts=['SVclone.py'],
       long_description=open('README.md').read(),
       zip_safe=False)

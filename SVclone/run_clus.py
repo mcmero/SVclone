@@ -5,7 +5,7 @@ from __future__ import print_function
 
 import subprocess
 import os
-import ConfigParser
+import configparser
 import pandas as pd
 import matplotlib
 matplotlib.use('Agg')
@@ -15,6 +15,7 @@ import IPython
 import multiprocessing
 import time
 import shutil
+import SVclone.SVprocess
 
 from distutils.dir_util import copy_tree
 from collections import OrderedDict
@@ -24,7 +25,7 @@ from pymc.utils import hpd
 from . import cluster
 from . import load_data
 from . import write_output
-from SVprocess import load_data as svp_load
+from SVclone.SVprocess import load_data as svp_load
 
 import numpy as np
 from numpy import loadtxt
@@ -32,7 +33,7 @@ from numpy import zeros
 
 def gen_new_colours(N):
     HSV_tuples = [(x*1.0/N, 0.5, 0.5) for x in range(N)]
-    RGB_tuples = map(lambda x: colorsys.hsv_to_rgb(*x), HSV_tuples)
+    RGB_tuples = list(map(lambda x: colorsys.hsv_to_rgb(*x), HSV_tuples))
     return RGB_tuples
 
 def plot_clusters(center_trace,clusters,assignments,sup,dep,clus_out_dir):#,alpha_trace):
@@ -204,7 +205,7 @@ def post_process_clusters(mcmc,sv_df,snv_df,clus_out_dir,sup,dep,cn_states,spara
     clus_ids = clus_info.clus_id.values
     clus_members = np.array([np.where(np.array(clus_max_prob)==i)[0] for i in clus_ids])
 
-    col_names = map(lambda x: 'cluster'+str(x),clus_ids)
+    col_names = list(map(lambda x: 'cluster'+str(x),clus_ids))
     df_probs = pd.DataFrame(clus_counts,dtype=float)[clus_ids].fillna(0)
     df_probs = df_probs.apply(lambda x: x/sum(x),axis=1)
     df_probs.columns = col_names
@@ -352,7 +353,7 @@ def run_clustering(args):
     cfg             = args.cfg
 
     out = sample if out == "" else out
-    Config = ConfigParser.ConfigParser()
+    Config = configparser.ConfigParser()
     cfg_file = Config.read(cfg)
 
     if len(cfg_file)==0:

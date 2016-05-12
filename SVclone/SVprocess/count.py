@@ -3,7 +3,7 @@ Using characterised SVs, count normal and supporting reads at SV locations
 '''
 import warnings
 import os
-import ConfigParser
+import configparser
 import numpy as np
 import pysam
 import csv
@@ -24,7 +24,7 @@ def read_to_array(x,bamf):
                          x.query_alignment_end,x.query_length,x.tlen,np.bool(x.is_reverse)),dtype=dtypes.read_dtype)
         return read
     except TypeError:
-        print 'Warning: record %s contains invalid attributes, skipping' % x.query_name
+        print('Warning: record %s contains invalid attributes, skipping' % x.query_name)
         #return np.empty(len(dtypes.read_dtype),dtype=dtypes.read_dtype)
         return np.empty(0)
 
@@ -323,7 +323,6 @@ def get_spanning_counts(reproc,rc,bp1,bp2,inserts,min_ins,max_ins,threshold):
     return rc,span_bp1,span_bp2,anomalous
 
 def get_sv_read_counts(row,bam,inserts,max_dp,min_ins,max_ins,sc_len,out,split_reads,span_reads,anom_reads,norm_overlap,threshold):
-
     sv_id, chr1_field, pos1_field, dir1_field, chr2_field, pos2_field, dir2_field, sv_class = [h[0] for h in dtypes.sv_dtype]
     bp1 = np.array((row[chr1_field],row[pos1_field]-max_ins,
                     row[pos1_field]+max_ins,row[dir1_field]),dtype=dtypes.bp_dtype)
@@ -336,7 +335,7 @@ def get_sv_read_counts(row,bam,inserts,max_dp,min_ins,max_ins,sc_len,out,split_r
     rc['chr2'],rc['pos2'],rc['dir2']=row[chr2_field],row[pos2_field],row[dir2_field]
     rc['ID'],rc['classification']=row[sv_id],row[sv_class]
    
-    if row[dir1_field] not in ['+','-'] or row[dir2_field] not in ['+','-']:
+    if row[dir1_field].decode('UTF-8') not in ['+','-'] or row[dir2_field].decode('UTF-8') not in ['+','-']:
         #one or both breaks don't have a valid direction
         return rc, split_reads, span_reads, anom_reads
 
@@ -475,7 +474,7 @@ def proc_svs(args):
     out          = args.outdir
     cfg          = args.cfg
 
-    Config = ConfigParser.ConfigParser()
+    Config = configparser.ConfigParser()
     cfg_file = Config.read(cfg)
 
     if len(cfg_file)==0:
@@ -514,13 +513,13 @@ def proc_svs(args):
     anom_reads = np.empty([0,len(dtypes.read_dtype)],dtype=dtypes.read_dtype)
     
     sv_id, chr1_field, pos1_field, dir1_field, chr2_field, pos2_field, dir2_field, sv_class = [h[0] for h in dtypes.sv_dtype]
-    svs = np.genfromtxt(svin,delimiter='\t',names=True,dtype=None,invalid_raise=False)
+    svs = np.genfromtxt(svin, delimiter='\t', names=True, dtype=None, invalid_raise=False)
     print("Extracting data from %d SVs"%len(svs))
     for row in svs:
-        sv_prop = row[chr1_field],row[pos1_field],row[chr2_field],row[pos2_field]
-        sv_str = '%s:%d|%s:%d'%sv_prop
+        sv_prop = str(row[chr1_field]), row[pos1_field], str(row[chr2_field]), row[pos2_field]
+        sv_str = '%s:%d|%s:%d' % sv_prop
 
-        for svc in row[sv_class].split(';'):
+        for svc in row[sv_class].decode('UTF-8').split(';'):
             if svc in ['BLACKLIST', 'UNKNOWN_DIR', 'HIDEP', 'MIXED', 'READ_FETCH_FAILED']:
                 print('skipping %s (%s)' % (sv_str, svc))
                 continue

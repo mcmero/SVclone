@@ -55,8 +55,8 @@ def get_allele_combos(cn):
 
     if len(cn)>1:
         # split subclonal copy-numbers
-        c1 = map(float,cn[0].split(','))
-        c2 = map(float,cn[1].split(','))
+        c1 = list(map(float, cn[0].split(',')))
+        c2 = list(map(float, cn[1].split(',')))
         major1, minor1, total1, frac1 = c1[0], c1[1], c1[0]+c1[1], c1[2]
         major2, minor2, total2, frac2 = c2[0], c2[1], c2[0]+c2[1], c2[2]
 
@@ -64,7 +64,7 @@ def get_allele_combos(cn):
         combos = add_copynumber_combos(combos, major1, minor1, total2, frac1)
         combos = add_copynumber_combos(combos, major2, minor2, total1, frac2)
     else:
-        c = map(float,cn[0].split(','))
+        c = list(map(float,cn[0].split(',')))
         major, minor, frac = c[0], c[1], c[2]
         combos = add_copynumber_combos(combos, major, minor, major + minor, frac)
 
@@ -104,7 +104,8 @@ def get_pv(phi,cn_r,cn_v,mu,cn_f,pi):
 def filter_cns(cn_states):
     cn_str = [','.join(map(str,cn)) for cn in cn_states if cn[2]!=0 and cn[1]!=0]
     cn_str = np.unique(np.array(cn_str))
-    return [map(float,cn) for cn in map(methodcaller('split',','),cn_str)]
+    cn_str = [x.split(',') for x in cn_str]
+    return [list(map(float,cn)) for cn in cn_str]
 
 def calc_lik(combo,si,di,phi_i,pi):
     pvs = [ get_pv(phi_i,c[0],c[1],c[2],c[3],pi) for c in combo ]

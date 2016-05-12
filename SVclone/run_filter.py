@@ -4,15 +4,15 @@ Run clustering and tree building on sample inputs
 from __future__ import print_function
 
 import os
-import ConfigParser
+import configparser
 import numpy as np
 import re
 import pandas as pd
 import vcf
 import random
+import SVclone.SVprocess
 
-from operator import methodcaller
-from SVprocess import load_data as svp_load
+from SVclone.SVprocess import load_data as svp_load
 from . import run_clus
 from . import cluster
 from . import load_data
@@ -449,8 +449,8 @@ def adjust_sv_read_counts(sv_df,pi,pl,min_dep,rlen,Config):
     support_adjust_factor = float(Config.get('FilterParameters', 'support_adjust_factor'))
     filter_subclonal_cnvs = string_to_bool(Config.get('FilterParameters', 'filter_subclonal_cnvs'))
 
-    gt1_sc  = np.array(map(len,map(methodcaller("split","|"),sv_df.gtype1.values)))>1
-    gt2_sc  = np.array(map(len,map(methodcaller("split","|"),sv_df.gtype2.values)))>1
+    gt1_sc  = np.array([len(g.split('|')) > 1 for g in sv_df.gtype1.values])
+    gt2_sc  = np.array([len(g.split('|')) > 1 for g in sv_df.gtype2.values])
     one_sc  = np.logical_xor(gt1_sc,gt2_sc)
     any_sc  = np.logical_or(gt1_sc,gt2_sc)
 
@@ -509,11 +509,11 @@ def adjust_sv_read_counts(sv_df,pi,pl,min_dep,rlen,Config):
     
     all_indexes      = sv_df.index.values
     adjust_factor    = 1+(support_adjust_factor*pi)
-    adjusted_support = map(round,sup*adjust_factor)
+    adjusted_support = list(map(round,sup*adjust_factor))
 
     sv_df.loc[all_indexes,'adjusted_norm']      = norm
-    sv_df.loc[all_indexes,'adjusted_support']   = map(int,adjusted_support)
-    sv_df.loc[all_indexes,'adjusted_depth']     = map(int,adjusted_support+norm)
+    sv_df.loc[all_indexes,'adjusted_support']   = list(map(int,adjusted_support))
+    sv_df.loc[all_indexes,'adjusted_depth']     = list(map(int,adjusted_support+norm))
     sv_df.loc[all_indexes,'preferred_side']     = sides
     sv_df.loc[all_indexes,'raw_mean_vaf']       = sup/(sup+sv_df.norm_mean.map(float).values)
     sv_df.loc[all_indexes,'adjusted_vaf']       = adjusted_support/(norm+adjusted_support)
@@ -549,7 +549,7 @@ def run(args):
     cfg         = args.cfg
     blist_file  = args.blist
 
-    Config = ConfigParser.ConfigParser()
+    Config = configparser.ConfigParser()
     cfg_file = Config.read(cfg)
 
     if len(cfg_file)==0:

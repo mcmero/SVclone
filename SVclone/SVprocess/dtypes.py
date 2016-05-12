@@ -4,19 +4,19 @@ import numpy as np
 # Data dtypes
 #####################################################################
 
-bp_dtype = [('chrom','S20'),('start', int), ('end', int), ('dir', 'S1')]
+bp_dtype = [('chrom','<U20'),('start', int), ('end', int), ('dir', '<U1')]
 
 sv_dtype = [('ID', 'int64'),
-            ('chr1', 'S20'),
+            ('chr1', '<U20'),
             ('pos1', 'int64'),
-            ('dir1', 'S1'),
-            ('chr2', 'S20'),
+            ('dir1', '<U1'),
+            ('chr2', '<U20'),
             ('pos2', 'int64'),
-            ('dir2', 'S1'),
-            ('classification', 'S100')] 
+            ('dir2', '<U1'),
+            ('classification', '<U100')] 
 
-read_dtype = [('query_name', 'S150'), 
-            ('chrom', 'S50'), 
+read_dtype = [('query_name', '<U150'), 
+            ('chrom', '<U50'), 
             ('ref_start', 'int64'), 
             ('ref_end', 'int64'), 
             ('align_start', 'int64'), 
@@ -31,13 +31,13 @@ read_dtype = [('query_name', 'S150'),
 
 # Output from count step
 sv_out_dtype = [('ID', 'int64'),
-            ('chr1', 'S20'),
+            ('chr1', '<U20'),
             ('pos1', 'int64'),
-            ('dir1', 'S1'),
-            ('chr2', 'S20'),
+            ('dir1', '<U1'),
+            ('chr2', '<U20'),
             ('pos2', 'int64'),
-            ('dir2', 'S1'),
-            ('classification', 'S100'),
+            ('dir2', '<U1'),
+            ('classification', '<U100'),
             ('split_norm1', 'int64'),
             ('norm_olap_bp1', 'int64'),
             ('span_norm1', 'int64'),

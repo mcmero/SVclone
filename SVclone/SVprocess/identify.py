@@ -1,6 +1,6 @@
 from __future__ import print_function
 import csv
-import ConfigParser
+import configparser
 import numpy as np
 import vcf
 import pysam
@@ -91,7 +91,7 @@ def get_bp_dir(sv, loc_reads, pos, sc_len, threshold, bp_num):
     return sv, ca_right, ca_left
 
 def retrieve_loc_reads(sv, bam, max_dep, threshold):
-    bp_dtype = [('chrom', 'S20'), ('start', int), ('end', int), ('dir', 'S1')]
+    bp_dtype = [('chrom', '<U20'), ('start', int), ('end', int), ('dir', '<U1')]
 
     sv_id, chr1, pos1, dir1, \
         chr2, pos2, dir2, sv_class = [h[0] for h in dtypes.sv_dtype]
@@ -419,7 +419,7 @@ def preproc_svs(args):
     blist_file   = args.blist
 
     cfg = args.cfg
-    Config = ConfigParser.ConfigParser()
+    Config = configparser.ConfigParser()
     cfg_file = Config.read(cfg)
 
     if len(cfg_file)==0:

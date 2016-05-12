@@ -36,11 +36,11 @@ def get_snv_vals(df):
     return b,(n+b),cn_states,len(b)
 
 def load_svs(sv_file):
-    dat = pd.read_csv(sv_file,delimiter='\t',dtype=None, low_memory=False)
+    dat = pd.read_csv(sv_file, delimiter='\t', dtype=None, low_memory=False)
     sv_df = pd.DataFrame(dat)
     sv_df.chr1 = sv_df.chr1.map(str)
     sv_df.chr2 = sv_df.chr2.map(str)
-    sv_df['norm_mean'] = map(np.mean,zip(sv_df['norm1'].values,sv_df['norm2'].values))
+    sv_df['norm_mean'] = list(map(np.mean,list(zip(sv_df['norm1'].values,sv_df['norm2'].values))))
     return sv_df
 
 def load_cnvs(cnv_file):

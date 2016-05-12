@@ -115,7 +115,7 @@ def printResultWithLine(result,content):
         string="INTRX"
     for breakpoint in result[1]:
         bpstr+=delimeter+breakpoint
-    print string+bpstr
+    print('%s%s' % (string, bpstr))
 #     print string+":"+content[l].split("\t")[0].split(":")[1]
 
 def detect (prevSV,prevResult,sv):

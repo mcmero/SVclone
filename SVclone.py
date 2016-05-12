@@ -3,6 +3,8 @@
 '''
 Commandline input for running SV
 '''
+import SVclone
+import SVclone.SVprocess
 
 from SVclone import run_filter
 from SVclone import run_clus
