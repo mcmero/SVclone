@@ -60,7 +60,7 @@ sv_out_dtype = [('ID', 'int64'),
             ('vaf1', float),
             ('vaf2', float)]
 
-# <UV copy-number output
+# SV copy-number output
 sv_cn_dtype = [('chr1', '<U50'),
             ('pos1', int),
             ('dir1', '<U1'),
@@ -72,7 +72,7 @@ sv_cn_dtype = [('chr1', '<U50'),
             ('total_copynumber2', int),
             ('no_chrs_bearing_mutation2', int)]
 
-# <UV most likely copy-numbers output
+# SV most likely copy-numbers output
 sv_mlcn_dtype =[('chr1', '<U50'),
             ('pos1', int),
             ('dir1', '<U1'),
@@ -88,7 +88,7 @@ sv_mlcn_dtype =[('chr1', '<U50'),
             ('depth', int),      
             ('pv', float)]
 
-# <UV multiplicities output
+# SV multiplicities output
 sv_mult_dtype =[('chr1', '<U50'),
             ('pos1', int),
             ('dir1', '<U1'),
@@ -101,13 +101,13 @@ sv_mult_dtype =[('chr1', '<U50'),
             ('multiplicity_options', '<U50'),
             ('probabilities', '<U50')]
 
-# <UNV copy-number output
+# SNV copy-number output
 snv_cn_dtype =  [('chr', '<U50'),
             ('pos', int),
             ('total_copynumber', int),
             ('no_chrs_bearing_mutation', int)]
 
-# <UNV most likely copy-number output
+# SNV most likely copy-number output
 snv_mlcn_dtype =[('chr', '<U50'),
             ('pos', int),
             ('bb_CN', '<U50'),
@@ -115,7 +115,7 @@ snv_mlcn_dtype =[('chr', '<U50'),
             ('most_likely_variant_copynumber', int),
             ('prop_chrs_bearing_mutation', float)]
 
-# <UNV multiplicities output
+# SNV multiplicities output
 snv_mult_dtype =[('chr', '<U50'),
             ('pos', int),
             ('tumour_copynumber', int),

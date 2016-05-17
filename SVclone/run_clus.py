@@ -16,6 +16,7 @@ import multiprocessing
 import time
 import shutil
 import SVclone.SVprocess
+import pymc3 as pm
 
 from distutils.dir_util import copy_tree
 from collections import OrderedDict
@@ -64,7 +65,7 @@ def plot_clusters(center_trace,clusters,assignments,sup,dep,clus_out_dir):#,alph
     plt.savefig('%s/cluster_trace_hist'%clus_out_dir)
 
 def index_max(values):
-    return max(xrange(len(values)),key=values.__getitem__)
+    return max(range(len(values)),key=values.__getitem__)
 
 def mean_confidence_interval(phi_trace, alpha):
     n = len(phi_trace)
@@ -91,8 +92,8 @@ def merge_clusters(clus_out_dir,clus_info,clus_merged,clus_members,merged_ids,su
             new_size = ci['size'] + cn['size']
 
             new_members = np.concatenate([clus_members[idx],clus_members[idx+1]])
-            mcmc, map_ = cluster.cluster(sup[new_members],dep[new_members],cn_states[new_members],len(new_members),sparams,cparams,clus_limit,phi_limit)
-            trace = mcmc.trace("phi_k")[:]
+            trace = cluster.cluster(sup[new_members],dep[new_members],cn_states[new_members],len(new_members),sparams,cparams,clus_limit,phi_limit)
+            trace = trace.trace("phi_k")[:]
 
             phis = mean_confidence_interval(trace,cparams['hpd_alpha'])
             clus_merged.loc[idx] = np.array([ci.clus_id,new_size,phis[0],phis[1],phis[2]])            
@@ -161,25 +162,24 @@ def merge_results(clus_merged, merged_ids, df_probs, ccert):
 
     return df_probs_new,ccert_new
 
-def post_process_clusters(mcmc,sv_df,snv_df,clus_out_dir,sup,dep,cn_states,sparams,cparams,output_params,map_):
+def post_process_clusters(trace,model,sv_df,snv_df,clus_out_dir,sup,dep,cn_states,sparams,cparams,output_params):
 
     merge_clusts  = cparams['merge_clusts']
     subclone_diff = cparams['subclone_diff']
     phi_limit     = cparams['phi_limit']
     merge_clusts  = cparams['merge_clusts']
+    burn          = cparams['burn']
     smc_het       = output_params['smc_het']
     write_matrix  = output_params['write_matrix']
     plot          = output_params['plot']
 
     # fit to data frame
-    run_fit = pd.DataFrame()
-    if map_ is not None:
-        run_fit = pd.DataFrame([['BIC', map_.BIC], ['AIC', map_.AIC]])
+    run_fit = pd.DataFrame(['DIC', pm.stats.dic(trace, model)])
 
     # assign points to highest probabiliy cluster
     npoints = len(snv_df) + len(sv_df)
 
-    z_trace = mcmc.trace('z')[:]
+    z_trace = trace['z'][burn:]
     clus_counts = [np.bincount(z_trace[:,i]) for i in range(npoints)]
     clus_max_prob = [index_max(c) for c in clus_counts]
     clus_mp_counts = np.bincount(clus_max_prob)
@@ -195,7 +195,7 @@ def post_process_clusters(mcmc,sv_df,snv_df,clus_out_dir,sup,dep,cn_states,spara
         return None
 
     # get cluster means
-    center_trace = mcmc.trace("phi_k")[:]
+    center_trace = trace['phi_k'][burn:]
     
     phis = np.array([mean_confidence_interval(center_trace[:,cid],cparams['hpd_alpha']) for cid in clus_info.clus_id.values])
     clus_info['phi'] = phis[:,0]
@@ -233,8 +233,10 @@ def post_process_clusters(mcmc,sv_df,snv_df,clus_out_dir,sup,dep,cn_states,spara
     
     # cluster plotting
     if plot:
-        alpha_trace = mcmc.trace("alpha")[:]
-        plot_clusters(center_trace,clus_idx,clus_max_prob,sup,dep,clus_out_dir)
+        #alpha_trace = trace.trace("alpha")[:]
+        #plot_clusters(center_trace,clus_idx,clus_max_prob,sup,dep,clus_out_dir)
+        pm.traceplot(trace)
+        plt.savefig('%s/traces.pdf' % clus_out_dir)
     
     # merge clusters
     if len(clus_info)>1 and merge_clusts:        
@@ -312,10 +314,10 @@ def cluster_and_process(sv_df, snv_df, run, out_dir, sample_params, cluster_para
         cn_states = pd.concat([pd.DataFrame(cn_states),pd.DataFrame(sv_cn_states)])[0].values
         Nvar = Nvar + sv_Nvar
         print("Coclustering %d SVs & %d SNVs..." % (len(sv_df), len(snv_df)))
-        mcmc, map_ = cluster.cluster(sup, dep, cn_states, Nvar, sample_params,
+        trace, model = cluster.cluster(sup, dep, cn_states, Nvar, sample_params,
                                      cluster_params, cluster_params['phi_limit'])
-        post_process_clusters(mcmc, sv_df, snv_df, clus_out_dir, sup, dep, cn_states,
-                          sample_params, cluster_params, output_params, map_)
+        post_process_clusters(trace, model, sv_df, snv_df, clus_out_dir, sup, dep, cn_states,
+                          sample_params, cluster_params, output_params)
 
     elif len(sv_df) > 0 or len(snv_df) > 0:
         # no coclustering
@@ -324,17 +326,17 @@ def cluster_and_process(sv_df, snv_df, run, out_dir, sample_params, cluster_para
                 os.makedirs('%s/snvs'%clus_out_dir)
             sup,dep,cn_states,Nvar = load_data.get_snv_vals(snv_df)
             print('Clustering %d SNVs...' % len(snv_df))
-            mcmc, map_ = cluster.cluster(sup, dep, cn_states, Nvar, sample_params,
+            trace, model = cluster.cluster(sup, dep, cn_states, Nvar, sample_params,
                                          cluster_params, cluster_params['phi_limit'])
-            post_process_clusters(mcmc, pd.DataFrame(), snv_df, clus_out_dir, sup, dep, cn_states,
-                              sample_params, cluster_params, output_params, map_)
+            post_process_clusters(trace, model, pd.DataFrame(), snv_df, clus_out_dir, sup, dep, cn_states,
+                              sample_params, cluster_params, output_params)
         if len(sv_df) > 0:
             sup, dep, cn_states, Nvar = load_data.get_sv_vals(sv_df,cluster_params['adjusted'])
             print('Clustering %d SVs...' % len(sv_df))
-            mcmc, map_ = cluster.cluster(sup, dep, cn_states, Nvar, sample_params,
+            trace, model = cluster.cluster(sup, dep, cn_states, Nvar, sample_params,
                                          cluster_params, cluster_params['phi_limit'])
-            post_process_clusters(mcmc, sv_df, pd.DataFrame(), clus_out_dir, sup, dep, cn_states,
-                              sample_params, cluster_params, output_params, map_)
+            post_process_clusters(trace, model, sv_df, pd.DataFrame(), clus_out_dir, sup, dep, cn_states,
+                              sample_params, cluster_params, output_params)
 
     else:
         raise ValueError("No valid variants to cluster!")

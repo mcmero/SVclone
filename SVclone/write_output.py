@@ -92,13 +92,12 @@ def write_out_files(df, clus_info, clus_members, df_probs, clus_cert, clus_out_d
         gtype1, gtype2 = None, None
         if not are_snvs:
             gtype1, gtype2 = var['gtype1'].split('|'), var['gtype2'].split('|')
-            gtype1, gtype2 = map(methodcaller('split', ','), gtype1), map(methodcaller('split', ','), gtype2)
+            gtype1, gtype2 = list(map(methodcaller('split', ','), gtype1)), list(map(methodcaller('split', ','), gtype2))
 
             #select the first clonal/major fraction copy-number state as the one to output
-            maj_cn1, min_cn1 = map(float, gtype1[0])[:2] if gtype1[0][0]!='' else [0., 0.]
-            maj_cn2, min_cn2 = map(float, gtype2[0])[:2] if gtype2[0][0]!='' else [0., 0.]
+            maj_cn1, min_cn1 = [float(x) for x in gtype1[0]][:2] if gtype1[0][0]!='' else [0., 0.]
+            maj_cn2, min_cn2 = [float(x) for x in gtype2[0]][:2] if gtype2[0][0]!='' else [0., 0.]
 
-            maj_cn1, min_cn1 = map(float, gtype1[0])[:2] if gtype1[0][0]!='' else [0., 0.]
             tot_cn1 = maj_cn1 + min_cn1
             tot_cn2 = maj_cn2+min_cn2 if not are_snvs else 0
 
@@ -124,8 +123,8 @@ def write_out_files(df, clus_info, clus_members, df_probs, clus_cert, clus_out_d
                                     dtype=mlcn_dtype)
             
             var_states = cn_states[idx]
-            tot_opts = ','.join(map(str,[int(x[1]) for x in var_states]))
-            var_opts = ','.join(map(str,[int(round(x[1]*x[2])) for x in var_states]))
+            tot_opts = ','.join(list(map(str,[int(x[1]) for x in var_states])))
+            var_opts = ','.join(list(map(str,[int(round(x[1]*x[2])) for x in var_states])))
             probs =  cluster.get_probs(var_states, sup[idx], dep[idx], phis[idx], pi)
             
             mult_new_row = np.array([(chr1, pos1, dir1, chr2, pos2, dir2, sc_cn,
@@ -135,9 +134,8 @@ def write_out_files(df, clus_info, clus_members, df_probs, clus_cert, clus_out_d
             mlcn_vect = np.append(mlcn_vect, ml_new_row)
             mult_vect = np.append(mult_vect, mult_new_row)
         else:
-            gtype1 = map(lambda x: x.split(','), var['gtype'].split('|'))
-
-            maj_cn1, min_cn1 = map(float, gtype1[0])[:2] if gtype1[0][0]!='' else [0., 0.]
+            gtype1 = list(map(lambda x: x.split(','), var['gtype'].split('|')))
+            maj_cn1, min_cn1 = [float(x) for x in gtype1[0]][:2] if gtype1[0][0]!='' else [0., 0.]
             tot_cn1 = maj_cn1 + min_cn1
 
             chrom = str(var['chrom'])
@@ -150,8 +148,8 @@ def write_out_files(df, clus_info, clus_members, df_probs, clus_cert, clus_out_d
             ml_new_row = np.array([(chrom, pos, var['gtype'], ref_cn, sc_cn, freq)], dtype=mlcn_dtype)
 
             var_states = cn_states[idx]
-            tot_opts = ','.join(map(str,[int(x[1]) for x in var_states]))
-            var_opts = ','.join(map(str,[int(round(x[1]*x[2])) for x in var_states]))
+            tot_opts = ','.join(list(map(str,[int(x[1]) for x in var_states])))
+            var_opts = ','.join(list(map(str,[int(round(x[1]*x[2])) for x in var_states])))
             probs =  cluster.get_probs(var_states, sup[idx], dep[idx], phis[idx], pi)
 
             mult_new_row = np.array([(chrom, pos, sc_cn, int(round(freq*sc_cn)), tot_opts, var_opts, probs)], dtype=mult_dtype)

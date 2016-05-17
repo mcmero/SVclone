@@ -111,7 +111,7 @@ def load_snvs_mutect_callstats(snvs):
     
 def load_snvs_mutect(snvs,sample):
     vcf_reader = vcf.Reader(filename=snvs)
-    snv_dtype = [('chrom','S50'),('pos',int),('gtype','S50'),('ref',float),('var',float)]
+    snv_dtype = [('chrom','<U50'),('pos',int),('gtype','<U50'),('ref',float),('var',float)]
     snv_df = np.empty([0,5],dtype=snv_dtype)
 
     samples = vcf_reader.samples
@@ -136,7 +136,7 @@ def load_snvs_mutect(snvs,sample):
 
 def load_snvs_sanger(snvs):
     vcf_reader = vcf.Reader(filename=snvs)
-    snv_dtype = [('chrom','S50'),('pos',int),('gtype','S50'),('ref',float),('var',float)]
+    snv_dtype = [('chrom','<U50'),('pos',int),('gtype','<U50'),('ref',float),('var',float)]
     snv_df = np.empty([0,5],dtype=snv_dtype)
 
     #code adapted from: https://github.com/morrislab/phylowgs/blob/master/parser/create_phylowgs_inputs.py
