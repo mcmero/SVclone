@@ -169,6 +169,7 @@ def post_process_clusters(trace,model,sv_df,snv_df,clus_out_dir,sup,dep,cn_state
     phi_limit     = cparams['phi_limit']
     merge_clusts  = cparams['merge_clusts']
     burn          = cparams['burn']
+    thin          = cparams['thin']
     smc_het       = output_params['smc_het']
     write_matrix  = output_params['write_matrix']
     plot          = output_params['plot']
@@ -180,6 +181,7 @@ def post_process_clusters(trace,model,sv_df,snv_df,clus_out_dir,sup,dep,cn_state
     npoints = len(snv_df) + len(sv_df)
 
     z_trace = trace['z'][burn:]
+    z_trace = z_trace[range(0,len(z_trace),thin)] if thin > 1 else z_trace #thinning
     clus_counts = [np.bincount(z_trace[:,i]) for i in range(npoints)]
     clus_max_prob = [index_max(c) for c in clus_counts]
     clus_mp_counts = np.bincount(clus_max_prob)
@@ -196,6 +198,7 @@ def post_process_clusters(trace,model,sv_df,snv_df,clus_out_dir,sup,dep,cn_state
 
     # get cluster means
     center_trace = trace['phi_k'][burn:]
+    center_trace = center_trace[range(0,len(center_trace),thin)] if thin > 1 else center_trace #thinning
     
     phis = np.array([mean_confidence_interval(center_trace[:,cid],cparams['hpd_alpha']) for cid in clus_info.clus_id.values])
     clus_info['phi'] = phis[:,0]
@@ -445,7 +448,7 @@ def run_clustering(args):
             for run in range(n_runs):
                 fit_file = '%s/run%d/%s_fit.txt' % (out, run, sample)
                 fit = pd.read_csv(fit_file, delimiter='\t', dtype=None, header=None)
-                bics.append(fit.loc[0][1])
+                bics.append(float(fit.loc[1][0]))
             bics = np.array(bics)
             min_bic = np.where(min(bics) == bics)[0][0]
 
@@ -461,7 +464,7 @@ def run_clustering(args):
             for run in range(n_runs):
                 fit_file = '%s/run%d/snvs/%s_fit.txt' % (out, run, sample)
                 fit = pd.read_csv(fit_file, delimiter='\t', dtype=None, header=None)
-                bics.append(fit.loc[0][1])
+                bics.append(float(fit.loc[1][0]))
             bics = np.array(bics)
             min_bic = np.where(min(bics) == bics)[0][0]
 

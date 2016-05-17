@@ -204,7 +204,7 @@ def cluster(sup,dep,cn_states,Nvar,sparams,cparams,phi_limit):
     with model:
         #start = pm.find_MAP(fmin=optimize.ftatin_powell)
         start = pm.find_MAP()
-        #TODO: map optional?
+        #TODO: make map optional?
         step = pm.Metropolis(vars=[alpha, h, p, cbinom, z, pv, phi_k])
         trace = pm.sample(iters, step, start)
     
