@@ -80,7 +80,7 @@ def get_sv_allele_combos(sv):
 def fit_and_sample(model, iters, burn, thin, use_map):
     if use_map:
         map_ = pm.MAP( model )
-        map_.fit(method = 'fmin')
+        map_.fit(method = 'fmin_cg')
 
     mcmc = pm.MCMC( model )
     mcmc.sample( iters, burn=burn, thin=thin )
@@ -90,10 +90,7 @@ def fit_and_sample(model, iters, burn, thin, use_map):
     else:
         return mcmc, None
 
-def get_pv(phi,cn_r,cn_v,mu,cn_f,pi):
-    #rem = 1.0 - phi
-    #rem = rem.clip(min=0)
-    #pr =  pi * rem * cn_r    #proportion of normal reads coming from other (reference) clusters
+def get_pv(phi, cn_r, cn_v, mu, cn_f, pi):
     pn = (1.0 - pi) * 2.0    #proportion of normal reads coming from normal cells
     pv = pi * cn_v           #proportion of variant + normal reads coming from this (the variant) cluster
     norm_const = pn + pv
@@ -107,8 +104,8 @@ def filter_cns(cn_states):
     return [map(float,cn) for cn in map(methodcaller('split',','),cn_str)]
 
 def calc_lik(combo,si,di,phi_i,pi):
-    pvs = [ get_pv(phi_i,c[0],c[1],c[2],c[3],pi) for c in combo ]
-    lls = [ pm.binomial_like(si,di,pvs[i]) for i,c in enumerate(combo)]
+    pvs = [get_pv(phi_i,c[0],c[1],c[2],c[3],pi) for c in combo ]
+    lls = [pm.binomial_like(si,di,pvs[i]) for i,c in enumerate(combo)]
     #currently using precision fudge factor to get 
     #around 0 probability errors when pv = 1
     #TODO: investigate look this bug more
@@ -135,7 +132,9 @@ def get_most_likely_cn_states(cn_states, s, d, phi, pi, pval_cutoff):
     '''
     
     def get_most_likely_pv(cn_lik):
-        if len(cn_lik[0])>0:
+        if np.all(np.isnan(cn_lik[0])):
+            return 0.0000001
+        elif len(cn_lik[0]) > 0:
             return cn_lik[0][np.where(np.nanmax(cn_lik[1])==cn_lik[1])[0][0]]
         else:
             return 0.0000001
@@ -152,15 +151,14 @@ def get_most_likely_cn_states(cn_states, s, d, phi, pi, pval_cutoff):
         #cn_lik_phi = cn_lik_clonal
         if len(cn_lik_clonal)==0:
             return [float('nan'), float('nan'), float('nan')]
-   
-        #log_ratios = np.array([ 2 * (np.nanmax(cn_lik_phi) - clon_lik) for clon_lik in cn_lik_clonal])
-        #p_vals     = np.array([stats.chisqprob(lr,1) for lr in log_ratios])
-        #p_vals[np.isnan(p_vals)]=1
 
         # log likelihood ratio test; null hypothesis = likelihood under phi
         LLR   = 2 * (np.nanmax(cn_lik_clonal) - np.nanmax(cn_lik_phi))
         p_val = stats.chisqprob(LLR,1) if not np.isnan(LLR) else 1
-        if p_val < pval_cutoff:
+
+        if np.all(np.isnan(cn_lik_phi)):
+            return cn_states[i][0]
+        elif p_val < pval_cutoff:
             return cn_states[i][np.where(np.nanmax(cn_lik_clonal)==cn_lik_clonal)[0][0]] 
         else:
             return cn_states[i][np.where(np.nanmax(cn_lik_phi)==cn_lik_phi)[0][0]] 
@@ -199,7 +197,11 @@ def cluster(sup,dep,cn_states,Nvar,sparams,cparams,phi_limit):
     
     @pm.deterministic
     def p_var(z=z,phi_k=phi_k):
-        most_lik_cn_states, pvs = get_most_likely_cn_states(cn_states, sup, dep, phi_k[z], sparams['pi'], pval_cutoff)
+        if np.any(z < 0):
+            z = [0 for x in z]
+            # ^ some fmin optimization methods initialise this array with -ve numbers
+        most_lik_cn_states, pvs = \
+                get_most_likely_cn_states(cn_states, sup, dep, phi_k[z], sparams['pi'], pval_cutoff)
         return pvs
 
     cbinom = pm.Binomial('cbinom', dep, p_var, observed=True, value=sup)
