@@ -1,4 +1,3 @@
-# get a metric for stability of clusters
 
 args <- commandArgs(trailingOnly = TRUE)
 
@@ -107,7 +106,7 @@ if (clus_stab) {
     cols <- colorRampPalette(brewer.pal(9,'Blues'))(30)
     heatmap.2(results, trace='none', Rowv=F, Colv=F, dendrogram='none', col=cols)
     dev.off()
-    
+
     results <- cbind(rownames(results), results)
     write.table(results, paste(id,'_cluster_stability.csv', sep=''), sep=',', quote=F, row.names=F)
 }
@@ -129,30 +128,29 @@ dev.off()
 ############################################################################################
 
 if (length(args)>2 & map) {
-    print('Plotting AIC & BIC metrics...')
+    print('Plotting DIC metric...')
     ic_table <- NULL
     for (run in runs) {
-        ic <- read.table(paste(run, '/', snv_dir, id, '_fit.txt', sep=''), sep='\t', header=F, stringsAsFactors = F)
+        ic <- read.table(paste(run, '/', snv_dir, id, '_fit.txt', sep=''), sep='\t', header=T, stringsAsFactors = F)
         ic <- cbind(run=run, ic)
         ic_table <- rbind(ic_table, ic)
     }
-    
-    pdf(paste(id, 'aic_bic_plot.pdf',sep='_'), height=4)
-    print(ggplot(ic_table, aes(y=V2, x=run, group=V1, color=factor(V1))) + ylab('value') + geom_line())
+
+    pdf(paste(id, 'dic_plot.pdf',sep='_'), height=4)
+    print(ggplot(ic_table, aes(y=DIC, x=run, group=1)) + ylab('value') + geom_line())
     dev.off()
-    
-    ic_table <- cast(ic_table, run~V1, value='V2')
-    min_bic <- ic_table[min(ic_table$BIC)==ic_table$BIC,]
-    min_bic$AIC <- min_bic$run
-    min_bic$run <- 'min_BIC'
+
+#     ic_table <- cast(ic_table, run~DIC, value='DIC')
+    min_bic <- ic_table[min(ic_table$DIC)==ic_table$DIC,]
+    min_bic$run <- paste('min_DIC:',min_bic$run)
     ic_table <- rbind(ic_table, min_bic)
-    
-    min_aic <- ic_table[min(ic_table$AIC)==ic_table$AIC,]
-    min_aic$BIC <- min_aic$run
-    min_aic$run <- 'min_AIC'
-    ic_table <- rbind(ic_table, min_aic)
-    
-    write.table(ic_table, paste(id,'_aic_bic_metrics.csv', sep=''), sep=',', quote=F, row.names=F)
+
+#     min_aic <- ic_table[min(ic_table$AIC)==ic_table$AIC,]
+#     min_aic$BIC <- min_aic$run
+#     min_aic$run <- 'min_AIC'
+#     ic_table <- rbind(ic_table, min_aic)
+
+    write.table(ic_table, paste(id,'_dic_metric.csv', sep=''), sep=',', quote=F, row.names=F)
 }
 
 ############################################################################################
@@ -245,8 +243,9 @@ for (run in runs) {
     sc_tab <- tableGrob(tabout, rows=c())
     if (map) {
         ic <- read.table(paste(run, '/', snv_dir, id, '_fit.txt', sep=''), 
-                     sep='\t', header=F, stringsAsFactors = F)
-        ic <- data.frame(t(ic)); colnames(ic) <- c('BIC','AIC'); ic <- ic[-1,]
+                     sep='\t', header=T, stringsAsFactors = F)
+        #ic <- data.frame(t(ic)); colnames(ic) <- c('BIC','AIC'); ic <- ic[-1,]
+        #ic <- data.frame(t(ic)); colnames(ic) <- c('DIC'); ic <- ic[-1,]
         ic_tab <- tableGrob(ic, rows=c())
         
         height <- 7+round(nrow(tabout)*0.2)

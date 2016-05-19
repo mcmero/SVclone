@@ -108,7 +108,7 @@ def get_probs(var_states,s,d,phi,pi):
 def get_probs_from_llik(cn_lik):
     probs = np.array([1.])
     if len(cn_lik) > 1:        
-        probs = map(math.exp,cn_lik)
+        probs = [math.exp(x) for x in cn_lik]
         probs = np.array(probs)/sum(probs)
     return probs
 
@@ -180,10 +180,12 @@ def cluster(sup,dep,cn_states,Nvar,sparams,cparams,phi_limit):
 
         stick_breaking.grad = lambda *x: x[0] #dummy gradient (otherwise fit function fails)
         p = stick_breaking(h)
-        z = pm.Categorical('z', p, testval=0, shape=Nvar)
+        z = pm.Categorical('z', p, shape=Nvar)
 
         @theano.compile.ops.as_op(itypes=[t.lvector, t.dvector], otypes=[t.dvector])
         def p_var(z=z, phi_k=phi_k):
+            if np.any(z < 0):
+                z = [0 for x in z]
             most_lik_cn_states, pvs = \
                     get_most_likely_cn_states(cn_states, sup, dep, phi_k[z], sparams['pi'])
             return np.array(pvs)
@@ -202,10 +204,13 @@ def cluster(sup,dep,cn_states,Nvar,sparams,cparams,phi_limit):
         #x = pm.Binomial('cbinom', np.array([10,12]), k, shape=2, observed=np.array([5,5]))
 
     with model:
-        #start = pm.find_MAP(fmin=optimize.ftatin_powell)
-        start = pm.find_MAP()
+        start = pm.find_MAP(fmin=optimize.fmin_cg)
+
         #TODO: make map optional?
-        step = pm.Metropolis(vars=[alpha, h, p, cbinom, z, pv, phi_k])
-        trace = pm.sample(iters, step, start)
-    
+        step1 = pm.Metropolis(vars=[alpha, h, p])
+        step2 = pm.BinaryMetropolis(vars=[z])
+        step3 = pm.Metropolis(vars=[cbinom, phi_k, pv])
+
+        trace = pm.sample(iters, [step1, step2, step3], start)
+
     return trace, model
