@@ -1,7 +1,7 @@
 import numpy as np
 import pandas as pd
 import pymc3 as pm
-import pymc as mc
+import pymc as pm2
 import math
 import ipdb
 import theano
@@ -9,7 +9,6 @@ import theano.tensor as t
 
 from theano.compile.ops import as_op
 from scipy import stats, optimize
-from operator import methodcaller
 
 def add_copynumber_combos(combos, var_maj, var_min, ref_cn, frac):
     '''
@@ -92,7 +91,7 @@ def filter_cns(cn_states):
 
 def calc_lik(combo,si,di,phi_i,pi):
     pvs = [get_pv(phi_i,c[0],c[1],c[2],c[3],pi) for c in combo]
-    lls = [mc.binomial_like(si,di,pvs[i]) for i,c in enumerate(combo)]
+    lls = [pm2.binomial_like(si,di,pvs[i]) for i,c in enumerate(combo)]
     #currently using precision fudge factor to get 
     #around 0 probability errors when pv = 1
     #TODO: investigate look this bug more
@@ -161,56 +160,74 @@ def cluster(sup,dep,cn_states,Nvar,sparams,cparams,phi_limit):
     clustering model using Dirichlet Process
     '''
 
-    Ndp, iters = cparams['clus_limit'], cparams['n_iter']
+    Ndp, iters, pi = cparams['clus_limit'], cparams['n_iter'], sparams['pi']
+    Ndp_vals = [x for x in range(Ndp)]
     sens = 1.0 / ((sparams['pi']/float(sparams['ploidy']))*np.mean(dep))
     beta_a, beta_b = map(lambda x: float(eval(x)), cparams['beta'].split(','))
     print("Dirichlet concentration gamma values: alpha = %f, beta= %f" % (beta_a, beta_b))
 
+    # to avoid out of bounds error
+    Ndp = Nvar
+
+    # pymc3 prefers lists vs. nparrays for some instances? can't say for sure
+    sup = [int(si) for si in sup]
+    cn_states = list(cn_states)
+
+    # init values
+    phi_init = (np.mean(sup) / np.mean(dep) / 2) / pi
+
     with pm.Model() as model:
 
-        alpha = pm.Gamma('alpha', alpha=beta_a, beta=beta_b)
-        h = pm.Beta('h', alpha=1, beta=alpha, shape=Nvar)
-        phi_k = pm.Uniform('phi_k', lower=sens, upper=phi_limit, shape=Ndp)
+        alpha = pm.Gamma('alpha', alpha=beta_a, beta=beta_b, testval=1)
+        h = pm.Beta('h', alpha=1, beta=alpha, shape=Ndp, testval=1/(1+alpha))
+        phi_k = pm.Uniform('phi_k', lower=sens, upper=phi_limit, shape=Ndp, testval=phi_init)
 
         @as_op(itypes=[t.dvector], otypes=[t.dvector])
         def stick_breaking(h=h):
             value = [u * np.prod(1.0 - h[:i]) for i, u in enumerate(h)]
             value /= np.sum(value)
+            if np.sum(value)!=1:
+                value[len(value)-1] += 1-np.sum(value)#floaty roundy error
             return value
 
         stick_breaking.grad = lambda *x: x[0] #dummy gradient (otherwise fit function fails)
         p = stick_breaking(h)
-        z = pm.Categorical('z', p, shape=Nvar)
+        z = pm.Categorical('z', p=p, testval=0, shape=Nvar)
 
         @theano.compile.ops.as_op(itypes=[t.lvector, t.dvector], otypes=[t.dvector])
         def p_var(z=z, phi_k=phi_k):
-            if np.any(z < 0):
-                z = [0 for x in z]
+            #print(z)
+            #if np.any(z < 0) or np.all(z==Ndp-1):
+            #    if np.all(z==Ndp-1):
+            #        print("Nearing bug!")
+            #    z = [0 for x in z]
             most_lik_cn_states, pvs = \
-                    get_most_likely_cn_states(cn_states, sup, dep, phi_k[z], sparams['pi'])
+                    get_most_likely_cn_states(cn_states, sup, dep, phi_k[z], pi)
             return np.array(pvs)
 
         p_var.grad = lambda *x: [t.cast(x[0][0], dtype='float64'), x[0][1]]
         pv = p_var(z, phi_k)
-        cbinom = pm.Binomial('cbinom', dep, pv, shape=Nvar, observed=sup)
+        #cbinom = pm.Binomial('cbinom', dep, pv, shape=Nvar, observed=sup)
 
-        #@theano.compile.ops.as_op(itypes=[t.fscalar, t.fscalar], otypes=[t.fscalar])
-        #def bb_alpha(bb_beta, p_var):
-        #    return (- (bb_beta * p_var) / (p_var - 1))
+        @theano.compile.ops.as_op(itypes=[t.dvector, t.dvector], otypes=[t.dvector])
+        def get_bb_alpha(bb_beta, p_var):
+            # take beta, generate alpha for mean p_var
+            return (- (bb_beta * p_var) / (p_var - 1))
 
-        #bb_beta = pm.Normal('bb_beta', p_var, 0.2)
-        #cbbinom = pm.BetaBinomial('cbbinom', bb_beta, bb_beta, dep, observed=True, value=sup)
-        #k = pm.Normal('k', np.array([0.5,0.5]), np.array([0.2, 0.2]), shape =2)
-        #x = pm.Binomial('cbinom', np.array([10,12]), k, shape=2, observed=np.array([5,5]))
+        get_bb_alpha.grad = lambda *x: x[0]
+        bb_beta = pm.Gamma('bb_beta', alpha=1, beta=0.001, shape=Nvar)
+        bb_alpha = get_bb_alpha(bb_beta, pv)
+        cbbinom = pm.BetaBinomial('cbbinom', alpha=bb_alpha, beta=bb_beta, n=dep, observed=sup)
 
     with model:
         start = pm.find_MAP(fmin=optimize.fmin_cg)
-
         #TODO: make map optional?
-        step1 = pm.Metropolis(vars=[alpha, h, p])
-        step2 = pm.BinaryMetropolis(vars=[z])
-        step3 = pm.Metropolis(vars=[cbinom, phi_k, pv])
 
-        trace = pm.sample(iters, [step1, step2, step3], start)
+        #step1 = pm.Metropolis(vars=[alpha, h, p, phi_k])
+        step1 = pm.Metropolis(vars=[alpha, h, p, phi_k, pv, bb_alpha, bb_beta, cbbinom])
+        step2 = pm.ElemwiseCategorical(vars=[z], values=Ndp_vals)
+        #step3 = pm.Metropolis(vars=[pv, cbinom])
+
+        trace = pm.sample(iters, [step1, step2], start)
 
     return trace, model
