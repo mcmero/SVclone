@@ -170,12 +170,15 @@ def post_process_clusters(trace,model,sv_df,snv_df,clus_out_dir,sup,dep,cn_state
     merge_clusts  = cparams['merge_clusts']
     burn          = cparams['burn']
     thin          = cparams['thin']
+    map_          = cparams['use_map']
     smc_het       = output_params['smc_het']
     write_matrix  = output_params['write_matrix']
     plot          = output_params['plot']
 
     # fit to data frame
-    run_fit = pd.DataFrame(['DIC', pm.stats.dic(trace, model)])
+    run_fit = pd.DataFrame()
+    if map_:
+       run_fit = pd.DataFrame(['DIC', pm.stats.dic(trace, model)])
 
     # assign points to highest probabiliy cluster
     npoints = len(snv_df) + len(sv_df)
@@ -236,8 +239,7 @@ def post_process_clusters(trace,model,sv_df,snv_df,clus_out_dir,sup,dep,cn_state
     
     # cluster plotting
     if plot:
-        #alpha_trace = trace.trace("alpha")[:]
-        #plot_clusters(center_trace,clus_idx,clus_max_prob,sup,dep,clus_out_dir)
+        plot_clusters(center_trace,clus_idx,clus_max_prob,sup,dep,clus_out_dir)
         pm.traceplot(trace)
         plt.savefig('%s/traces.pdf' % clus_out_dir)
     

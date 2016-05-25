@@ -59,19 +59,6 @@ def get_sv_allele_combos(sv):
 
     return tuple([combos_bp1,combos_bp2])
 
-#def fit_and_sample(model, iters, burn, thin, use_map):
-#    if use_map:
-#        map_ = pm.MAP( model )
-#        map_.fit(method = 'fmin')
-#
-#    mcmc = pm.MCMC( model )
-#    mcmc.sample( iters, burn=burn, thin=thin )
-#
-#    if use_map:
-#        return mcmc, map_
-#    else:
-#        return mcmc, None
-
 def get_pv(phi,cn_r,cn_v,mu,cn_f,pi):
     #rem = 1.0 - phi
     #rem = rem.clip(min=0)
@@ -161,6 +148,7 @@ def cluster(sup,dep,cn_states,Nvar,sparams,cparams,phi_limit):
     '''
 
     Ndp, iters, pi = cparams['clus_limit'], cparams['n_iter'], sparams['pi']
+    map_ = cparams['clus_limit']
     Ndp_vals = [x for x in range(Ndp)]
     sens = 1.0 / ((sparams['pi']/float(sparams['ploidy']))*np.mean(dep))
     beta_a, beta_b = map(lambda x: float(eval(x)), cparams['beta'].split(','))
@@ -173,14 +161,11 @@ def cluster(sup,dep,cn_states,Nvar,sparams,cparams,phi_limit):
     sup = [int(si) for si in sup]
     cn_states = list(cn_states)
 
-    # init values
-    phi_init = (np.mean(sup) / np.mean(dep) / 2) / pi
-
     with pm.Model() as model:
 
         alpha = pm.Gamma('alpha', alpha=beta_a, beta=beta_b, testval=1)
         h = pm.Beta('h', alpha=1, beta=alpha, shape=Ndp, testval=1/(1+alpha))
-        phi_k = pm.Uniform('phi_k', lower=sens, upper=phi_limit, shape=Ndp, testval=phi_init)
+        phi_k = pm.Uniform('phi_k', lower=sens, upper=phi_limit, shape=Ndp, testval=1)
 
         @as_op(itypes=[t.dvector], otypes=[t.dvector])
         def stick_breaking(h=h):
@@ -220,14 +205,17 @@ def cluster(sup,dep,cn_states,Nvar,sparams,cparams,phi_limit):
         cbbinom = pm.BetaBinomial('cbbinom', alpha=bb_alpha, beta=bb_beta, n=dep, observed=sup)
 
     with model:
-        start = pm.find_MAP(fmin=optimize.fmin_cg)
-        #TODO: make map optional?
 
-        #step1 = pm.Metropolis(vars=[alpha, h, p, phi_k])
-        step1 = pm.Metropolis(vars=[alpha, h, p, phi_k, pv, bb_alpha, bb_beta, cbbinom])
+        if map_:
+            start = pm.find_MAP(fmin=optimize.fmin_cg)
+
+        step1 = pm.Metropolis(vars=[alpha, h, p, phi_k])
         step2 = pm.ElemwiseCategorical(vars=[z], values=Ndp_vals)
-        #step3 = pm.Metropolis(vars=[pv, cbinom])
+        step3 = pm.Metropolis(vars=[pv, bb_alpha, bb_beta, cbbinom])
 
-        trace = pm.sample(iters, [step1, step2], start)
+        if map_:
+            trace = pm.sample(iters, [step1, step2, step3], start)
+        else:
+            trace = pm.sample(iters, [step1, step2, step3])
 
     return trace, model
