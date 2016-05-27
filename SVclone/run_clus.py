@@ -202,7 +202,16 @@ def post_process_clusters(trace,model,sv_df,snv_df,clus_out_dir,sup,dep,cn_state
     # get cluster means
     center_trace = trace['phi_k'][burn:]
     center_trace = center_trace[range(0,len(center_trace),thin)] if thin > 1 else center_trace #thinning
-    
+
+    #renumber clusts based on clust categorical
+    for i in range(len(center_trace)):
+        clusts = np.unique(z_trace[i])
+        ph = center_trace[i][clusts]
+        ranks = ph.argsort()[::-1]
+        z_tmp = z_trace[i]
+        for idx,clus in enumerate(clusts):
+            z_trace[i][np.where(z_tmp==clus)[0]] = ranks[idx]
+
     phis = np.array([mean_confidence_interval(center_trace[:,cid],cparams['hpd_alpha']) for cid in clus_info.clus_id.values])
     clus_info['phi'] = phis[:,0]
     clus_info['95p_HPD_lo'] = phis[:,1]
@@ -384,7 +393,7 @@ def run_clustering(args):
     use_map         = string_to_bool(Config.get('ClusterParameters', 'map'))
     merge_clusts    = string_to_bool(Config.get('ClusterParameters', 'merge'))
     cocluster       = string_to_bool(Config.get('ClusterParameters', 'cocluster'))
-    adjusted       = string_to_bool(Config.get('ClusterParameters', 'adjusted'))
+    adjusted        = string_to_bool(Config.get('ClusterParameters', 'adjusted'))
 
     plot            = string_to_bool(Config.get('OutputParameters', 'plot'))
     smc_het         = string_to_bool(Config.get('OutputParameters', 'smc_het'))

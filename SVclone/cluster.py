@@ -116,7 +116,7 @@ def get_most_likely_cn_states(cn_states, s, d, phi, pi):
         most likely clonal (phi=1) case (log likelihood ratio test) 
         - in this case, pick the most CN state with the highest clonal likelihood
         '''
-        pval_cutoff = 0.05
+        pval_cutoff = 0.01
         cn_lik_clonal, cn_lik_phi = cn_lik
 
         #reinstitute hack - uncomment below
@@ -148,8 +148,8 @@ def cluster(sup,dep,cn_states,Nvar,sparams,cparams,phi_limit):
     '''
 
     Ndp, iters, pi = cparams['clus_limit'], cparams['n_iter'], sparams['pi']
-    map_ = cparams['clus_limit']
     Ndp_vals = [x for x in range(Ndp)]
+    map_ = cparams['use_map']
     sens = 1.0 / ((sparams['pi']/float(sparams['ploidy']))*np.mean(dep))
     beta_a, beta_b = map(lambda x: float(eval(x)), cparams['beta'].split(','))
     print("Dirichlet concentration gamma values: alpha = %f, beta= %f" % (beta_a, beta_b))
@@ -163,9 +163,9 @@ def cluster(sup,dep,cn_states,Nvar,sparams,cparams,phi_limit):
 
     with pm.Model() as model:
 
-        alpha = pm.Gamma('alpha', alpha=beta_a, beta=beta_b, testval=1)
+        alpha = pm.Gamma('alpha', alpha=beta_a, beta=beta_b, testval=beta_a/beta_b)
         h = pm.Beta('h', alpha=1, beta=alpha, shape=Ndp, testval=1/(1+alpha))
-        phi_k = pm.Uniform('phi_k', lower=sens, upper=phi_limit, shape=Ndp, testval=1)
+        phi_k = pm.Uniform('phi_k', lower=sens, upper=phi_limit, shape=Ndp)
 
         @as_op(itypes=[t.dvector], otypes=[t.dvector])
         def stick_breaking(h=h):
@@ -181,11 +181,6 @@ def cluster(sup,dep,cn_states,Nvar,sparams,cparams,phi_limit):
 
         @theano.compile.ops.as_op(itypes=[t.lvector, t.dvector], otypes=[t.dvector])
         def p_var(z=z, phi_k=phi_k):
-            #print(z)
-            #if np.any(z < 0) or np.all(z==Ndp-1):
-            #    if np.all(z==Ndp-1):
-            #        print("Nearing bug!")
-            #    z = [0 for x in z]
             most_lik_cn_states, pvs = \
                     get_most_likely_cn_states(cn_states, sup, dep, phi_k[z], pi)
             return np.array(pvs)
@@ -200,7 +195,7 @@ def cluster(sup,dep,cn_states,Nvar,sparams,cparams,phi_limit):
             return (- (bb_beta * p_var) / (p_var - 1))
 
         get_bb_alpha.grad = lambda *x: x[0]
-        bb_beta = pm.Gamma('bb_beta', alpha=1, beta=0.001, shape=Nvar)
+        bb_beta = pm.Gamma('bb_beta', alpha=1, beta=0.001, shape=Nvar, testval=1/0.001)
         bb_alpha = get_bb_alpha(bb_beta, pv)
         cbbinom = pm.BetaBinomial('cbbinom', alpha=bb_alpha, beta=bb_beta, n=dep, observed=sup)
 
