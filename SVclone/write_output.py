@@ -2,6 +2,7 @@ import numpy as np
 import pandas as pd
 import os
 import itertools
+import gzip
 from operator import methodcaller
 
 from . import dtypes
@@ -9,9 +10,10 @@ from . import cluster
 from . import load_data
 
 def dump_trace(clus_info, center_trace, outf):
-    traces = np.array([center_trace[:, cid] for cid in clus_info.clus_id.values])
-    df_traces = pd.DataFrame(np.transpose(traces), columns=clus_info.clus_id)
-    df_traces.to_csv(outf, sep='\t', index=False)
+    outf = '%s.gz' % outf
+    with gzip.open(outf, 'wt') as fout:
+        df_traces = pd.DataFrame(center_trace)
+        df_traces.to_csv(fout, sep='\t', index=False, header=False)
 
 def write_out_files(df, clus_info, clus_members, df_probs, clus_cert, clus_out_dir, sample, pi, sup, dep, cn_states, run_fit, z_trace, smc_het, write_matrix, are_snvs=False):
     if are_snvs:

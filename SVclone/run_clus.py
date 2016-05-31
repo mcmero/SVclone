@@ -38,7 +38,7 @@ def gen_new_colours(N):
     return RGB_tuples
 
 def plot_clusters(center_trace,clusters,assignments,sup,dep,clus_out_dir):#,alpha_trace):
-    fig, axes = plt.subplots(3, 1, sharex=False, sharey=False, figsize=(12.5,8))
+    fig, axes = plt.subplots(2, 1, sharex=False, sharey=False, figsize=(12.5,6))
 
     RGB_tuples = gen_new_colours(len(clusters))
 
@@ -47,20 +47,16 @@ def plot_clusters(center_trace,clusters,assignments,sup,dep,clus_out_dir):#,alph
 
     for idx,clus in enumerate(clusters):
         axes[0].plot(center_trace[:, clus], label="trace of center %d" % clus, c=RGB_tuples[idx], lw=1)
-        # print('phi_%d ~ %f' % (idx,np.mean(center_trace[2000:,clus])))
 
     leg = axes[0].legend(loc="upper right")
     leg.get_frame().set_alpha(0.7)
     axes[1].set_title("Raw VAFs")
-#    axes[2].set_title("Alpha trace")
-#    axes[2].plot(alpha_trace, label="alpha trace", lw=1)
     
     for idx,clus in enumerate(clusters):
         clus_idx = np.array(assignments)==clus
         sup_clus = sup[clus_idx]
         dep_clus = dep[clus_idx]
         axes[1].hist(sup_clus/dep_clus,bins=np.array(range(0,100,2))/100.,alpha=0.75,color=RGB_tuples[idx])
-        #axes[2].hist(((s1/(n1+s1)*pl)/pi),bins=np.array(range(0,100,2))/100.,alpha=0.75,color=RGB_tuples[idx])
 
     plt.savefig('%s/cluster_trace_hist'%clus_out_dir)
 
@@ -202,15 +198,6 @@ def post_process_clusters(trace,model,sv_df,snv_df,clus_out_dir,sup,dep,cn_state
     # get cluster means
     center_trace = trace['phi_k'][burn:]
     center_trace = center_trace[range(0,len(center_trace),thin)] if thin > 1 else center_trace #thinning
-
-    #renumber clusts based on clust categorical
-    for i in range(len(center_trace)):
-        clusts = np.unique(z_trace[i])
-        ph = center_trace[i][clusts]
-        ranks = ph.argsort()[::-1]
-        z_tmp = z_trace[i]
-        for idx,clus in enumerate(clusts):
-            z_trace[i][np.where(z_tmp==clus)[0]] = ranks[idx]
 
     phis = np.array([mean_confidence_interval(center_trace[:,cid],cparams['hpd_alpha']) for cid in clus_info.clus_id.values])
     clus_info['phi'] = phis[:,0]
