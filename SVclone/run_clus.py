@@ -37,7 +37,7 @@ def gen_new_colours(N):
     RGB_tuples = list(map(lambda x: colorsys.hsv_to_rgb(*x), HSV_tuples))
     return RGB_tuples
 
-def plot_clusters(center_trace,clusters,assignments,sup,dep,clus_out_dir):#,alpha_trace):
+def plot_clusters(center_trace, clusters, assignments, sup, dep ,clus_out_dir, burn):
     fig, axes = plt.subplots(2, 1, sharex=False, sharey=False, figsize=(12.5,6))
 
     RGB_tuples = gen_new_colours(len(clusters))
@@ -45,8 +45,11 @@ def plot_clusters(center_trace,clusters,assignments,sup,dep,clus_out_dir):#,alph
     axes[0].set_ylim([0,2])
     axes[0].set_title("Trace of $\phi_k$")
 
+    x_burn = np.arange(burn)
+    x = np.arange(burn, len(center_trace))
     for idx,clus in enumerate(clusters):
-        axes[0].plot(center_trace[:, clus], label="trace of center %d" % clus, c=RGB_tuples[idx], lw=1)
+        axes[0].plot(x_burn, center_trace[:burn, clus], c=RGB_tuples[idx], lw=1, alpha=0.4)
+        axes[0].plot(x, center_trace[burn:, clus], label="trace of center %d" % clus, c=RGB_tuples[idx], lw=1)
 
     leg = axes[0].legend(loc="upper right")
     leg.get_frame().set_alpha(0.7)
@@ -179,9 +182,10 @@ def post_process_clusters(trace,model,sv_df,snv_df,clus_out_dir,sup,dep,cn_state
     # assign points to highest probabiliy cluster
     npoints = len(snv_df) + len(sv_df)
 
-    z_trace = trace['z'][burn:]
-    z_trace = z_trace[range(0,len(z_trace),thin)] if thin > 1 else z_trace #thinning
-    clus_counts = [np.bincount(z_trace[:,i]) for i in range(npoints)]
+    z_trace = trace['z']
+    z_trace_burn = z_trace[burn:]
+    z_trace_burn = z_trace_burn[range(0,len(z_trace_burn),thin)] if thin > 1 else z_trace_burn #thinning
+    clus_counts = [np.bincount(z_trace_burn[:,i]) for i in range(npoints)]
     clus_max_prob = [index_max(c) for c in clus_counts]
     clus_mp_counts = np.bincount(clus_max_prob)
     clus_idx = np.nonzero(clus_mp_counts)[0]
@@ -196,7 +200,8 @@ def post_process_clusters(trace,model,sv_df,snv_df,clus_out_dir,sup,dep,cn_state
         return None
 
     # get cluster means
-    center_trace = trace['phi_k'][burn:]
+    center_trace = trace['phi_k']
+    center_trace_burn = center_trace[burn:]
     center_trace = center_trace[range(0,len(center_trace),thin)] if thin > 1 else center_trace #thinning
 
     phis = np.array([mean_confidence_interval(center_trace[:,cid],cparams['hpd_alpha']) for cid in clus_info.clus_id.values])
@@ -235,7 +240,7 @@ def post_process_clusters(trace,model,sv_df,snv_df,clus_out_dir,sup,dep,cn_state
     
     # cluster plotting
     if plot:
-        plot_clusters(center_trace,clus_idx,clus_max_prob,sup,dep,clus_out_dir)
+        plot_clusters(center_trace, clus_idx, clus_max_prob, sup, dep, clus_out_dir, burn)
         pm.traceplot(trace)
         plt.savefig('%s/traces.pdf' % clus_out_dir)
     
@@ -269,7 +274,7 @@ def post_process_clusters(trace,model,sv_df,snv_df,clus_out_dir,sup,dep,cn_state
         snv_cn_states = cn_states[:len(snv_df)]
         write_output.write_out_files(snv_df,clus_info,snv_members,
                 snv_probs,snv_ccert,clus_out_dir,sparams['sample'],sparams['pi'],snv_sup,
-                snv_dep,snv_cn_states,run_fit,z_trace,smc_het,write_matrix,are_snvs=True)
+                snv_dep,snv_cn_states,run_fit,z_trace_burn,smc_het,write_matrix,are_snvs=True)
     
     sv_probs = pd.DataFrame()
     sv_ccert = pd.DataFrame()
@@ -294,7 +299,7 @@ def post_process_clusters(trace,model,sv_df,snv_df,clus_out_dir,sup,dep,cn_state
         sv_cn_states = cn_states[lb:lb+len(sv_df)]
         write_output.write_out_files(sv_df,clus_info,sv_members,
                     sv_probs,sv_ccert,clus_out_dir,sparams['sample'],sparams['pi'],sv_sup,
-                    sv_dep,sv_cn_states,run_fit,z_trace,smc_het,write_matrix)
+                    sv_dep,sv_cn_states,run_fit,z_trace_burn,smc_het,write_matrix)
 
 def cluster_and_process(sv_df, snv_df, run, out_dir, sample_params, cluster_params, output_params):
     # set random seed

@@ -59,13 +59,11 @@ def get_sv_allele_combos(sv):
 
     return tuple([combos_bp1,combos_bp2])
 
-def get_pv(phi,cn_r,cn_v,mu,cn_f,pi):
-    #rem = 1.0 - phi
-    #rem = rem.clip(min=0)
-    #pr =  pi * rem * cn_r    #proportion of normal reads coming from other (reference) clusters
-    pn = (1.0 - pi) * 2.0    #proportion of normal reads coming from normal cells
-    pv = pi * cn_v           #proportion of variant + normal reads coming from this (the variant) cluster
-    norm_const = pn + pv
+def get_pv(phi, cn_r, cn_v, mu, cn_f, pi):
+    pn = (1.0 - pi) * 2.0       #proportion of normal reads coming from normal cells
+    pr = pi * cn_r * (1. - cn_f) if cn_f < 1 else 0 # incorporate ref population CNV fraction if present
+    pv = pi * cn_v * cn_f       #proportion of variant + normal reads coming from this (the variant) cluster
+    norm_const = pn + pv + pr
     pv = pv / norm_const
 
     return phi * pv * mu
@@ -189,15 +187,16 @@ def cluster(sup,dep,cn_states,Nvar,sparams,cparams,phi_limit):
         pv = p_var(z, phi_k)
         #cbinom = pm.Binomial('cbinom', dep, pv, shape=Nvar, observed=sup)
 
-        @theano.compile.ops.as_op(itypes=[t.dvector, t.dvector], otypes=[t.dvector])
-        def get_bb_alpha(bb_beta, p_var):
-            # take beta, generate alpha for mean p_var
-            return (- (bb_beta * p_var) / (p_var - 1))
-
-        get_bb_alpha.grad = lambda *x: x[0]
-        bb_beta = pm.Gamma('bb_beta', alpha=1, beta=0.001, shape=Nvar, testval=1/0.001)
-        bb_alpha = get_bb_alpha(bb_beta, pv)
-        cbbinom = pm.BetaBinomial('cbbinom', alpha=bb_alpha, beta=bb_beta, n=dep, observed=sup)
+#        @theano.compile.ops.as_op(itypes=[t.dvector, t.dvector], otypes=[t.dvector])
+#        def get_bb_alpha(bb_beta, p_var):
+#            # take beta, generate alpha for mean p_var
+#            return (- (bb_beta * p_var) / (p_var - 1))
+#
+#        get_bb_alpha.grad = lambda *x: x[0]
+        #bb_beta = pm.Gamma('bb_beta', alpha=1, beta=0.001, shape=Nvar, testval=1/0.001)
+        bb_beta = pm.Uniform('bb_beta', lower=100, upper=102, shape=Nvar, testval=101)
+        #bb_alpha = get_bb_alpha(bb_beta, pv)
+        cbbinom = pm.BetaBinomial('cbbinom', alpha=-(bb_beta*pv)/(pv-1), beta=bb_beta, n=dep, observed=sup)
 
     with model:
 
@@ -206,7 +205,7 @@ def cluster(sup,dep,cn_states,Nvar,sparams,cparams,phi_limit):
 
         step1 = pm.Metropolis(vars=[alpha, h, p, phi_k])
         step2 = pm.ElemwiseCategorical(vars=[z], values=Ndp_vals)
-        step3 = pm.Metropolis(vars=[pv, bb_alpha, bb_beta, cbbinom])
+        step3 = pm.Metropolis(vars=[pv, bb_beta, cbbinom])
 
         if map_:
             trace = pm.sample(iters, [step1, step2, step3], start)
