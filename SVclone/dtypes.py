@@ -113,7 +113,8 @@ snv_mlcn_dtype =[('chr', 'S50'),
             ('bb_CN', 'S50'),
             ('most_likely_ref_copynumber', int),
             ('most_likely_variant_copynumber', int),
-            ('prop_chrs_bearing_mutation', float)]
+            ('prop_chrs_bearing_mutation', float),
+            ('bb_var_copynumber_frac', float)]
 
 # SNV multiplicities output
 snv_mult_dtype =[('chr', 'S50'),
