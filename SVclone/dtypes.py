@@ -86,7 +86,8 @@ sv_mlcn_dtype =[('chr1', 'S50'),
             ('prop_chrs_bearing_mutation', float),
             ('support', int),
             ('depth', int),      
-            ('pv', float)]
+            ('pv', float),
+            ('bb_var_copynumber_frac', float)]
 
 # SV multiplicities output
 sv_mult_dtype =[('chr1', 'S50'),

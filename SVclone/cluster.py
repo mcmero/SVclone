@@ -83,7 +83,9 @@ def fit_and_sample(model, iters, burn, thin, use_map):
         map_.fit(method = 'fmin_cg')
 
     mcmc = pm.MCMC( model )
-    mcmc.sample( iters, burn=burn, thin=thin )
+    #burn-in and thinning now done in post processing
+    #mcmc.sample( iters, burn=burn, thin=thin )
+    mcmc.sample( iters )
 
     if use_map:
         return mcmc, map_

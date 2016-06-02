@@ -15,6 +15,7 @@ import IPython
 import multiprocessing
 import time
 import shutil
+import cProfile, pstats, StringIO
 
 from distutils.dir_util import copy_tree
 from collections import OrderedDict
@@ -35,30 +36,29 @@ def gen_new_colours(N):
     RGB_tuples = map(lambda x: colorsys.hsv_to_rgb(*x), HSV_tuples)
     return RGB_tuples
 
-def plot_clusters(center_trace,clusters,assignments,sup,dep,clus_out_dir):#,alpha_trace):
-    fig, axes = plt.subplots(3, 1, sharex=False, sharey=False, figsize=(12.5,8))
+def plot_clusters(center_trace, clusters, assignments, sup, dep ,clus_out_dir, burn):
+    fig, axes = plt.subplots(2, 1, sharex=False, sharey=False, figsize=(12.5,6))
 
     RGB_tuples = gen_new_colours(len(clusters))
 
     axes[0].set_ylim([0,2])
     axes[0].set_title("Trace of $\phi_k$")
 
+    x_burn = np.arange(burn)
+    x = np.arange(burn, len(center_trace))
     for idx,clus in enumerate(clusters):
-        axes[0].plot(center_trace[:, clus], label="trace of center %d" % clus, c=RGB_tuples[idx], lw=1)
-        # print('phi_%d ~ %f' % (idx,np.mean(center_trace[2000:,clus])))
+        axes[0].plot(x_burn, center_trace[:burn, clus], c=RGB_tuples[idx], lw=1, alpha=0.4)
+        axes[0].plot(x, center_trace[burn:, clus], label="trace of center %d" % clus, c=RGB_tuples[idx], lw=1)
 
     leg = axes[0].legend(loc="upper right")
     leg.get_frame().set_alpha(0.7)
     axes[1].set_title("Raw VAFs")
-#    axes[2].set_title("Alpha trace")
-#    axes[2].plot(alpha_trace, label="alpha trace", lw=1)
     
     for idx,clus in enumerate(clusters):
         clus_idx = np.array(assignments)==clus
         sup_clus = sup[clus_idx]
         dep_clus = dep[clus_idx]
         axes[1].hist(sup_clus/dep_clus,bins=np.array(range(0,100,2))/100.,alpha=0.75,color=RGB_tuples[idx])
-        #axes[2].hist(((s1/(n1+s1)*pl)/pi),bins=np.array(range(0,100,2))/100.,alpha=0.75,color=RGB_tuples[idx])
 
     plt.savefig('%s/cluster_trace_hist'%clus_out_dir)
 
@@ -166,6 +166,8 @@ def post_process_clusters(mcmc,sv_df,snv_df,clus_out_dir,sup,dep,cn_states,spara
     subclone_diff = cparams['subclone_diff']
     phi_limit     = cparams['phi_limit']
     merge_clusts  = cparams['merge_clusts']
+    burn          = cparams['burn']
+    thin          = cparams['thin']
     cnv_pval      = cparams['clonal_cnv_pval']
     smc_het       = output_params['smc_het']
     write_matrix  = output_params['write_matrix']
@@ -180,7 +182,10 @@ def post_process_clusters(mcmc,sv_df,snv_df,clus_out_dir,sup,dep,cn_states,spara
     npoints = len(snv_df) + len(sv_df)
 
     z_trace = mcmc.trace('z')[:]
-    clus_counts = [np.bincount(z_trace[:,i]) for i in range(npoints)]
+    z_trace_burn = z_trace[burn:]
+    z_trace_burn = z_trace_burn[range(0,len(z_trace_burn),thin)] if thin > 1 else z_trace_burn #thinning
+
+    clus_counts = [np.bincount(z_trace_burn[:,i]) for i in range(npoints)]
     clus_max_prob = [index_max(c) for c in clus_counts]
     clus_mp_counts = np.bincount(clus_max_prob)
     clus_idx = np.nonzero(clus_mp_counts)[0]
@@ -196,6 +201,8 @@ def post_process_clusters(mcmc,sv_df,snv_df,clus_out_dir,sup,dep,cn_states,spara
 
     # get cluster means
     center_trace = mcmc.trace("phi_k")[:]
+    center_trace_burn = center_trace[burn:]
+    center_trace = center_trace[range(0,len(center_trace),thin)] if thin > 1 else center_trace #thinning
     
     phis = np.array([mean_confidence_interval(center_trace[:,cid],cparams['hpd_alpha']) for cid in clus_info.clus_id.values])
     clus_info['phi'] = phis[:,0]
@@ -228,13 +235,12 @@ def post_process_clusters(mcmc,sv_df,snv_df,clus_out_dir,sup,dep,cn_states,spara
         dump_out_dir = '%s/snvs'%clus_out_dir        
     trace_out = 'premerge_' if merge_clusts else ''
     trace_out = '%s/%s'%(dump_out_dir,trace_out)
-    write_output.dump_trace(clus_info,center_trace,trace_out+'phi_trace.txt')
-    write_output.dump_trace(clus_info,z_trace,trace_out+'z_trace.txt')
+    write_output.dump_trace(center_trace, trace_out+'phi_trace.txt')
+    write_output.dump_trace(z_trace, trace_out+'z_trace.txt')
     
     # cluster plotting
     if plot:
-        alpha_trace = mcmc.trace("alpha")[:]
-        plot_clusters(center_trace,clus_idx,clus_max_prob,sup,dep,clus_out_dir)
+        plot_clusters(center_trace, clus_idx, clus_max_prob, sup, dep, clus_out_dir, burn)
     
     # merge clusters
     if len(clus_info)>1 and merge_clusts:        
@@ -415,6 +421,9 @@ def run_clustering(args):
 
     clus_info,center_trace,ztrace,clus_members = None,None,None,None
 
+    pr = cProfile.Profile()
+    pr.enable()
+
     if threads == 1:
         for run in range(n_runs):
             cluster_and_process(sv_df,snv_df,run,out,sample_params,cluster_params,output_params)
@@ -436,6 +445,13 @@ def run_clustering(args):
                 j.start()
             for j in jobs:
                 j.join()
+
+    pr.disable()
+    s = StringIO.StringIO()
+    sortby = 'cumulative'
+    ps = pstats.Stats(pr, stream=s).sort_stats(sortby)
+    ps.print_stats()
+    print(s.getvalue())
 
     # select the best run based on min BIC
     if use_map:
