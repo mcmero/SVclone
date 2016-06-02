@@ -3,7 +3,7 @@
 args <- commandArgs(trailingOnly = TRUE)
 
 if(length(args)==0 | args[1]=='-h') {
-    print('Usage: Rscript <workingdir> <sample id> --map --clus_stability --snvs')
+    print('Usage: Rscript <workingdir> <sample id> --map --clus_stability --snvs --sc')
 }
 
 setwd(args[1])
@@ -11,11 +11,13 @@ id <- args[2]
 map <- FALSE
 clus_stab <- FALSE
 snvs <- FALSE
+handle_sc <- FALSE
 
 if(length(args) > 2) {
     map <- '--map' %in% args
     clus_stab <- '--clus_stability' %in% args
     snvs <- '--snvs' %in% args
+    handle_sc <- '--sc' %in% args
 }
 
 snv_dir <- ''
@@ -163,7 +165,13 @@ get_adjust_factor <- function(dat, pur) {
     cn <- dat$most_likely_variant_copynumber
     mut_prop <- dat$prop_chrs_bearing_mutation
     vaf <- dat$adjusted_vaf
+    frac <- dat$cn_frac
     prob <- (cn * mut_prop * pur) / (2 * (1 - pur) + cn * pur)
+    if (handle_sc) {
+        cn_r <- dat$most_likely_ref_copynumber * (1. - frac)
+        cn_r <- sapply(cn_r,function(x){if(x==1){0}else{x}})
+        prob <- (cn * mut_prop * pur) / (2 * (1 - pur) + cn * pur + cn_r * pur)
+    }
     return((1 / prob))
 }
 
@@ -202,6 +210,29 @@ ggQQ <- function(dat) {
     return(p)
 }
 
+get_frac <- function(x) {
+    variant_cn <- x['most_likely_variant_copynumber']
+    side <- x['preferred_side']
+    gtype <- x['gtype1']
+    if(side==1) {
+        gtype <- x['gtype2']
+    }
+    sc <- strsplit(gtype, '\\|')[[1]]
+    sc <- strsplit(sc,',')
+    sc1 <- as.numeric(sc[[1]])
+    sc1 <- c(sum(sc1[1:2]),sc1[3])
+    if(length(sc) > 1) {
+        sc2 <- as.numeric(sc[[2]])
+        sc2 <- c(sum(sc2[1:2]),sc2[3])
+        if (sc1[1] == variant_cn) {
+            return(sc1[2])
+        } else {
+            return(sc2[2])
+        }
+    }
+    return(sc1[2])
+}
+
 for (run in runs) {        
     mlcn <- read.table(paste(run, '/', snv_dir, id, '_most_likely_copynumbers.txt', sep=''), header=T, sep='\t', stringsAsFactors=F)    
     dat <- NULL
@@ -217,6 +248,7 @@ for (run in runs) {
         dat <- merge(dat, certain,by.x=merge_cols, by.y=merge_cols)
     }
     
+    dat$cn_frac <- apply(dat, 1, function(x){get_frac(x)})
     dat <- cbind(dat, CCF=get_adjust_factor(dat, pur) * dat$adjusted_vaf)
     dat$CCF <- sapply(dat$CCF,function(x){min(2,x)})
     

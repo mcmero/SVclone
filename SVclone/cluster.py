@@ -83,7 +83,9 @@ def fit_and_sample(model, iters, burn, thin, use_map):
         map_.fit(method = 'fmin_cg')
 
     mcmc = pm.MCMC( model )
-    mcmc.sample( iters, burn=burn, thin=thin )
+    #burn-in and thinning now done in post processing
+    #mcmc.sample( iters, burn=burn, thin=thin )
+    mcmc.sample( iters )
 
     if use_map:
         return mcmc, map_
@@ -91,9 +93,10 @@ def fit_and_sample(model, iters, burn, thin, use_map):
         return mcmc, None
 
 def get_pv(phi, cn_r, cn_v, mu, cn_f, pi):
-    pn = (1.0 - pi) * 2.0    #proportion of normal reads coming from normal cells
-    pv = pi * cn_v           #proportion of variant + normal reads coming from this (the variant) cluster
-    norm_const = pn + pv
+    pn = (1.0 - pi) * 2.0       #proportion of normal reads coming from normal cells
+    pr = pi * cn_r * (1. - cn_f) if cn_f < 1 else 0 # incorporate ref population CNV fraction if present
+    pv = pi * cn_v * cn_f       #proportion of variant + normal reads coming from this (the variant) cluster
+    norm_const = pn + pv + pr
     pv = pv / norm_const
 
     return phi * pv * mu

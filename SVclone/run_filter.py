@@ -116,20 +116,20 @@ def remove_zero_copynumbers(gtype):
     if gtype=='': return ''
     gtype_tmp = map(methodcaller('split',','),gtype.split('|'))
     if len(gtype_tmp)==1:
-        gt = map(float,gtype_tmp[0])
+        gt = map(float, gtype_tmp[0])
         if (gt[0]==0 and gt[1]==0): 
             gtype = ''
-    else:
-        new_gtype = []
-        for gt in gtype_tmp:
-            gt = map(float,gt)
-            if (gt[0]!=0 or gt[1]!=0): 
-                new_gtype.append(gt)
-        if len(new_gtype) > 0:
-            new_gtype = [map(str,g) for g in new_gtype]
-            gtype = '|'.join([','.join(g) for g in new_gtype])
-        else:
-            gtype = ''
+#    else:
+#        new_gtype = []
+#        for gt in gtype_tmp:
+#            gt = map(float,gt)
+#            if (gt[0]!=0 or gt[1]!=0):
+#                new_gtype.append(gt)
+#        if len(new_gtype) > 0:
+#            new_gtype = [map(str,g) for g in new_gtype]
+#            gtype = '|'.join([','.join(g) for g in new_gtype])
+#        else:
+#            gtype = ''
     return gtype
 
 def get_weighted_cns(gtypes):
@@ -351,7 +351,7 @@ def match_copy_numbers(var_df, cnv_df, sv_offset, bp_fields=['chr1','pos1','dir1
             overlaps = np.logical_and(adjpos >= cnv_start_list, adjpos <= cnv_end_list)
 
             #print(overlaps)
-            match = cnv_tmp[overlaps]        
+            match = cnv_tmp[overlaps]
             if len(match)==0:
                 # assign closest CNV state with closest boundary to SNV
                 if closest_start < closest_end:
@@ -449,8 +449,8 @@ def adjust_sv_read_counts(sv_df,pi,pl,min_dep,rlen,Config):
     support_adjust_factor = float(Config.get('FilterParameters', 'support_adjust_factor'))
     filter_subclonal_cnvs = string_to_bool(Config.get('FilterParameters', 'filter_subclonal_cnvs'))
 
-    gt1_sc  = np.array(map(len,map(methodcaller("split","|"),sv_df.gtype1.values)))>1
-    gt2_sc  = np.array(map(len,map(methodcaller("split","|"),sv_df.gtype2.values)))>1
+    gt1_sc  = [float(x.split('|')[0].split(',')[2])<1 for x in sv_df.gtype1.values]
+    gt2_sc  = [float(x.split('|')[0].split(',')[2])<1 for x in sv_df.gtype2.values]
     one_sc  = np.logical_xor(gt1_sc,gt2_sc)
     any_sc  = np.logical_or(gt1_sc,gt2_sc)
 
