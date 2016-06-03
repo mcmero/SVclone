@@ -3,6 +3,7 @@ import pandas as pd
 import pymc as pm
 import math
 import ipdb
+import collections
 
 from scipy import stats
 from operator import methodcaller
@@ -106,16 +107,23 @@ def filter_cns(cn_states):
     cn_str = np.unique(np.array(cn_str))
     return [map(float,cn) for cn in map(methodcaller('split',','),cn_str)]
 
-def calc_lik(combo,si,di,phi_i,pi):
-    pvs = [get_pv(phi_i,c[0],c[1],c[2],c[3],pi) for c in combo ]
-    lls = [pm.binomial_like(si,di,pvs[i]) for i,c in enumerate(combo)]
-    #currently using precision fudge factor to get 
+def calc_lik_with_clonal(combo, si, di, phi_i, pi):
+    pvs = np.array([get_pv(phi_i, c[0], c[1], c[2], c[3], pi) for c in combo])
+    lls = np.array([pm.binomial_like(si, di, pvs[i]) for i,c in enumerate(combo)])-0.00000001
+    # also calculate with clonal phi
+    pvs_cl = np.array([get_pv(np.array(1), c[0], c[1], c[2], c[3], pi) for c in combo])
+    lls_cl = np.array([pm.binomial_like(si, di, pvs[i]) for i,c in enumerate(combo)])-0.00000001
+    #lls currently uses precision fudge factor to get
     #around 0 probability errors when pv = 1
     #TODO: investigate look this bug more
-    return (pvs, np.array(lls)-0.00000001)
+    return np.array([[pvs, lls], [pvs_cl, lls_cl]])
+
+def calc_lik(combo, si, di, phi_i, pi):
+    pvs = np.array([get_pv(phi_i, c[0], c[1], c[2], c[3], pi) for c in combo])
+    lls = np.array([pm.binomial_like(si, di, pvs[i]) for i,c in enumerate(combo)])-0.00000001
+    return np.array([pvs, lls])
 
 def get_probs(var_states,s,d,phi,pi):
-    #probs = [(1/float(len(var_states)))]*len(var_states)
     llik = calc_lik(var_states,s,d,phi,pi)[1]
     probs = get_probs_from_llik(llik)
     probs = ','.join(map(lambda x: str(round(x,4)),probs))
@@ -128,51 +136,57 @@ def get_probs_from_llik(cn_lik):
         probs = np.array(probs)/sum(probs)
     return probs
 
+def index_of_max(lik_list):
+    result = collections.defaultdict(list)
+    for val, idx in enumerate(lik_list):
+        result[idx] = val
+    return result[np.nanmax(lik_list)]
+
+def get_most_likely_pv(cn_lik):
+    if np.all(np.isnan(cn_lik[0])):
+        return 0.0000001
+    elif len(cn_lik[0]) > 0:
+        return cn_lik[0][index_of_max(cn_lik[1])]
+        #return cn_lik[0][np.where(np.nanmax(cn_lik[1])==cn_lik[1])[0][0]]
+    else:
+        return 0.0000001
+
+def get_most_likely_cn(cn_states, cn_lik, i, pval_cutoff):
+    '''
+    use the most likely phi state, unless p < cutoff when compared to the
+    most likely clonal (phi=1) case (log likelihood ratio test)
+    - in this case, pick the most CN state with the highest clonal likelihood
+    '''
+    cn_lik_clonal, cn_lik_phi = cn_lik
+
+    #reinstitute hack - uncomment below
+    #cn_lik_phi = cn_lik_clonal
+    if len(cn_lik_clonal)==0:
+        return [float('nan'), float('nan'), float('nan')]
+
+    # log likelihood ratio test; null hypothesis = likelihood under phi
+    LLR   = 2 * (np.nanmax(cn_lik_clonal) - np.nanmax(cn_lik_phi))
+    p_val = stats.chisqprob(LLR, 1) if not np.isnan(LLR) else 1
+
+    if np.all(np.isnan(cn_lik_phi)):
+        return cn_states[i][0]
+    elif p_val < pval_cutoff:
+        return cn_states[i][index_of_max(cn_lik_clonal)]
+    else:
+        return cn_states[i][index_of_max(cn_lik_clonal)]
+
 def get_most_likely_cn_states(cn_states, s, d, phi, pi, pval_cutoff):
     '''
     Obtain the copy-number states which maximise the binomial likelihood
     of observing the supporting read depths at each variant location
     '''
-    
-    def get_most_likely_pv(cn_lik):
-        if np.all(np.isnan(cn_lik[0])):
-            return 0.0000001
-        elif len(cn_lik[0]) > 0:
-            return cn_lik[0][np.where(np.nanmax(cn_lik[1])==cn_lik[1])[0][0]]
-        else:
-            return 0.0000001
+    #cn_ll_clonal = [calc_lik(cn_states[i],s[i],d[i],np.array(1),pi)[1] for i in range(len(cn_states))]
+    cn_ll_combined = [calc_lik_with_clonal(cn_states[i],s[i],d[i],phi[i],pi)[1] for i in range(len(cn_states))]
+    #cn_ll_combined = zip(cn_ll_clonal,cn_ll_phi)
 
-    def get_most_likely_cn(cn_states, cn_lik, i, pval_cutoff):
-        '''
-        use the most likely phi state, unless p < cutoff when compared to the 
-        most likely clonal (phi=1) case (log likelihood ratio test) 
-        - in this case, pick the most CN state with the highest clonal likelihood
-        '''
-        cn_lik_clonal, cn_lik_phi = cn_lik
-
-        #reinstitute hack - uncomment below
-        #cn_lik_phi = cn_lik_clonal
-        if len(cn_lik_clonal)==0:
-            return [float('nan'), float('nan'), float('nan')]
-
-        # log likelihood ratio test; null hypothesis = likelihood under phi
-        LLR   = 2 * (np.nanmax(cn_lik_clonal) - np.nanmax(cn_lik_phi))
-        p_val = stats.chisqprob(LLR,1) if not np.isnan(LLR) else 1
-
-        if np.all(np.isnan(cn_lik_phi)):
-            return cn_states[i][0]
-        elif p_val < pval_cutoff:
-            return cn_states[i][np.where(np.nanmax(cn_lik_clonal)==cn_lik_clonal)[0][0]] 
-        else:
-            return cn_states[i][np.where(np.nanmax(cn_lik_phi)==cn_lik_phi)[0][0]] 
-    
-    cn_ll_clonal = [ calc_lik(cn_states[i],s[i],d[i],np.array(1),pi)[1] for i in range(len(cn_states)) ]
-    cn_ll_phi = [ calc_lik(cn_states[i],s[i],d[i],phi[i],pi)[1] for i in range(len(cn_states)) ]
-    cn_ll_combined = zip(cn_ll_clonal,cn_ll_phi)
-    
-    most_likely_cn = [ get_most_likely_cn(cn_states,cn_lik,i,pval_cutoff) for i,cn_lik in enumerate(cn_ll_combined)]
-    cn_ll = [ calc_lik(cn_states[i],s[i],d[i],phi[i],pi) for i in range(len(most_likely_cn)) ]
-    most_likely_pv = [ get_most_likely_pv(cn_lik) for i,cn_lik in enumerate(cn_ll)]
+    most_likely_cn = [get_most_likely_cn(cn_states,cn_lik,i,pval_cutoff) for i, cn_lik in enumerate(cn_ll_combined)]
+    cn_ll = [calc_lik(cn_states[i],s[i],d[i],phi[i],pi) for i in range(len(most_likely_cn))]
+    most_likely_pv = [get_most_likely_pv(cn_lik) for cn_lik in cn_ll]
 
     return most_likely_cn, most_likely_pv
 
