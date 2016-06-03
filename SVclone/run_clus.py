@@ -15,7 +15,7 @@ import IPython
 import multiprocessing
 import time
 import shutil
-import cProfile, pstats, StringIO
+#import cProfile, pstats, StringIO
 
 from distutils.dir_util import copy_tree
 from collections import OrderedDict
@@ -421,8 +421,8 @@ def run_clustering(args):
 
     clus_info,center_trace,ztrace,clus_members = None,None,None,None
 
-    pr = cProfile.Profile()
-    pr.enable()
+#    pr = cProfile.Profile()
+#    pr.enable()
 
     if threads == 1:
         for run in range(n_runs):
@@ -446,12 +446,12 @@ def run_clustering(args):
             for j in jobs:
                 j.join()
 
-    pr.disable()
-    s = StringIO.StringIO()
-    sortby = 'cumulative'
-    ps = pstats.Stats(pr, stream=s).sort_stats(sortby)
-    ps.print_stats()
-    print(s.getvalue())
+#    pr.disable()
+#    s = StringIO.StringIO()
+#    sortby = 'cumulative'
+#    ps = pstats.Stats(pr, stream=s).sort_stats(sortby)
+#    ps.print_stats()
+#    print(s.getvalue())
 
     # select the best run based on min BIC
     if use_map:
