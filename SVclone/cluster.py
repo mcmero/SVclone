@@ -187,15 +187,9 @@ def cluster(sup,dep,cn_states,Nvar,sparams,cparams,phi_limit):
         pv = p_var(z, phi_k)
         #cbinom = pm.Binomial('cbinom', dep, pv, shape=Nvar, observed=sup)
 
-#        @theano.compile.ops.as_op(itypes=[t.dvector, t.dvector], otypes=[t.dvector])
-#        def get_bb_alpha(bb_beta, p_var):
-#            # take beta, generate alpha for mean p_var
-#            return (- (bb_beta * p_var) / (p_var - 1))
-#
-#        get_bb_alpha.grad = lambda *x: x[0]
-        #bb_beta = pm.Gamma('bb_beta', alpha=1, beta=0.001, shape=Nvar, testval=1/0.001)
-        bb_beta = pm.Uniform('bb_beta', lower=100, upper=102, shape=Nvar, testval=101)
-        #bb_alpha = get_bb_alpha(bb_beta, pv)
+        bb_scale = 10
+        bb_init = dep/bb_scale/0.001
+        bb_beta = pm.Gamma('bb_beta', alpha=dep/bb_scale, beta=0.001, shape=Nvar, testval=bb_init)
         cbbinom = pm.BetaBinomial('cbbinom', alpha=-(bb_beta*pv)/(pv-1), beta=bb_beta, n=dep, observed=sup)
 
     with model:
@@ -206,6 +200,7 @@ def cluster(sup,dep,cn_states,Nvar,sparams,cparams,phi_limit):
         step1 = pm.Metropolis(vars=[alpha, h, p, phi_k])
         step2 = pm.ElemwiseCategorical(vars=[z], values=Ndp_vals)
         step3 = pm.Metropolis(vars=[pv, bb_beta, cbbinom])
+        #step3 = pm.Metropolis(vars=[pv, cbinom])
 
         if map_:
             trace = pm.sample(iters, [step1, step2, step3], start)

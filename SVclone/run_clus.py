@@ -192,7 +192,7 @@ def post_process_clusters(trace,model,sv_df,snv_df,clus_out_dir,sup,dep,cn_state
     clus_mp_counts = clus_mp_counts[clus_idx]
     
     # cluster distribution
-    clus_info = pd.DataFrame(clus_idx,columns=['clus_id'])
+    clus_info = pd.DataFrame(clus_idx, columns=['clus_id'])
     clus_info['size'] = clus_mp_counts
     
     if len(clus_info) < 1:
@@ -203,6 +203,15 @@ def post_process_clusters(trace,model,sv_df,snv_df,clus_out_dir,sup,dep,cn_state
     center_trace = trace['phi_k']
     center_trace_burn = center_trace[burn:]
     center_trace = center_trace[range(0,len(center_trace),thin)] if thin > 1 else center_trace #thinning
+
+    # fix potential label switching problems
+    center_trace_tmp = center_trace.copy()
+    for i in range(len(center_trace)):
+        ph = center_trace[i][clus_idx]
+        ranks = ph.argsort()[::-1]
+        for idx,clus in enumerate(clus_idx):
+            center_trace_tmp[i][clus] = ph[ranks[idx]]
+    center_trace = center_trace_tmp
 
     phis = np.array([mean_confidence_interval(center_trace[:,cid],cparams['hpd_alpha']) for cid in clus_info.clus_id.values])
     clus_info['phi'] = phis[:,0]
@@ -444,44 +453,45 @@ def run_clustering(args):
             for j in jobs:
                 j.join()
 
-    # select the best run based on min BIC
+    # select the best run based on min DIC
     if use_map:
-        bics = []
+        dics = []
         if len(sv_df) > 0:
             for run in range(n_runs):
                 fit_file = '%s/run%d/%s_fit.txt' % (out, run, sample)
                 fit = pd.read_csv(fit_file, delimiter='\t', dtype=None, header=None)
-                bics.append(float(fit.loc[1][0]))
-            bics = np.array(bics)
-            min_bic = np.where(min(bics) == bics)[0][0]
+                dics.append(float(fit.loc[1][0]))
+            dics = np.array(dics)
+            min_dic = np.where(min(dics) == dics)[0][0]
 
-            print('Selecting run %d as best run for SVs' % min_bic)
-            best_run = '%s/run%d' % (out, min_bic)
+            print('Selecting run %d as best run for SVs' % min_dic)
+            best_run = '%s/run%d' % (out, min_dic)
             copy_tree(best_run, '%s/best_run_svs' % out)
             snv_folder = '%s/best_run_svs/snvs' % out
             if os.path.exists(snv_folder):
                 shutil.rmtree(snv_folder)
 
-        bics = []
+        dics = []
         if len(snv_df) > 0:
             for run in range(n_runs):
                 fit_file = '%s/run%d/snvs/%s_fit.txt' % (out, run, sample)
                 fit = pd.read_csv(fit_file, delimiter='\t', dtype=None, header=None)
-                bics.append(float(fit.loc[1][0]))
-            bics = np.array(bics)
-            min_bic = np.where(min(bics) == bics)[0][0]
+                dics.append(float(fit.loc[1][0]))
+            dics = np.array(dics)
+            # pick min DIC (ignore -ve DICs - these runs are likely anomalous)
+            min_dic = np.where(min(filter(lambda x: x > 0, dics) == dics))[0][0]
 
-            print('Selecting run %d as best run for SNVs' % min_bic)
-            best_run = '%s/run%d/snvs' % (out, min_bic)
+            print('Selecting run %d as best run for SNVs' % min_dic)
+            best_run = '%s/run%d/snvs' % (out, min_dic)
             best_run_dest = '%s/best_run_snvs' % out
             copy_tree(best_run, best_run_dest)
 
             if cocluster:
-                shutil.copyfile('%s/run%d/phi_trace.txt' % (out, min_bic), '%s/phi_trace.txt' % best_run_dest)
-                shutil.copyfile('%s/run%d/z_trace.txt' % (out, min_bic), '%s/z_trace.txt' % best_run_dest)
+                shutil.copyfile('%s/run%d/phi_trace.txt' % (out, min_dic), '%s/phi_trace.txt' % best_run_dest)
+                shutil.copyfile('%s/run%d/z_trace.txt' % (out, min_dic), '%s/z_trace.txt' % best_run_dest)
             else:
-                shutil.copyfile('%s/run%d/snvs/phi_trace.txt' % (out, min_bic), '%s/phi_trace.txt' % best_run_dest)
-                shutil.copyfile('%s/run%d/snvs/z_trace.txt' % (out, min_bic), '%s/z_trace.txt' % best_run_dest)
+                shutil.copyfile('%s/run%d/snvs/phi_trace.txt' % (out, min_dic), '%s/phi_trace.txt' % best_run_dest)
+                shutil.copyfile('%s/run%d/snvs/z_trace.txt' % (out, min_dic), '%s/z_trace.txt' % best_run_dest)
 
-            shutil.copyfile('%s/run%d/cluster_trace_hist.png' % (out, min_bic), 
+            shutil.copyfile('%s/run%d/cluster_trace_hist.png' % (out, min_dic), 
                             '%s/cluster_trace_hist.png' % best_run_dest)
