@@ -4,6 +4,7 @@ import pymc3 as pm
 import pymc as pm2
 import math
 import ipdb
+import collections
 import theano
 import theano.tensor as t
 
@@ -96,39 +97,46 @@ def get_probs_from_llik(cn_lik):
         probs = np.array(probs)/sum(probs)
     return probs
 
+def index_of_max(lik_list):
+    result = collections.defaultdict(list)
+    for val, idx in enumerate(lik_list):
+        result[idx] = val
+    return result[np.nanmax(lik_list)]
+
+def get_most_likely_pv(cn_lik):
+    if len(cn_lik[0])>0:
+        return cn_lik[0][index_of_max(cn_lik[1])]
+    else:
+        return 0.0000001
+
+def get_most_likely_cn(cn_states, cn_lik, i):
+    '''
+    use the most likely phi state, unless p < cutoff when compared to the
+    most likely clonal (phi=1) case (log likelihood ratio test)
+    - in this case, pick the most CN state with the highest clonal likelihood
+    '''
+    pval_cutoff = 0.01
+    cn_lik_clonal, cn_lik_phi = cn_lik
+
+    #reinstitute hack - uncomment below
+    #cn_lik_phi = cn_lik_clonal
+    if len(cn_lik_clonal)==0:
+        return [float('nan'), float('nan'), float('nan')]
+
+    # log likelihood ratio test; null hypothesis = likelihood under phi
+    LLR   = 2 * (np.nanmax(cn_lik_clonal) - np.nanmax(cn_lik_phi))
+    p_val = stats.chisqprob(LLR,1) if not np.isnan(LLR) else 1
+    if p_val < pval_cutoff:
+        return cn_states[i][index_of_max(cn_lik_clonal)]
+    else:
+        return cn_states[i][index_of_max(cn_lik_clonal)]
+
 def get_most_likely_cn_states(cn_states, s, d, phi, pi):
     '''
     Obtain the copy-number states which maximise the binomial likelihood
     of observing the supporting read depths at each variant location
     '''
     
-    def get_most_likely_pv(cn_lik):
-        if len(cn_lik[0])>0:
-            return cn_lik[0][np.where(np.nanmax(cn_lik[1])==cn_lik[1])[0][0]]
-        else:
-            return 0.0000001
-
-    def get_most_likely_cn(cn_states, cn_lik, i):
-        '''
-        use the most likely phi state, unless p < cutoff when compared to the 
-        most likely clonal (phi=1) case (log likelihood ratio test) 
-        - in this case, pick the most CN state with the highest clonal likelihood
-        '''
-        pval_cutoff = 0.01
-        cn_lik_clonal, cn_lik_phi = cn_lik
-
-        #reinstitute hack - uncomment below
-        #cn_lik_phi = cn_lik_clonal
-        if len(cn_lik_clonal)==0:
-            return [float('nan'), float('nan'), float('nan')]
-   
-        # log likelihood ratio test; null hypothesis = likelihood under phi
-        LLR   = 2 * (np.nanmax(cn_lik_clonal) - np.nanmax(cn_lik_phi))
-        p_val = stats.chisqprob(LLR,1) if not np.isnan(LLR) else 1
-        if p_val < pval_cutoff:
-            return cn_states[i][np.where(np.nanmax(cn_lik_clonal)==cn_lik_clonal)[0][0]] 
-        else:
-            return cn_states[i][np.where(np.nanmax(cn_lik_phi)==cn_lik_phi)[0][0]] 
     
     cn_ll_clonal = [calc_lik(cn_states[i],s[i],d[i],np.array(1),pi)[1] for i in range(len(cn_states))]
     cn_ll_phi = [calc_lik(cn_states[i],s[i],d[i],phi[i],pi)[1] for i in range(len(cn_states))]
