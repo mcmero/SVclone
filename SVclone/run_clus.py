@@ -486,11 +486,11 @@ def run_clustering(args):
             copy_tree(best_run, best_run_dest)
 
             if cocluster:
-                shutil.copyfile('%s/run%d/phi_trace.txt' % (out, min_bic), '%s/phi_trace.txt' % best_run_dest)
-                shutil.copyfile('%s/run%d/z_trace.txt' % (out, min_bic), '%s/z_trace.txt' % best_run_dest)
+                shutil.copyfile('%s/run%d/phi_trace.txt.gz' % (out, min_bic), '%s/phi_trace.txt' % best_run_dest)
+                shutil.copyfile('%s/run%d/z_trace.txt.gz' % (out, min_bic), '%s/z_trace.txt' % best_run_dest)
             else:
-                shutil.copyfile('%s/run%d/snvs/phi_trace.txt' % (out, min_bic), '%s/phi_trace.txt' % best_run_dest)
-                shutil.copyfile('%s/run%d/snvs/z_trace.txt' % (out, min_bic), '%s/z_trace.txt' % best_run_dest)
+                shutil.copyfile('%s/run%d/snvs/phi_trace.txt.gz' % (out, min_bic), '%s/phi_trace.txt' % best_run_dest)
+                shutil.copyfile('%s/run%d/snvs/z_trace.txt.gz' % (out, min_bic), '%s/z_trace.txt' % best_run_dest)
 
             shutil.copyfile('%s/run%d/cluster_trace_hist.png' % (out, min_bic), 
                             '%s/cluster_trace_hist.png' % best_run_dest)
