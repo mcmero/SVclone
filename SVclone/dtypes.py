@@ -86,7 +86,8 @@ sv_mlcn_dtype =[('chr1', '<U50'),
             ('prop_chrs_bearing_mutation', float),
             ('support', int),
             ('depth', int),      
-            ('pv', float)]
+            ('pv', float),
+            ('bb_var_copynumber_frac', float)]
 
 # SV multiplicities output
 sv_mult_dtype =[('chr1', '<U50'),
@@ -113,7 +114,8 @@ snv_mlcn_dtype =[('chr', '<U50'),
             ('bb_CN', '<U50'),
             ('most_likely_ref_copynumber', int),
             ('most_likely_variant_copynumber', int),
-            ('prop_chrs_bearing_mutation', float)]
+            ('prop_chrs_bearing_mutation', float),
+            ('bb_var_copynumber_frac', float)]
 
 # SNV multiplicities output
 snv_mult_dtype =[('chr', '<U50'),

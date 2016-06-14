@@ -358,6 +358,10 @@ def match_copy_numbers(var_df, cnv_df, sv_offset, bp_fields=['chr1','pos1','dir1
                 # assign closest CNV state with closest boundary to variant
                 if closest_start < closest_end:
                     start_match = closest_start==abs(cnv_start_list-pos)
+            if len(match)==0:
+                # assign closest CNV state with closest boundary to variant
+                if closest_start < closest_end:
+                    start_match = closest_start==abs(cnv_start_list-pos)
                     cnv_gtype   = cnv_tmp[start_match].gtype.values[0]
                     cnv_pos     = cnv_tmp[start_match].startpos.values[0]
                     adj_cnv     = get_adjacent_cnv(cnv_tmp,start_match,pos,cnv_pos,False).gtype.values[0]

@@ -1,6 +1,7 @@
 import numpy as np
 import pandas as pd
 import os
+import gzip
 import itertools
 import gzip
 from operator import methodcaller
@@ -9,7 +10,11 @@ from . import dtypes
 from . import cluster
 from . import load_data
 
+<<<<<<< HEAD
 def dump_trace(clus_info, center_trace, outf):
+=======
+def dump_trace(center_trace, outf):
+>>>>>>> master
     outf = '%s.gz' % outf
     with gzip.open(outf, 'wt') as fout:
         df_traces = pd.DataFrame(center_trace)
@@ -120,8 +125,8 @@ def write_out_files(df, clus_info, clus_members, df_probs, clus_cert, clus_out_d
 
             cn_new_row = np.array([(chr1, pos1, dir1, tot_cn1, chrs_bearing_mut,
                                     chr2, pos2, dir2, tot_cn2, chrs_bearing_mut)], dtype=cn_dtype)
-            ml_new_row = np.array([(chr1, pos1, dir1, chr2, pos2, dir2, 
-                                    var['gtype1'], var['gtype2'], ref_cn, sc_cn, freq, sup[idx], dep[idx], pv)], 
+            ml_new_row = np.array([(chr1, pos1, dir1, chr2, pos2, dir2, var['gtype1'], var['gtype2'], 
+                                    ref_cn, sc_cn, freq, sup[idx], dep[idx], pv, frac)], 
                                     dtype=mlcn_dtype)
             
             var_states = cn_states[idx]
@@ -147,14 +152,15 @@ def write_out_files(df, clus_info, clus_members, df_probs, clus_cert, clus_out_d
             pv = pvs[idx]
 
             cn_new_row = np.array([(chrom, pos, tot_cn1, int(sc_cn*freq))], dtype=cn_dtype)
-            ml_new_row = np.array([(chrom, pos, var['gtype'], ref_cn, sc_cn, freq)], dtype=mlcn_dtype)
+            ml_new_row = np.array([(chrom, pos, var['gtype'], ref_cn, sc_cn, freq, frac)], dtype=mlcn_dtype)
 
             var_states = cn_states[idx]
             tot_opts = ','.join(list(map(str,[int(x[1]) for x in var_states])))
             var_opts = ','.join(list(map(str,[int(round(x[1]*x[2])) for x in var_states])))
             probs =  cluster.get_probs(var_states, sup[idx], dep[idx], phis[idx], pi)
 
-            mult_new_row = np.array([(chrom, pos, sc_cn, int(round(freq*sc_cn)), tot_opts, var_opts, probs)], dtype=mult_dtype)
+            mult_new_row = np.array([(chrom, pos, sc_cn, int(round(freq*sc_cn)), tot_opts, var_opts, probs)], 
+                    dtype=mult_dtype)
             
             cn_vect = np.append(cn_vect, cn_new_row)
             mlcn_vect = np.append(mlcn_vect, ml_new_row)
