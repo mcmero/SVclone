@@ -36,29 +36,36 @@ def gen_new_colours(N):
     RGB_tuples = map(lambda x: colorsys.hsv_to_rgb(*x), HSV_tuples)
     return RGB_tuples
 
-def plot_clusters(center_trace, clusters, assignments, sup, dep ,clus_out_dir, burn):
-    fig, axes = plt.subplots(2, 1, sharex=False, sharey=False, figsize=(12.5,6))
+def plot_clusters(center_trace, clusters, assignments, sup, dep, clus_out_dir, cparams):
+    burn = cparams['burn']
+    phi_limit = cparams['phi_limit']
+    fig, axes = plt.subplots(3, 1, sharex=False, sharey=False, figsize=(12.5,10))
 
     RGB_tuples = gen_new_colours(len(clusters))
 
-    axes[0].set_ylim([0,2])
+    axes[0].set_ylim([0, phi_limit + 0.1])
     axes[0].set_title("Trace of $\phi_k$")
+    axes[1].set_ylim([0, phi_limit + 0.1])
+    axes[1].set_title("Adjusted trace of $\phi_k$")
+    axes[2].set_title("Raw VAFs")
 
+    center_trace_adj = get_adjusted_phi_trace(center_trace, clusters)
     x_burn = np.arange(burn)
     x = np.arange(burn, len(center_trace))
     for idx,clus in enumerate(clusters):
         axes[0].plot(x_burn, center_trace[:burn, clus], c=RGB_tuples[idx], lw=1, alpha=0.4)
         axes[0].plot(x, center_trace[burn:, clus], label="trace of center %d" % clus, c=RGB_tuples[idx], lw=1)
+        axes[1].plot(x_burn, center_trace_adj[:burn, clus], c=RGB_tuples[idx], lw=1, alpha=0.4)
+        axes[1].plot(x, center_trace_adj[burn:, clus], label="adjusted trace of center %d" % clus, c=RGB_tuples[idx], lw=1)
 
     leg = axes[0].legend(loc="upper right")
     leg.get_frame().set_alpha(0.7)
-    axes[1].set_title("Raw VAFs")
     
     for idx,clus in enumerate(clusters):
         clus_idx = np.array(assignments)==clus
         sup_clus = sup[clus_idx]
         dep_clus = dep[clus_idx]
-        axes[1].hist(sup_clus/dep_clus,bins=np.array(range(0,100,2))/100.,alpha=0.75,color=RGB_tuples[idx])
+        axes[2].hist(sup_clus/dep_clus,bins=np.array(range(0,100,2))/100.,alpha=0.75,color=RGB_tuples[idx])
 
     plt.savefig('%s/cluster_trace_hist'%clus_out_dir)
 
@@ -160,6 +167,43 @@ def merge_results(clus_merged, merged_ids, df_probs, ccert):
 
     return df_probs_new,ccert_new
 
+def get_adjusted_phi_trace(center_trace, clus_idx):
+    center_trace_adj = center_trace.copy()
+    if len(clus_idx) > 1:
+        for i in range(len(center_trace)):
+            ph = center_trace[i][clus_idx]
+            ranks = ph.argsort()[::-1]
+            for idx,clus in enumerate(clus_idx):
+                center_trace_adj[i][clus] = ph[ranks[idx]]
+        return(center_trace_adj)
+    else:
+        return(center_trace_adj)
+
+def get_adjusted_phis(clus_info, center_trace, cparams):
+    '''
+    Fixes potential label-switching problems by re-ordering phi traces from
+    smallest to largest then assigning phis in the order of the unadjusted phis
+    '''
+    burn          = cparams['burn']
+    thin          = cparams['thin']
+    hpd_alpha     = cparams['hpd_alpha']
+
+    clus_idx = clus_info['clus_id']
+    center_trace_adj = get_adjusted_phi_trace(center_trace, clus_idx)
+    phis = np.array([mean_confidence_interval(center_trace[:,cid],hpd_alpha) for cid in clus_info.clus_id.values])
+
+    if len(clus_idx) > 1:
+        phis_adj = np.array([mean_confidence_interval(center_trace_adj[:,cid],hpd_alpha) for cid in clus_info.clus_id.values])
+        phis_sort = np.argsort(phis[:,0][::-1])
+
+        for i in range(len(phis_sort)):
+            on_idx = np.where(phis_sort==i)[0][0]
+            phis[on_idx] = phis_adj[i]
+
+        return(phis)
+    else:
+        return(phis)
+
 def post_process_clusters(mcmc,sv_df,snv_df,clus_out_dir,sup,dep,cn_states,sparams,cparams,output_params,map_):
 
     merge_clusts  = cparams['merge_clusts']
@@ -192,28 +236,18 @@ def post_process_clusters(mcmc,sv_df,snv_df,clus_out_dir,sup,dep,cn_states,spara
     clus_mp_counts = clus_mp_counts[clus_idx]
 
     # cluster distribution
-    clus_info = pd.DataFrame(clus_idx,columns=['clus_id'])
+    clus_info = pd.DataFrame(clus_idx, columns=['clus_id'])
     clus_info['size'] = clus_mp_counts
     
     if len(clus_info) < 1:
         print("Warning! Could not converge on any major SV clusters. Skipping.\n")
         return None
 
-    # get cluster means
     center_trace = mcmc.trace("phi_k")[:]
     center_trace_burn = center_trace[burn:]
-    center_trace = center_trace[range(0,len(center_trace),thin)] if thin > 1 else center_trace #thinning
+    center_trace_burn = center_trace_burn[range(0,len(center_trace_burn),thin)] if thin > 1 else center_trace_burn #thinning
 
-    # fix potential label switching problems
-    center_trace_tmp = center_trace.copy()
-    for i in range(len(center_trace)):
-        ph = center_trace[i][clus_idx]
-        ranks = ph.argsort()[::-1]
-        for idx,clus in enumerate(clus_idx):
-            center_trace_tmp[i][clus] = ph[ranks[idx]]
-    center_trace = center_trace_tmp
-
-    phis = np.array([mean_confidence_interval(center_trace[:,cid],cparams['hpd_alpha']) for cid in clus_info.clus_id.values])
+    phis = get_adjusted_phis(clus_info, center_trace, cparams)
     clus_info['phi'] = phis[:,0]
     clus_info['95p_HPD_lo'] = phis[:,1]
     clus_info['95p_HPD_hi'] = phis[:,2]
@@ -249,7 +283,7 @@ def post_process_clusters(mcmc,sv_df,snv_df,clus_out_dir,sup,dep,cn_states,spara
     
     # cluster plotting
     if plot:
-        plot_clusters(center_trace, clus_idx, clus_max_prob, sup, dep, clus_out_dir, burn)
+        plot_clusters(center_trace, clus_idx, clus_max_prob, sup, dep, clus_out_dir, cparams)
     
     # merge clusters
     if len(clus_info)>1 and merge_clusts:        
@@ -354,6 +388,56 @@ def cluster_and_process(sv_df, snv_df, run, out_dir, sample_params, cluster_para
     else:
         raise ValueError("No valid variants to cluster!")
 
+def pick_best_run(n_runs, out, sample, ccf_reject, cocluster, are_snvs=False):
+    snv_dir = 'snvs/' if are_snvs else ''
+
+    bics = []
+    for run in range(n_runs):
+        fit_file = '%s/run%d/%s%s_fit.txt' % (out, run, snv_dir, sample)
+        fit = pd.read_csv(fit_file, delimiter='\t', dtype=None, header=None)
+        bics.append(fit.loc[0][1])
+    bics = np.array(bics)
+
+    min_bic = -1
+    for idx in range(n_runs):
+        bic_sort = np.argsort(bics)
+        min_bic = np.where(bic_sort == idx)[0][0]
+
+        struct_file = '%s/run%d/%s%s_subclonal_structure.txt' % (out, min_bic, snv_dir, sample)
+        clus_struct = pd.read_csv(struct_file, delimiter='\t', dtype=None, header=0)
+
+        if len(clus_struct) > 1:
+            break
+        elif clus_struct.proportion[0] > ccf_reject:
+            break
+        else:
+            min_bic = -1
+
+    if min_bic == -1:
+        print('No optimal run found! Consider more runs and/or more iterations.')
+    else:
+        if are_snvs:
+            print('Selecting run %d as best run for SNVs' % min_bic)
+            best_run = '%s/run%d/snvs' % (out, min_bic)
+            best_run_dest = '%s/best_run_snvs' % out
+            copy_tree(best_run, best_run_dest)
+            if cocluster:
+                shutil.copyfile('%s/run%d/phi_trace.txt.gz' % (out, min_bic), '%s/phi_trace.txt.gz' % best_run_dest)
+                shutil.copyfile('%s/run%d/z_trace.txt.gz' % (out, min_bic), '%s/z_trace.txt.gz' % best_run_dest)
+            else:
+                shutil.copyfile('%s/run%d/snvs/phi_trace.txt.gz' % (out, min_bic), '%s/phi_trace.txt.gz' % best_run_dest)
+                shutil.copyfile('%s/run%d/snvs/z_trace.txt.gz' % (out, min_bic), '%s/z_trace.txt.gz' % best_run_dest)
+
+            shutil.copyfile('%s/run%d/cluster_trace_hist.png' % (out, min_bic),
+                            '%s/cluster_trace_hist.png' % best_run_dest)
+        else:
+            print('Selecting run %d as best run for SVs' % min_bic)
+            best_run = '%s/run%d' % (out, min_bic)
+            copy_tree(best_run, '%s/best_run_svs' % out)
+            snv_folder = '%s/best_run_svs/snvs' % out
+            if os.path.exists(snv_folder):
+                shutil.rmtree(snv_folder)
+
 def string_to_bool(v):
   return v.lower() in ("yes", "true", "t", "1")
 
@@ -396,6 +480,7 @@ def run_clustering(args):
     cnv_pval        = float(Config.get('ClusterParameters', 'clonal_cnv_pval'))
 
     plot            = string_to_bool(Config.get('OutputParameters', 'plot'))
+    ccf_reject      = float(Config.get('OutputParameters', 'ccf_reject_threshold'))
     smc_het         = string_to_bool(Config.get('OutputParameters', 'smc_het'))
     write_matrix    = string_to_bool(Config.get('OutputParameters', 'coclus_matrix'))
 
@@ -464,42 +549,9 @@ def run_clustering(args):
 
     # select the best run based on min BIC
     if use_map and n_runs > 1:
-        bics = []
         if len(sv_df) > 0:
-            for run in range(n_runs):
-                fit_file = '%s/run%d/%s_fit.txt' % (out, run, sample)
-                fit = pd.read_csv(fit_file, delimiter='\t', dtype=None, header=None)
-                bics.append(fit.loc[0][1])
-            bics = np.array(bics)
-            min_bic = np.where(min(bics) == bics)[0][0]
-
-            print('Selecting run %d as best run for SVs' % min_bic)
-            best_run = '%s/run%d' % (out, min_bic)
-            copy_tree(best_run, '%s/best_run_svs' % out)
-            snv_folder = '%s/best_run_svs/snvs' % out
-            if os.path.exists(snv_folder):
-                shutil.rmtree(snv_folder)
-
-        bics = []
+            pick_best_run(n_runs, out, sample, ccf_reject, cocluster)
         if len(snv_df) > 0:
-            for run in range(n_runs):
-                fit_file = '%s/run%d/snvs/%s_fit.txt' % (out, run, sample)
-                fit = pd.read_csv(fit_file, delimiter='\t', dtype=None, header=None)
-                bics.append(fit.loc[0][1])
-            bics = np.array(bics)
-            min_bic = np.where(min(bics) == bics)[0][0]
+            pick_best_run(n_runs, out, sample, ccf_reject, cocluster, are_snvs=True)
 
-            print('Selecting run %d as best run for SNVs' % min_bic)
-            best_run = '%s/run%d/snvs' % (out, min_bic)
-            best_run_dest = '%s/best_run_snvs' % out
-            copy_tree(best_run, best_run_dest)
 
-            if cocluster:
-                shutil.copyfile('%s/run%d/phi_trace.txt.gz' % (out, min_bic), '%s/phi_trace.txt.gz' % best_run_dest)
-                shutil.copyfile('%s/run%d/z_trace.txt.gz' % (out, min_bic), '%s/z_trace.txt.gz' % best_run_dest)
-            else:
-                shutil.copyfile('%s/run%d/snvs/phi_trace.txt.gz' % (out, min_bic), '%s/phi_trace.txt.gz' % best_run_dest)
-                shutil.copyfile('%s/run%d/snvs/z_trace.txt.gz' % (out, min_bic), '%s/z_trace.txt.gz' % best_run_dest)
-
-            shutil.copyfile('%s/run%d/cluster_trace_hist.png' % (out, min_bic), 
-                            '%s/cluster_trace_hist.png' % best_run_dest)
