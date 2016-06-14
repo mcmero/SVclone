@@ -16,7 +16,6 @@ def add_copynumber_combos(combos, var_maj, var_min, ref_cn, frac):
     ref_cn = total reference (non-variant) copy-number
     var_total = total variant copy-number 
     mu_v = copies containing variant / var_total
-    
     possible copynumber states for variant are:
         - (1 .. major) / var total
     '''
@@ -136,12 +135,10 @@ def get_most_likely_cn_states(cn_states, s, d, phi, pi):
     Obtain the copy-number states which maximise the binomial likelihood
     of observing the supporting read depths at each variant location
     '''
-    
-    
     cn_ll_clonal = [calc_lik(cn_states[i],s[i],d[i],np.array(1),pi)[1] for i in range(len(cn_states))]
     cn_ll_phi = [calc_lik(cn_states[i],s[i],d[i],phi[i],pi)[1] for i in range(len(cn_states))]
     cn_ll_combined = zip(cn_ll_clonal, cn_ll_phi)
-    
+
     most_likely_cn = [get_most_likely_cn(cn_states,cn_lik,i) for i,cn_lik in enumerate(cn_ll_combined)]
     cn_ll = [calc_lik(cn_states[i],s[i],d[i],phi[i],pi) for i in range(len(most_likely_cn))]
     most_likely_pv = [get_most_likely_pv(cn_lik) for i,cn_lik in enumerate(cn_ll)]
@@ -181,7 +178,8 @@ def cluster(sup,dep,cn_states,Nvar,sparams,cparams,phi_limit):
                 value[len(value)-1] += 1-np.sum(value)#floaty roundy error
             return value
 
-        stick_breaking.grad = lambda *x: x[0] #dummy gradient (otherwise fit function fails)
+        stick_breaking.grad = lambda *x: x[0] #dummy gradient (otherwise fit function
+fails)
         p = stick_breaking(h)
         z = pm.Categorical('z', p=p, testval=0, shape=Nvar)
 

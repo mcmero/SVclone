@@ -15,7 +15,7 @@ def dump_trace(clus_info, center_trace, outf):
         df_traces = pd.DataFrame(center_trace)
         df_traces.to_csv(fout, sep='\t', index=False, header=False)
 
-def write_out_files(df, clus_info, clus_members, df_probs, clus_cert, clus_out_dir, sample, pi, sup, dep, cn_states, run_fit, z_trace, smc_het, write_matrix, are_snvs=False):
+def write_out_files(df, clus_info, clus_members, df_probs, clus_cert, clus_out_dir, sample, pi, sup, dep, cn_states, run_fit, z_trace, smc_het, write_matrix, cnv_pval, are_snvs=False):
     if are_snvs:
         clus_out_dir = '%s/snvs'%clus_out_dir
         if not os.path.exists(clus_out_dir):
@@ -88,7 +88,7 @@ def write_out_files(df, clus_info, clus_members, df_probs, clus_cert, clus_out_d
     clus_vars   = df.loc[cmem].copy()
     
     phis = clus_cert.average_ccf.values
-    cns, pvs = cluster.get_most_likely_cn_states(cn_states, sup, dep, phis, pi)
+    cns, pvs = cluster.get_most_likely_cn_states(cn_states, sup, dep, phis, pi, cnv_pval)
 
     for idx, var in clus_vars.iterrows():
         gtype1, gtype2 = None, None

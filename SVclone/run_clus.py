@@ -170,6 +170,7 @@ def post_process_clusters(trace,model,sv_df,snv_df,clus_out_dir,sup,dep,cn_state
     burn          = cparams['burn']
     thin          = cparams['thin']
     map_          = cparams['use_map']
+    cnv_pval      = cparams['clonal_cnv_pval']
     smc_het       = output_params['smc_het']
     write_matrix  = output_params['write_matrix']
     plot          = output_params['plot']
@@ -283,7 +284,7 @@ def post_process_clusters(trace,model,sv_df,snv_df,clus_out_dir,sup,dep,cn_state
         snv_cn_states = cn_states[:len(snv_df)]
         write_output.write_out_files(snv_df,clus_info,snv_members,
                 snv_probs,snv_ccert,clus_out_dir,sparams['sample'],sparams['pi'],snv_sup,
-                snv_dep,snv_cn_states,run_fit,z_trace_burn,smc_het,write_matrix,are_snvs=True)
+                snv_dep,snv_cn_states,run_fit,z_trace,smc_het,write_matrix,cnv_pval,are_snvs=True)
     
     sv_probs = pd.DataFrame()
     sv_ccert = pd.DataFrame()
@@ -308,7 +309,7 @@ def post_process_clusters(trace,model,sv_df,snv_df,clus_out_dir,sup,dep,cn_state
         sv_cn_states = cn_states[lb:lb+len(sv_df)]
         write_output.write_out_files(sv_df,clus_info,sv_members,
                     sv_probs,sv_ccert,clus_out_dir,sparams['sample'],sparams['pi'],sv_sup,
-                    sv_dep,sv_cn_states,run_fit,z_trace_burn,smc_het,write_matrix)
+                    sv_dep,sv_cn_states,run_fit,z_trace,smc_het,write_matrix,cnv_pval)
 
 def cluster_and_process(sv_df, snv_df, run, out_dir, sample_params, cluster_params, output_params):
     # set random seed
@@ -395,6 +396,7 @@ def run_clustering(args):
     merge_clusts    = string_to_bool(Config.get('ClusterParameters', 'merge'))
     cocluster       = string_to_bool(Config.get('ClusterParameters', 'cocluster'))
     adjusted        = string_to_bool(Config.get('ClusterParameters', 'adjusted'))
+    cnv_pval        = float(Config.get('ClusterParameters', 'clonal_cnv_pval'))
 
     plot            = string_to_bool(Config.get('OutputParameters', 'plot'))
     smc_het         = string_to_bool(Config.get('OutputParameters', 'smc_het'))
@@ -409,7 +411,7 @@ def run_clustering(args):
     sample_params  = { 'sample': sample, 'ploidy': pl, 'pi': pi, 'rlen': rlen, 'insert': insert }
     cluster_params = { 'n_iter': n_iter, 'burn': burn, 'thin': thin, 'beta': beta, 'use_map': use_map, 'hpd_alpha': hpd_alpha,
                        'merge_clusts': merge_clusts, 'adjusted': adjusted, 'phi_limit': phi_limit, 'clus_limit': clus_limit,
-                       'subclone_diff': subclone_diff, 'cocluster': cocluster }
+                       'subclone_diff': subclone_diff, 'cocluster': cocluster , 'clonal_cnv_pval': cnv_pval }
     output_params  = { 'plot': plot, 'write_matrix': write_matrix, 'smc_het': smc_het }
     
     sv_df       = pd.DataFrame()
