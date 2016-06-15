@@ -36,10 +36,10 @@ def load_input_vcf(svin,class_field,use_dir):
             if type(mate_id) == type([]): 
                 mate_id = mate_id[0]
             mate = sv_dict[mate_id]
-            
+
             if (sv_id in procd) or (mate_id in procd): 
                 continue
-            
+
             dir1, dir2 = '?', '?'
             chr1 = sv['CHROM']
             pos1 = sv['POS']
@@ -55,7 +55,10 @@ def load_input_vcf(svin,class_field,use_dir):
 
             procd = np.append(procd,[sv_id,mate_id])
             new_id = sv_id.split('_')
-            new_id = int(new_id[0]) if len(new_id) > 1 else 0
+            try:
+                new_id = int(new_id[0])
+            except ValueError:
+                new_id = 0
             new_sv = np.array([(new_id,chr1,pos1,dir1,chr2,pos2,dir2,sv_class)],dtype=sv_dtype)
             svs = np.append(svs,new_sv)
         except KeyError:
