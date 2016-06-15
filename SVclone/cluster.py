@@ -76,10 +76,10 @@ def filter_cns(cn_states):
 
 def calc_lik_with_clonal(combo, si, di, phi_i, pi):
     pvs = np.array([get_pv(phi_i, c[0], c[1], c[2], c[3], pi) for c in combo])
-    lls = np.array([pm.binomial_like(si, di, pvs[i]) for i,c in enumerate(combo)])-0.00000001
+    lls = np.array([pm2.binomial_like(si, di, pvs[i]) for i,c in enumerate(combo)])-0.00000001
     # also calculate with clonal phi
     pvs_cl = np.array([get_pv(np.array(1), c[0], c[1], c[2], c[3], pi) for c in combo])
-    lls_cl = np.array([pm.binomial_like(si, di, pvs[i]) for i,c in enumerate(combo)])-0.00000001
+    lls_cl = np.array([pm2.binomial_like(si, di, pvs[i]) for i,c in enumerate(combo)])-0.00000001
     #lls currently uses precision fudge factor to get
     #around 0 probability errors when pv = 1
     #TODO: investigate look this bug more
@@ -87,7 +87,7 @@ def calc_lik_with_clonal(combo, si, di, phi_i, pi):
 
 def calc_lik(combo, si, di, phi_i, pi):
     pvs = np.array([get_pv(phi_i, c[0], c[1], c[2], c[3], pi) for c in combo])
-    lls = np.array([pm.binomial_like(si, di, pvs[i]) for i,c in enumerate(combo)])-0.00000001
+    lls = np.array([pm2.binomial_like(si, di, pvs[i]) for i,c in enumerate(combo)])-0.00000001
     return np.array([pvs, lls])
 
 def get_probs(var_states,s,d,phi,pi):
@@ -166,6 +166,7 @@ def cluster(sup,dep,cn_states,Nvar,sparams,cparams,phi_limit):
     Ndp_vals = [x for x in range(Ndp)]
     map_ = cparams['use_map']
     sens = 1.0 / ((sparams['pi']/float(sparams['ploidy']))*np.mean(dep))
+    pval_cutoff = cparams['clonal_cnv_pval']
     beta_a, beta_b = map(lambda x: float(eval(x)), cparams['beta'].split(','))
     print("Dirichlet concentration gamma values: alpha = %f, beta= %f" % (beta_a, beta_b))
 
@@ -190,15 +191,14 @@ def cluster(sup,dep,cn_states,Nvar,sparams,cparams,phi_limit):
                 value[len(value)-1] += 1-np.sum(value)#floaty roundy error
             return value
 
-        stick_breaking.grad = lambda *x: x[0] #dummy gradient (otherwise fit function
-fails)
+        stick_breaking.grad = lambda *x: x[0] #dummy gradient (otherwise fit function fails)
         p = stick_breaking(h)
         z = pm.Categorical('z', p=p, testval=0, shape=Nvar)
 
         @theano.compile.ops.as_op(itypes=[t.lvector, t.dvector], otypes=[t.dvector])
         def p_var(z=z, phi_k=phi_k):
             most_lik_cn_states, pvs = \
-                    get_most_likely_cn_states(cn_states, sup, dep, phi_k[z], pi)
+                    get_most_likely_cn_states(cn_states, sup, dep, phi_k[z], pi, pval_cutoff)
             return np.array(pvs)
 
         p_var.grad = lambda *x: [t.cast(x[0][0], dtype='float64'), x[0][1]]

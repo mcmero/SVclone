@@ -56,7 +56,6 @@ def plot_clusters(center_trace, clusters, assignments, sup, dep, clus_out_dir, c
     for idx,clus in enumerate(clusters):
         axes[0].plot(x_burn, center_trace[:burn, clus], c=RGB_tuples[idx], lw=1, alpha=0.4)
         axes[0].plot(x, center_trace[burn:, clus], label="trace of center %d" % clus, c=RGB_tuples[idx], lw=1)
-<<<<<<< HEAD
 
     leg = axes[0].legend(loc="upper right")
     leg.get_frame().set_alpha(0.7)
@@ -167,9 +166,6 @@ def merge_results(clus_merged, merged_ids, df_probs, ccert):
 
     return df_probs_new,ccert_new
 
-<<<<<<< HEAD
-def post_process_clusters(trace,model,sv_df,snv_df,clus_out_dir,sup,dep,cn_states,sparams,cparams,output_params):
-=======
 def get_adjusted_phi_trace(center_trace, clus_idx):
     center_trace_adj = center_trace.copy()
     if len(clus_idx) > 1:
@@ -207,10 +203,7 @@ def get_adjusted_phis(clus_info, center_trace, cparams):
     else:
         return(phis)
 
-def post_process_clusters(mcmc,sv_df,snv_df,clus_out_dir,sup,dep,cn_states,sparams,cparams,output_params,map_):
->>>>>>> master
-
-    merge_clusts  = cparams['merge_clusts']
+def post_process_clusters(trace, model, sv_df, snv_df, clus_out_dir, sup, dep, cn_states, sparams, cparams, output_params):
     subclone_diff = cparams['subclone_diff']
     phi_limit     = cparams['phi_limit']
     merge_clusts  = cparams['merge_clusts']
@@ -247,7 +240,6 @@ def post_process_clusters(mcmc,sv_df,snv_df,clus_out_dir,sup,dep,cn_states,spara
         print("Warning! Could not converge on any major SV clusters. Skipping.\n")
         return None
 
-<<<<<<< HEAD
     # get cluster means
     center_trace = trace['phi_k']
     center_trace_burn = center_trace[burn:]
@@ -298,7 +290,7 @@ def post_process_clusters(mcmc,sv_df,snv_df,clus_out_dir,sup,dep,cn_states,spara
     
     # cluster plotting
     if plot:
-        plot_clusters(center_trace, clus_idx, clus_max_prob, sup, dep, clus_out_dir, burn)
+        plot_clusters(center_trace, clus_idx, clus_max_prob, sup, dep, clus_out_dir, cparams)
         pm.traceplot(trace)
         plt.savefig('%s/traces.pdf' % clus_out_dir)
     

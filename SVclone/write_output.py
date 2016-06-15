@@ -10,11 +10,7 @@ from . import dtypes
 from . import cluster
 from . import load_data
 
-<<<<<<< HEAD
-def dump_trace(clus_info, center_trace, outf):
-=======
 def dump_trace(center_trace, outf):
->>>>>>> master
     outf = '%s.gz' % outf
     with gzip.open(outf, 'wt') as fout:
         df_traces = pd.DataFrame(center_trace)
