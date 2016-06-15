@@ -53,9 +53,9 @@ def plot_clusters(center_trace, clusters, assignments, sup, dep, clus_out_dir, c
     x_burn = np.arange(burn)
     x = np.arange(burn, len(center_trace))
     for idx,clus in enumerate(clusters):
-        axes[0].plot(x_burn, center_trace[:burn, clus], c=RGB_tuples[idx], lw=1, alpha=0.4)
+        axes[0].plot(x_burn, center_trace[:burn+1, clus], c=RGB_tuples[idx], lw=1, alpha=0.4)
         axes[0].plot(x, center_trace[burn:, clus], label="trace of center %d" % clus, c=RGB_tuples[idx], lw=1)
-        axes[1].plot(x_burn, center_trace_adj[:burn, clus], c=RGB_tuples[idx], lw=1, alpha=0.4)
+        axes[1].plot(x_burn, center_trace_adj[:burn+1, clus], c=RGB_tuples[idx], lw=1, alpha=0.4)
         axes[1].plot(x, center_trace_adj[burn:, clus], label="adjusted trace of center %d" % clus, c=RGB_tuples[idx], lw=1)
 
     leg = axes[0].legend(loc="upper right")
@@ -188,12 +188,12 @@ def get_adjusted_phis(clus_info, center_trace, cparams):
     thin          = cparams['thin']
     hpd_alpha     = cparams['hpd_alpha']
 
-    clus_idx = clus_info['clus_id']
+    clus_idx = clus_info.clus_id.values
     center_trace_adj = get_adjusted_phi_trace(center_trace, clus_idx)
-    phis = np.array([mean_confidence_interval(center_trace[:,cid],hpd_alpha) for cid in clus_info.clus_id.values])
+    phis = np.array([mean_confidence_interval(center_trace[:,cid],hpd_alpha) for cid in clus_idx])
 
     if len(clus_idx) > 1:
-        phis_adj = np.array([mean_confidence_interval(center_trace_adj[:,cid],hpd_alpha) for cid in clus_info.clus_id.values])
+        phis_adj = np.array([mean_confidence_interval(center_trace_adj[:,cid],hpd_alpha) for cid in clus_idx])
         phis_sort = np.argsort(phis[:,0][::-1])
 
         for i in range(len(phis_sort)):
