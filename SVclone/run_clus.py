@@ -557,4 +557,4 @@ def run_clustering(args):
     gz_out = '%s.tar.gz' % out
     if os.path.exists(gz_out):
         os.remove(gz_out)
-    subprocess.call(['tar', '-cvzf', gz_out, out]
+    subprocess.call(['tar', '-cvzf', gz_out, out])
