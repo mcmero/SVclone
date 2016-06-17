@@ -399,10 +399,9 @@ def pick_best_run(n_runs, out, sample, ccf_reject, cocluster, are_snvs=False):
     bics = np.array(bics)
 
     min_bic = -1
+    bic_sort = np.argsort(bics)
     for idx in range(n_runs):
-        bic_sort = np.argsort(bics)
-        min_bic = np.where(bic_sort == idx)[0][0]
-
+        min_bic = bic_sort[idx]
         struct_file = '%s/run%d/%s%s_subclonal_structure.txt' % (out, min_bic, snv_dir, sample)
         clus_struct = pd.read_csv(struct_file, delimiter='\t', dtype=None, header=0)
 
