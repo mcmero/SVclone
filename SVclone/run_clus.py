@@ -404,10 +404,9 @@ def pick_best_run(n_runs, out, sample, ccf_reject, cocluster, are_snvs=False):
         min_bic = bic_sort[idx]
         struct_file = '%s/run%d/%s%s_subclonal_structure.txt' % (out, min_bic, snv_dir, sample)
         clus_struct = pd.read_csv(struct_file, delimiter='\t', dtype=None, header=0)
-
         if len(clus_struct) > 1:
             break
-        elif clus_struct.proportion[0] > ccf_reject:
+        elif clus_struct.CCF[0] > ccf_reject:
             break
         else:
             min_bic = -1
@@ -429,13 +428,19 @@ def pick_best_run(n_runs, out, sample, ccf_reject, cocluster, are_snvs=False):
 
             shutil.copyfile('%s/run%d/cluster_trace_hist.png' % (out, min_bic),
                             '%s/cluster_trace_hist.png' % best_run_dest)
+
+            f = open('%s/run%s.txt' % (best_run_dest, min_bic), 'w')
+            f.close()
         else:
             print('Selecting run %d as best run for SVs' % min_bic)
             best_run = '%s/run%d' % (out, min_bic)
-            copy_tree(best_run, '%s/best_run_svs' % out)
+            best_run_dest = '%s/best_run_svs' % out
+            copy_tree(best_run, best_run_dest)
             snv_folder = '%s/best_run_svs/snvs' % out
             if os.path.exists(snv_folder):
                 shutil.rmtree(snv_folder)
+            f = open('%s/run%s.txt' % (best_run_dest, min_bic), 'w')
+            f.close()
 
 def string_to_bool(v):
   return v.lower() in ("yes", "true", "t", "1")

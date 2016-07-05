@@ -173,7 +173,7 @@ def get_most_likely_cn(cn_states, cn_lik, i, pval_cutoff):
     elif p_val < pval_cutoff:
         return cn_states[i][index_of_max(cn_lik_clonal)]
     else:
-        return cn_states[i][index_of_max(cn_lik_clonal)]
+        return cn_states[i][index_of_max(cn_lik_phi)]
 
 def get_most_likely_cn_states(cn_states, s, d, phi, pi, pval_cutoff):
     '''
@@ -195,12 +195,15 @@ def cluster(sup,dep,cn_states,Nvar,sparams,cparams,phi_limit):
     clustering model using Dirichlet Process
     '''
     Ndp = cparams['clus_limit']
-    sens = 1.0 / ((sparams['pi']/float(sparams['ploidy']))*np.mean(dep))
-    beta_a, beta_b = map(lambda x: float(eval(x)), cparams['beta'].split(','))
-    alpha = pm.Gamma('alpha',beta_a,beta_b)#,value=beta_init)
-    pval_cutoff = cparams['clonal_cnv_pval']
+    purity, ploidy = sparams['pi'], sparams['ploidy']
+    sens = 1.0 / ((purity/ float(ploidy)) * np.mean(dep))
 
-    print("Dirichlet concentration gamma values: alpha = %f, beta= %f" % (beta_a, beta_b))
+    beta_a, beta_b = map(lambda x: float(eval(x)), cparams['beta'].split(','))
+    beta_init = float(beta_a) / beta_b
+    print("Dirichlet concentration gamma values: alpha = %f; beta= %f; init = %f" % (beta_a, beta_b, beta_init))
+
+    alpha = pm.Gamma('alpha', beta_a, beta_b, value = beta_init)
+    pval_cutoff = cparams['clonal_cnv_pval']
 
     h = pm.Beta('h', alpha=1, beta=alpha, size=Ndp)
     @pm.deterministic
@@ -209,8 +212,10 @@ def cluster(sup,dep,cn_states,Nvar,sparams,cparams,phi_limit):
         value /= np.sum(value)
         return value
 
-    z = pm.Categorical('z', p=p, size=Nvar, value=np.zeros(Nvar))
-    phi_k = pm.Uniform('phi_k', lower=sens, upper=phi_limit, size=Ndp)#, value=[phi_init]*Ndp)
+    z = pm.Categorical('z', p = p, size = Nvar, value = np.zeros(Nvar))
+    phi_init = max(sens, min(np.mean(sup) / np.mean(dep) / purity * 2, 1))
+    phi_k = pm.Uniform('phi_k', lower = sens, upper = phi_limit, size = Ndp)#, value=[phi_init]*Ndp)
+    #print('phi lower limit: %f; phi upper limit: %f; phi init: %f' % (sens, phi_limit, phi_init))
     
     @pm.deterministic
     def p_var(z=z,phi_k=phi_k):
@@ -218,7 +223,7 @@ def cluster(sup,dep,cn_states,Nvar,sparams,cparams,phi_limit):
             z = [0 for x in z]
             # ^ some fmin optimization methods initialise this array with -ve numbers
         most_lik_cn_states, pvs = \
-                get_most_likely_cn_states(cn_states, sup, dep, phi_k[z], sparams['pi'], pval_cutoff)
+                get_most_likely_cn_states(cn_states, sup, dep, phi_k[z], purity, pval_cutoff)
         return pvs
 
     cbinom = pm.Binomial('cbinom', dep, p_var, observed=True, value=sup)
