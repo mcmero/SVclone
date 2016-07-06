@@ -213,12 +213,15 @@ def cluster(sup,dep,cn_states,Nvar,sparams,cparams,phi_limit):
         return value
 
     z = pm.Categorical('z', p = p, size = Nvar, value = np.zeros(Nvar))
-    phi_init = max(sens, min(np.mean(sup) / np.mean(dep) / purity * 2, 1))
-    phi_k = pm.Uniform('phi_k', lower = sens, upper = phi_limit, size = Ndp)#, value=[phi_init]*Ndp)
-    #print('phi lower limit: %f; phi upper limit: %f; phi init: %f' % (sens, phi_limit, phi_init))
+    phi_init = np.random.rand(Ndp) * phi_limit
+    phi_init = np.array([sens if x < sens else x for x in phi_init])
+    phi_k = pm.Uniform('phi_k', lower = sens, upper = phi_limit, size = Ndp, value=phi_init)
+    print('phi lower limit: %f; phi upper limit: %f' % (sens, phi_limit))
     
     @pm.deterministic
     def p_var(z=z,phi_k=phi_k):
+        if np.any(np.isnan(phi_k)):
+            phi_k = phi_init
         if np.any(z < 0):
             z = [0 for x in z]
             # ^ some fmin optimization methods initialise this array with -ve numbers
