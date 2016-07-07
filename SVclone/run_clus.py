@@ -199,7 +199,7 @@ def get_adjusted_phis(clus_info, center_trace, cparams):
         phis_sort = np.argsort(phis[:,0])[::-1]
 
         for i in range(len(phis_sort)):
-            on_idx = np.where(phis_sort==i)[0][0]
+            on_idx = phis_sort[i]
             phis[on_idx] = phis_adj[i]
 
         return(phis)
