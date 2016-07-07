@@ -196,7 +196,7 @@ def get_adjusted_phis(clus_info, center_trace, cparams):
 
     if len(clus_idx) > 1:
         phis_adj = np.array([mean_confidence_interval(center_trace_adj[:,cid],hpd_alpha) for cid in clus_idx])
-        phis_sort = np.argsort(phis[:,0][::-1])
+        phis_sort = np.argsort(phis[:,0])[::-1]
 
         for i in range(len(phis_sort)):
             on_idx = np.where(phis_sort==i)[0][0]
