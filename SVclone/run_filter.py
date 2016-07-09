@@ -548,6 +548,7 @@ def run(args):
     pp_file     = args.pp_file
     cfg         = args.cfg
     blist_file  = args.blist
+    subsample   = args.subsample
 
     Config = ConfigParser.ConfigParser()
     cfg_file = Config.read(cfg)
@@ -563,7 +564,6 @@ def run(args):
     minspan     = int(Config.get('FilterParameters', 'min_span'))
     sizefilter  = int(Config.get('FilterParameters', 'size_filter'))
     min_dep     = int(Config.get('FilterParameters', 'min_dep'))
-    subsample   = int(Config.get('FilterParameters', 'subsample'))
     filter_chrs = string_to_bool(Config.get('FilterParameters', 'filter_chroms'))
     neutral     = string_to_bool(Config.get('FilterParameters', 'neutral'))
     filter_otl  = string_to_bool(Config.get('FilterParameters', 'filter_outliers'))
