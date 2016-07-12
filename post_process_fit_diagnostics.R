@@ -210,12 +210,15 @@ ggQQ <- function(dat) {
     return(p)
 }
 
-get_frac <- function(x) {
+get_frac <- function(x, snvs) {
     variant_cn <- x['most_likely_variant_copynumber']
-    side <- x['preferred_side']
-    gtype <- x['gtype1']
-    if(side==1) {
-        gtype <- x['gtype2']
+    gtype <- x['gtype']
+    if (!snvs) {
+        side <- x['preferred_side']
+        gtype <- x['gtype1']
+        if(side==1) {
+            gtype <- x['gtype2']
+        }
     }
     sc <- strsplit(gtype, '\\|')[[1]]
     sc <- strsplit(sc,',')
@@ -248,7 +251,7 @@ for (run in runs) {
         dat <- merge(dat, certain,by.x=merge_cols, by.y=merge_cols)
     }
     
-    dat$cn_frac <- apply(dat, 1, function(x){get_frac(x)})
+    dat$cn_frac <- apply(dat, 1, function(x){get_frac(x, snvs)})
     dat <- cbind(dat, CCF=get_adjust_factor(dat, pur) * dat$adjusted_vaf)
     dat$CCF <- sapply(dat$CCF,function(x){min(2,x)})
     
