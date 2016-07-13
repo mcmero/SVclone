@@ -215,6 +215,8 @@ def post_process_clusters(mcmc,sv_df,snv_df,clus_out_dir,sup,dep,cn_states,spara
     burn          = cparams['burn']
     thin          = cparams['thin']
     cnv_pval      = cparams['clonal_cnv_pval']
+    hpd_alpha     = cparams['hpd_alpha']
+    adjust_phis   = cparams['adjust_phis']
     smc_het       = output_params['smc_het']
     write_matrix  = output_params['write_matrix']
     plot          = output_params['plot']
@@ -227,6 +229,7 @@ def post_process_clusters(mcmc,sv_df,snv_df,clus_out_dir,sup,dep,cn_states,spara
     # assign points to highest probabiliy cluster
     npoints = len(snv_df) + len(sv_df)
 
+    alpha_trace = mcmc.trace('alpha')[:]
     z_trace = mcmc.trace('z')[:]
     z_trace_burn = z_trace[burn:]
     z_trace_burn = z_trace_burn[range(0,len(z_trace_burn),thin)] if thin > 1 else z_trace_burn #thinning
@@ -249,7 +252,12 @@ def post_process_clusters(mcmc,sv_df,snv_df,clus_out_dir,sup,dep,cn_states,spara
     center_trace_burn = center_trace[burn:]
     center_trace_burn = center_trace_burn[range(0,len(center_trace_burn),thin)] if thin > 1 else center_trace_burn #thinning
 
-    phis = get_adjusted_phis(clus_info, center_trace, cparams)
+    phis = np.array([mean_confidence_interval(center_trace[:,cid], hpd_alpha) for cid in clus_idx])
+    if adjust_phis:
+        # fix potential label switching problems
+        print('Correcting phi traces...')
+        phis = get_adjusted_phis(clus_info, center_trace, cparams)
+
     clus_info['phi'] = phis[:,0]
     clus_info['95p_HPD_lo'] = phis[:,1]
     clus_info['95p_HPD_hi'] = phis[:,2]
@@ -282,10 +290,10 @@ def post_process_clusters(mcmc,sv_df,snv_df,clus_out_dir,sup,dep,cn_states,spara
     trace_out = '%s/%s'%(dump_out_dir,trace_out)
     write_output.dump_trace(center_trace, trace_out+'phi_trace.txt')
     write_output.dump_trace(z_trace, trace_out+'z_trace.txt')
+    write_output.dump_trace(alpha_trace, trace_out+'alpha_trace.txt')
     
     # cluster plotting
     if plot:
-        alpha_trace = mcmc.trace('alpha')[:]
         plot_clusters(center_trace, alpha_trace, clus_idx, clus_max_prob, sup, dep, clus_out_dir, cparams)
     
     # merge clusters
@@ -487,6 +495,7 @@ def run_clustering(args):
     cocluster       = string_to_bool(Config.get('ClusterParameters', 'cocluster'))
     adjusted        = string_to_bool(Config.get('ClusterParameters', 'adjusted'))
     cnv_pval        = float(Config.get('ClusterParameters', 'clonal_cnv_pval'))
+    adjust_phis     = string_to_bool(Config.get('ClusterParameters', 'adjust_phis'))
 
     plot            = string_to_bool(Config.get('OutputParameters', 'plot'))
     ccf_reject      = float(Config.get('OutputParameters', 'ccf_reject_threshold'))
@@ -502,7 +511,7 @@ def run_clustering(args):
     sample_params  = { 'sample': sample, 'ploidy': pl, 'pi': pi, 'rlen': rlen, 'insert': insert }
     cluster_params = { 'n_iter': n_iter, 'burn': burn, 'thin': thin, 'beta': beta, 'use_map': use_map, 'hpd_alpha': hpd_alpha,
                        'merge_clusts': merge_clusts, 'adjusted': adjusted, 'phi_limit': phi_limit, 'clus_limit': clus_limit,
-                       'subclone_diff': subclone_diff, 'cocluster': cocluster , 'clonal_cnv_pval': cnv_pval }
+                       'subclone_diff': subclone_diff, 'cocluster': cocluster , 'clonal_cnv_pval': cnv_pval, 'adjust_phis': adjust_phis }
     output_params  = { 'plot': plot, 'write_matrix': write_matrix, 'smc_het': smc_het }
     
     sv_df       = pd.DataFrame()
