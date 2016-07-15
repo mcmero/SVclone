@@ -200,12 +200,13 @@ def cluster(sup,dep,cn_states,Nvar,sparams,cparams,phi_limit):
 
     beta_a, beta_b = map(lambda x: float(eval(x)), cparams['beta'].split(','))
     beta_init = float(beta_a) / beta_b
-    print("Dirichlet concentration gamma values: alpha = %f; beta= %f; init = %f" % (beta_a, beta_b, beta_init))
+    #print("Dirichlet concentration gamma values: alpha = %f; beta= %f; init = %f" % (beta_a, beta_b, beta_init))
 
-    alpha = pm.Gamma('alpha', beta_a, beta_b, value = beta_init)
+    #alpha = pm.Gamma('alpha', beta_a, beta_b, value = beta_init)
     pval_cutoff = cparams['clonal_cnv_pval']
 
-    h = pm.Beta('h', alpha=1, beta=alpha, size=Ndp)
+    print('alpha concentration fixed at %f' % beta_a)
+    h = pm.Beta('h', alpha=1, beta=beta_a, size=Ndp)
     @pm.deterministic
     def p(h=h):
         value = [u*np.prod(1.0-h[:i]) for i,u in enumerate(h)]
@@ -230,7 +231,7 @@ def cluster(sup,dep,cn_states,Nvar,sparams,cparams,phi_limit):
         return pvs
 
     cbinom = pm.Binomial('cbinom', dep, p_var, observed=True, value=sup)
-    model = pm.Model([alpha, h, p, phi_k, z, p_var, cbinom])
+    model = pm.Model([h, p, phi_k, z, p_var, cbinom])
     mcmc, map_ = fit_and_sample(model,cparams['n_iter'],cparams['burn'],cparams['thin'],cparams['use_map'])
 
     return mcmc, map_
