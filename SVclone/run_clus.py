@@ -218,7 +218,6 @@ def post_process_clusters(mcmc,sv_df,snv_df,clus_out_dir,sup,dep,cn_states,spara
     hpd_alpha     = cparams['hpd_alpha']
     adjust_phis   = cparams['adjust_phis']
     smc_het       = output_params['smc_het']
-    write_matrix  = output_params['write_matrix']
     plot          = output_params['plot']
 
     # fit to data frame
@@ -326,7 +325,7 @@ def post_process_clusters(mcmc,sv_df,snv_df,clus_out_dir,sup,dep,cn_states,spara
         snv_cn_states = cn_states[:len(snv_df)]
         write_output.write_out_files(snv_df,clus_info,snv_members,
                 snv_probs,snv_ccert,clus_out_dir,sparams['sample'],sparams['pi'],snv_sup,
-                snv_dep,snv_cn_states,run_fit,z_trace,smc_het,write_matrix,cnv_pval,are_snvs=True)
+                snv_dep,snv_cn_states,run_fit,z_trace,smc_het,cnv_pval,are_snvs=True)
     
     sv_probs = pd.DataFrame()
     sv_ccert = pd.DataFrame()
@@ -351,7 +350,7 @@ def post_process_clusters(mcmc,sv_df,snv_df,clus_out_dir,sup,dep,cn_states,spara
         sv_cn_states = cn_states[lb:lb+len(sv_df)]
         write_output.write_out_files(sv_df,clus_info,sv_members,
                     sv_probs,sv_ccert,clus_out_dir,sparams['sample'],sparams['pi'],sv_sup,
-                    sv_dep,sv_cn_states,run_fit,z_trace,smc_het,write_matrix,cnv_pval)
+                    sv_dep,sv_cn_states,run_fit,z_trace,smc_het,cnv_pval)
 
 def cluster_and_process(sv_df, snv_df, run, out_dir, sample_params, cluster_params, output_params):
     # set random seed
@@ -500,7 +499,6 @@ def run_clustering(args):
     plot            = string_to_bool(Config.get('OutputParameters', 'plot'))
     ccf_reject      = float(Config.get('OutputParameters', 'ccf_reject_threshold'))
     smc_het         = string_to_bool(Config.get('OutputParameters', 'smc_het'))
-    write_matrix    = string_to_bool(Config.get('OutputParameters', 'coclus_matrix'))
 
     if out!='' and not os.path.exists(out):
         os.makedirs(out)
@@ -512,7 +510,7 @@ def run_clustering(args):
     cluster_params = { 'n_iter': n_iter, 'burn': burn, 'thin': thin, 'beta': beta, 'use_map': use_map, 'hpd_alpha': hpd_alpha,
                        'merge_clusts': merge_clusts, 'adjusted': adjusted, 'phi_limit': phi_limit, 'clus_limit': clus_limit,
                        'subclone_diff': subclone_diff, 'cocluster': cocluster , 'clonal_cnv_pval': cnv_pval, 'adjust_phis': adjust_phis }
-    output_params  = { 'plot': plot, 'write_matrix': write_matrix, 'smc_het': smc_het }
+    output_params  = { 'plot': plot, 'smc_het': smc_het }
     
     sv_df       = pd.DataFrame()
     snv_df      = pd.DataFrame()

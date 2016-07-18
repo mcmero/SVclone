@@ -15,7 +15,7 @@ def dump_trace(center_trace, outf):
         df_traces = pd.DataFrame(center_trace)
         df_traces.to_csv(fout, sep='\t', index=False, header=False)
 
-def write_out_files(df, clus_info, clus_members, df_probs, clus_cert, clus_out_dir, sample, pi, sup, dep, cn_states, run_fit, z_trace, smc_het, write_matrix, cnv_pval, are_snvs=False):
+def write_out_files(df, clus_info, clus_members, df_probs, clus_cert, clus_out_dir, sample, pi, sup, dep, cn_states, run_fit, z_trace, smc_het, cnv_pval, are_snvs=False):
     if are_snvs:
         clus_out_dir = '%s/snvs'%clus_out_dir
         if not os.path.exists(clus_out_dir):
@@ -53,25 +53,6 @@ def write_out_files(df, clus_info, clus_members, df_probs, clus_cert, clus_out_d
         smc_clus_info = smc_clus_info[['cluster', 'n_ssms', 'proportion']]
         smc_clus_info.to_csv('%s/smc_1C_cluster_structure.txt' % clus_out_dir, sep='\t', index=False, header=False)
 
-    if write_matrix:
-        npoints = len(df)
-        coclust = pd.DataFrame(index=range(npoints), columns=range(npoints))
-        coclust = coclust.fillna(1.0)
-        combs = [x for x in itertools.combinations(range(npoints), 2)]
-
-        print('Creating co-clustering matrix (this may take a long time with many variants)...')
-        niter = len(z_trace)
-        for i, j in combs:
-            cc = round(sum([z_trace[idx][i] == z_trace[idx][j] for idx in range(niter)]) / float(niter), 4)
-            # ^ proportion of iterations vars were in same cluster
-            coclust.loc[i, j] = cc
-            coclust.loc[j, i] = cc
-
-        fname = '%s/%s_coclustering_matrix.txt' % (clus_out_dir, sample)
-        if smc_het:
-            fname = '%s/smc_2B_coclustering_matrix.txt' % clus_out_dir
-        coclust.to_csv(fname, sep='\t', index=False, header=False)
-    
     clus_info.to_csv('%s/%s_subclonal_structure.txt'%(clus_out_dir, sample), sep='\t', index=False)
     with open('%s/number_of_clusters.txt'%clus_out_dir,'w') as outf:
         outf.write("sample\tclusters\n")
