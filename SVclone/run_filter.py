@@ -17,6 +17,8 @@ from . import run_clus
 from . import cluster
 from . import load_data
 
+pd.options.mode.chained_assignment = None
+
 def get_outlier_ranges(vals):
     q1 = np.percentile(vals,25)
     q3 = np.percentile(vals,75)
@@ -165,7 +167,7 @@ def filter_outlying_norm_wins(df_flt):
     
     return df_flt
 
-def run_cnv_filter(df_flt, cnv, neutral, filter_outliers, strict_cnv_filt, ploidy, are_snvs=False):
+def run_cnv_filter(df_flt, cnv, ploidy, neutral, filter_outliers, strict_cnv_filt, filter_subclonal, are_snvs=False):
     '''
     filter based on either CNV neutral, or presence of CNV vals
     '''
@@ -187,18 +189,17 @@ def run_cnv_filter(df_flt, cnv, neutral, filter_outliers, strict_cnv_filt, ploid
                 dep_ranges = get_outlier_ranges(depths)
                 df_flt = df_flt[np.logical_and(depths>dep_ranges[0],depths<dep_ranges[1])]
                 print('Filtered out %d SNVs which had outlying depths' % (n_df - len(df_flt)))
-        else: 
+        else:
             gt1_is_neutral = map(is_clonal_neutral,df_flt.gtype1.values)
             gt2_is_neutral = map(is_clonal_neutral,df_flt.gtype2.values)
             is_neutral = np.logical_and(gt1_is_neutral,gt2_is_neutral)
-            df_flt = df_flt[is_neutral] 
+            df_flt = df_flt[is_neutral]
             print('Filtered out %d SVs which were not copy-number neutral' % (n_df - len(df_flt)))
 
             if filter_outliers:
                 n_df = len(df_flt)
                 df_flt = filter_outlying_norm_wins(df_flt)
                 print('Filtered out %d SVs which had outlying depths' % (n_df - len(df_flt)))
-
     elif len(cnv)>0:
         if are_snvs:
             df_flt = df_flt.fillna('')
@@ -219,11 +220,17 @@ def run_cnv_filter(df_flt, cnv, neutral, filter_outliers, strict_cnv_filt, ploid
                 cns = get_weighted_cns(df_flt.gtype.values)
                 cn_nonzero = np.logical_not(cns==0)
                 depths[cn_nonzero] = (depths[cn_nonzero]/cns[cn_nonzero])
-            
+
                 n_df = len(df_flt)
                 dep_ranges = get_outlier_ranges(depths)
                 df_flt = df_flt[np.logical_and(depths>dep_ranges[0],depths<dep_ranges[1])]
                 print('Filtered out %d SNVs which had outlying depths' % (n_df - len(df_flt)))
+
+            if filter_subclonal:
+                n_df = len(df_flt)
+                is_clon  = [float(x.split('|')[0].split(',')[2])<2 for x in df_flt.gtype.values]
+                df_filt = df_flt.loc[is_clon]
+                print('Filtered out %d SNVs with subclonal CNV states.' % (n_df - len(df_filt)))
         else:
             df_flt['gtype1'].fillna('')
             df_flt['gtype2'].fillna('')
@@ -235,6 +242,7 @@ def run_cnv_filter(df_flt, cnv, neutral, filter_outliers, strict_cnv_filt, ploid
                 df_flt = df_flt[np.logical_or(df_flt.gtype1!='', df_flt.gtype2!='')]
                 print('Filtered out %d SVs with missing or invalid copy-numbers' % (n_df - len(df_flt)))
             else:
+                # assume normal copy-numbers
                 maj_allele = round(ploidy/2) if round(ploidy) > 1 else 1
                 min_allele = round(ploidy/2) if round(ploidy) > 1 else 0
                 default_gtype = '%d,%d,1.0' % (maj_allele, min_allele)
@@ -427,7 +435,6 @@ def is_same_sv_germline(sv1,sv2,gl_th):
 def filter_germline(gml_file,sv_df,rlen,insert,gl_th):
     print("Filtering out germline SVs...")
     df_gml = pd.DataFrame(pd.read_csv(gml_file,delimiter='\t',dtype=None,low_memory=False))
-    #df_gml = run_simple_filter(df_gml,rlen,insert)
     germline = []
     
     for idx_sv,sv in sv_df.iterrows():
@@ -449,8 +456,8 @@ def adjust_sv_read_counts(sv_df,pi,pl,min_dep,rlen,Config):
     support_adjust_factor = float(Config.get('FilterParameters', 'support_adjust_factor'))
     filter_subclonal_cnvs = string_to_bool(Config.get('FilterParameters', 'filter_subclonal_cnvs'))
 
-    gt1_sc  = [float(x.split('|')[0].split(',')[2])<1 for x in sv_df.gtype1.values]
-    gt2_sc  = [float(x.split('|')[0].split(',')[2])<1 for x in sv_df.gtype2.values]
+    gt1_sc  = [float(x.split('|')[0].split(',')[2])<1 if x!='' else False for x in sv_df.gtype1.values]
+    gt2_sc  = [float(x.split('|')[0].split(',')[2])<1 if x!='' else False for x in sv_df.gtype2.values]
     one_sc  = np.logical_xor(gt1_sc,gt2_sc)
     any_sc  = np.logical_or(gt1_sc,gt2_sc)
 
@@ -568,6 +575,7 @@ def run(args):
     neutral     = string_to_bool(Config.get('FilterParameters', 'neutral'))
     filter_otl  = string_to_bool(Config.get('FilterParameters', 'filter_outliers'))
     strict_cnv_filt = string_to_bool(Config.get('FilterParameters', 'strict_cnv_filt'))
+    filter_subclonal_cnvs = string_to_bool(Config.get('FilterParameters', 'filter_subclonal_cnvs'))
    
 #    def proc_arg(arg,n_args=1,of_type=str):
 #        arg = str.split(arg,',')
@@ -629,13 +637,14 @@ def run(args):
             print('Matching copy-numbers for SVs...')
             sv_df = match_copy_numbers(sv_df,cnv_df,sv_offset) 
             sv_df = match_copy_numbers(sv_df,cnv_df,sv_offset,\
-                    ['chr2','pos2','dir2','classification','pos1'],'gtype2') 
-            sv_df = run_cnv_filter(sv_df,cnvs,neutral,filter_otl,strict_cnv_filt,ploidy)
+                    ['chr2','pos2','dir2','classification','pos1'],'gtype2')
+            sv_df = run_cnv_filter(sv_df,cnvs,ploidy,neutral,filter_otl,strict_cnv_filt,filter_subclonal_cnvs)
     
         if len(snv_df)>0:
             print('Matching copy-numbers for SNVs...')
             snv_df = match_snv_copy_numbers(snv_df,cnv_df,sv_offset)
-            snv_df = run_cnv_filter(snv_df,cnvs,neutral,filter_otl,strict_cnv_filt,ploidy,are_snvs=True)
+            snv_df = run_cnv_filter(snv_df,cnvs,ploidy,neutral,filter_otl,strict_cnv_filt,
+                    filter_subclonal_cnvs,are_snvs=True)
             print('Keeping %d SNVs' % len(snv_df))
     else:
         print('No CNV input defined, assuming all loci major/minor allele copy-numbers are ploidy/2')
@@ -646,15 +655,14 @@ def run(args):
             sv_df['gtype1'] = default_gtype
             sv_df['gtype2'] = default_gtype
             if filter_otl:
-                sv_df = run_cnv_filter(sv_df,cnvs,neutral,filter_otl,strict_cnv_filt,ploidy)
-
+                sv_df = run_cnv_filter(sv_df,cnvs,ploidy,neutral,filter_otl,strict_cnv_filt,filter_subclonal_cnvs)
         if len(snv_df)>0:
             maj_allele = round(ploidy/2) if round(ploidy) > 1 else 1
             min_allele = round(ploidy/2) if round(ploidy) > 1 else 0
             default_gtype = '%d,%d,1.0' % (maj_allele, min_allele)
             snv_df['gtype'] = default_gtype
-            if filter_otl:
-                snv_df = run_cnv_filter(snv_df,cnvs,neutral,filter_otl,strict_cnv_filt,ploidy,are_snvs=True)
+            snv_df = run_cnv_filter(snv_df,cnvs,ploidy,neutral,filter_otl,strict_cnv_filt,
+                    filter_subclonal_cnvs,are_snvs=True)
             print('Keeping %d SNVs' % len(snv_df))
    
     if len(sv_df)==0 and len(snv_df)==0:
