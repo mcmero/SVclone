@@ -32,7 +32,8 @@ def load_input_vcf(svin,class_field,use_dir):
     for sv_id in sv_dict:
         try:
             sv = sv_dict[sv_id]
-            mate_id = sv['INFO']['MATEID']
+            mate_field = 'PARID' if 'PARID' in sv['INFO'] else 'MATEID'
+            mate_id = sv['INFO'][mate_field]
             if type(mate_id) == type([]): 
                 mate_id = mate_id[0]
             mate = sv_dict[mate_id]
