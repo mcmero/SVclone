@@ -37,7 +37,7 @@ def gen_new_colours(N):
     return RGB_tuples
 
 def plot_clusters(trace, clusters, assignments, sup, dep, clus_out_dir, cparams):
-    burn = cparams['burn']
+    burn, thin = cparams['burn'], cparams['thin']
     phi_limit = cparams['phi_limit']
 
     center_trace = trace("phi_k")[:]
@@ -61,6 +61,7 @@ def plot_clusters(trace, clusters, assignments, sup, dep, clus_out_dir, cparams)
     axes[2].set_title("Raw VAFs")
 
     center_trace_adj = get_adjusted_phi_trace(center_trace, clusters)
+    burn = burn/thin
     x_burn = np.arange(burn+1)
     x = np.arange(burn, len(center_trace))
     for idx,clus in enumerate(clusters):
@@ -221,8 +222,8 @@ def post_process_clusters(mcmc,sv_df,snv_df,clus_out_dir,sup,dep,cn_states,spara
     subclone_diff = cparams['subclone_diff']
     phi_limit     = cparams['phi_limit']
     merge_clusts  = cparams['merge_clusts']
-    burn          = cparams['burn']
     thin          = cparams['thin']
+    burn          = cparams['burn']/thin
     cnv_pval      = cparams['clonal_cnv_pval']
     hpd_alpha     = cparams['hpd_alpha']
     adjust_phis   = cparams['adjust_phis']
@@ -239,7 +240,6 @@ def post_process_clusters(mcmc,sv_df,snv_df,clus_out_dir,sup,dep,cn_states,spara
 
     z_trace = mcmc.trace('z')[:]
     z_trace_burn = z_trace[burn:]
-    z_trace_burn = z_trace_burn[range(0,len(z_trace_burn),thin)] if thin > 1 else z_trace_burn #thinning
 
     clus_counts = [np.bincount(z_trace_burn[:,i]) for i in range(npoints)]
     clus_max_prob = [index_max(c) for c in clus_counts]
@@ -257,7 +257,6 @@ def post_process_clusters(mcmc,sv_df,snv_df,clus_out_dir,sup,dep,cn_states,spara
 
     center_trace = mcmc.trace("phi_k")[:]
     center_trace_burn = center_trace[burn:]
-    center_trace_burn = center_trace_burn[range(0,len(center_trace_burn),thin)] if thin > 1 else center_trace_burn #thinning
 
     phis = np.array([mean_confidence_interval(center_trace[:,cid], hpd_alpha) for cid in clus_idx])
     if adjust_phis:
