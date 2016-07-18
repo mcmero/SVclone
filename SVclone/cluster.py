@@ -17,7 +17,7 @@ from operator import methodcaller
 #        return tuple(cn_v),tuple(mu_v)
 #    if c[0]>1 or c[1]>1:
 #        ipdb.set_trace()
-#    
+#
 #    c = map(float,c)
 #    cn_t = float(c[0]+c[1])
 #    cn_v[0] = float(cn_t)
@@ -26,15 +26,15 @@ from operator import methodcaller
 #    if c[0]!=c[1] and c[1]>0:
 #        cn_v[1] = cn_t
 #        mu_v[1] = c[1]/cn_t if cn_t!=0 else 0.
-#    
+#
 #    return tuple(cn_v),tuple(mu_v)
 
 def add_copynumber_combos(combos, var_maj, var_min, ref_cn, frac):
     '''
     ref_cn = total reference (non-variant) copy-number
-    var_total = total variant copy-number 
+    var_total = total variant copy-number
     mu_v = copies containing variant / var_total
-    
+
     possible copynumber states for variant are:
         - (1 .. major) / var total
     '''
@@ -61,7 +61,7 @@ def get_allele_combos(cn):
         major1, minor1, total1, frac1 = c1[0], c1[1], c1[0]+c1[1], c1[2]
         major2, minor2, total2, frac2 = c2[0], c2[1], c2[0]+c2[1], c2[2]
 
-        # generate copynumbers for each subclone being the potential variant pop 
+        # generate copynumbers for each subclone being the potential variant pop
         combos = add_copynumber_combos(combos, major1, minor1, total2, frac1)
         combos = add_copynumber_combos(combos, major2, minor2, total1, frac2)
     else:
@@ -131,7 +131,7 @@ def get_probs(var_states,s,d,phi,pi):
 
 def get_probs_from_llik(cn_lik):
     probs = np.array([1.])
-    if len(cn_lik)>1:        
+    if len(cn_lik)>1:
         probs = map(math.exp,cn_lik)
         probs = np.array(probs)/sum(probs)
     return probs
@@ -196,17 +196,29 @@ def cluster(sup,dep,cn_states,Nvar,sparams,cparams,phi_limit):
     '''
     Ndp = cparams['clus_limit']
     purity, ploidy = sparams['pi'], sparams['ploidy']
+    fixed_alpha, gamma_a, gamma_b = cparams['fixed_alpha'], cparams['alpha'], cparams['beta']
     sens = 1.0 / ((purity/ float(ploidy)) * np.mean(dep))
-
-    beta_a, beta_b = map(lambda x: float(eval(x)), cparams['beta'].split(','))
-    beta_init = float(beta_a) / beta_b
-    #print("Dirichlet concentration gamma values: alpha = %f; beta= %f; init = %f" % (beta_a, beta_b, beta_init))
-
-    #alpha = pm.Gamma('alpha', beta_a, beta_b, value = beta_init)
     pval_cutoff = cparams['clonal_cnv_pval']
 
-    print('alpha concentration fixed at %f' % beta_a)
-    h = pm.Beta('h', alpha=1, beta=beta_a, size=Ndp)
+    if fixed_alpha.lower() in ("yes", "true", "t"):
+        fixed = True
+        fixed_alpha = 0.75 / math.log10(Nvar)
+    else:
+        try:
+            fixed_alpha = float(fixed_alpha)
+            fixed = True
+        except ValueError:
+            fixed = False
+
+    if fixed:
+        print('Dirichlet concentration fixed at %f' % fixed_alpha)
+        h = pm.Beta('h', alpha=1, beta=fixed_alpha, size=Ndp)
+    else:
+        beta_init = float(gamma_a) / gamma_b
+        print("Dirichlet concentration gamma prior values: alpha = %f; beta= %f; init = %f" % (gamma_a, gamma_b, beta_init))
+        alpha = pm.Gamma('alpha', gamma_a, gamma_b, value = beta_init)
+        h = pm.Beta('h', alpha=1, beta=alpha, size=Ndp)
+
     @pm.deterministic
     def p(h=h):
         value = [u*np.prod(1.0-h[:i]) for i,u in enumerate(h)]
@@ -218,7 +230,7 @@ def cluster(sup,dep,cn_states,Nvar,sparams,cparams,phi_limit):
     phi_init = np.array([sens if x < sens else x for x in phi_init])
     phi_k = pm.Uniform('phi_k', lower = sens, upper = phi_limit, size = Ndp, value=phi_init)
     print('phi lower limit: %f; phi upper limit: %f' % (sens, phi_limit))
-    
+
     @pm.deterministic
     def p_var(z=z,phi_k=phi_k):
         if np.any(np.isnan(phi_k)):
@@ -231,7 +243,11 @@ def cluster(sup,dep,cn_states,Nvar,sparams,cparams,phi_limit):
         return pvs
 
     cbinom = pm.Binomial('cbinom', dep, p_var, observed=True, value=sup)
-    model = pm.Model([h, p, phi_k, z, p_var, cbinom])
+    if fixed:
+        model = pm.Model([h, p, phi_k, z, p_var, cbinom])
+    else:
+        model = pm.Model([alpha, h, p, phi_k, z, p_var, cbinom])
+
     mcmc, map_ = fit_and_sample(model,cparams['n_iter'],cparams['burn'],cparams['thin'],cparams['use_map'])
 
     return mcmc, map_

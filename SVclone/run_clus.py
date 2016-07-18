@@ -36,11 +36,22 @@ def gen_new_colours(N):
     RGB_tuples = map(lambda x: colorsys.hsv_to_rgb(*x), HSV_tuples)
     return RGB_tuples
 
-def plot_clusters(center_trace, clusters, assignments, sup, dep, clus_out_dir, cparams):
+def plot_clusters(trace, clusters, assignments, sup, dep, clus_out_dir, cparams):
     burn = cparams['burn']
     phi_limit = cparams['phi_limit']
-    fig, axes = plt.subplots(4, 1, sharex=False, sharey=False, figsize=(12.5,9))
 
+    center_trace = trace("phi_k")[:]
+    alpha_trace = []
+    try:
+        alpha_trace = trace('alpha')[:]
+    except KeyError:
+        pass
+
+    fig, axes = plt.subplots(3, 1, sharex=False, sharey=False, figsize=(12.5,9))
+    if len(alpha_trace) > 0:
+        fig, axes = plt.subplots(4, 1, sharex=False, sharey=False, figsize=(12.5,12))
+        axes[3].set_title("Alpha trace")
+        axes[3].plot(np.arange(len(alpha_trace)), alpha_trace, lw=1)
     RGB_tuples = gen_new_colours(len(clusters))
 
     axes[0].set_ylim([0, phi_limit + 0.1])
@@ -48,7 +59,6 @@ def plot_clusters(center_trace, clusters, assignments, sup, dep, clus_out_dir, c
     axes[1].set_ylim([0, phi_limit + 0.1])
     axes[1].set_title("Adjusted trace of $\phi_k$")
     axes[2].set_title("Raw VAFs")
-    #axes[3].set_title("Alpha trace")
 
     center_trace_adj = get_adjusted_phi_trace(center_trace, clusters)
     x_burn = np.arange(burn+1)
@@ -68,7 +78,6 @@ def plot_clusters(center_trace, clusters, assignments, sup, dep, clus_out_dir, c
         dep_clus = dep[clus_idx]
         axes[2].hist(sup_clus/dep_clus,bins=np.array(range(0,100,2))/100.,alpha=0.75,color=RGB_tuples[idx])
 
-    #axes[3].plot(np.arange(len(alpha_trace)), alpha_trace, lw=1)
     plt.savefig('%s/cluster_trace_hist'%clus_out_dir)
 
 def index_max(values):
@@ -103,30 +112,30 @@ def merge_clusters(clus_out_dir,clus_info,clus_merged,clus_members,merged_ids,su
             trace = mcmc.trace("phi_k")[:]
 
             phis = mean_confidence_interval(trace,cparams['hpd_alpha'])
-            clus_merged.loc[idx] = np.array([ci.clus_id,new_size,phis[0],phis[1],phis[2]])            
+            clus_merged.loc[idx] = np.array([ci.clus_id,new_size,phis[0],phis[1],phis[2]])
             clus_members[idx] = new_members
 
             to_del.append(idx+1)
             merged_ids.append([int(ci.clus_id),int(cn.clus_id)])
-            
+
             df_trace = pd.DataFrame(trace[:])
             df_trace.to_csv('%s/reclus%d_phi_trace.txt'%(clus_out_dir,int(ci.clus_id)),sep='\t',index=False)
-            
+
             print('\n')
             if idx+2 < len(clus_info):
                 clus_merged.loc[idx+2:] = clus_info.loc[idx+2:]
             break
         else:
             clus_merged.loc[idx] = clus_info.loc[idx]
-    
+
     if len(to_del)>0:
         clus_members = np.delete(clus_members,to_del)
-        
+
         # clean and reorder merged dataframe
         clus_merged = clus_merged[pd.notnull(clus_merged['clus_id'])]
         clus_merged = clus_merged.sort('phi',ascending=False)
         clus_merged.index = range(len(clus_merged))
-        
+
         print("\nMerged clusters")
         print('Input')
         print(clus_info)
@@ -139,22 +148,22 @@ def merge_clusters(clus_out_dir,clus_info,clus_merged,clus_members,merged_ids,su
         new_df = pd.DataFrame(columns=clus_merged.columns,index=clus_merged.index)
         return merge_clusters(clus_out_dir,clus_merged,new_df,clus_members,merged_ids,sup,dep,cn_states,sparams,cparams,subclone_diff,clus_limit,phi_limit)
 
-def merge_results(clus_merged, merged_ids, df_probs, ccert):    
+def merge_results(clus_merged, merged_ids, df_probs, ccert):
     # merge probability table
     to_drop = []
     df_probs_new = pd.DataFrame(df_probs,copy=True)
-    
+
     for mid in merged_ids:
         clus1_vals = df_probs_new['cluster%d'%mid[0]].values
         clus2_vals = df_probs_new['cluster%d'%mid[1]].values
-        
+
         df_probs_new['cluster%d'%mid[0]] = clus1_vals + clus2_vals
-        to_drop.append(mid[1]) 
+        to_drop.append(mid[1])
 
     to_drop = set(to_drop)
     for td in to_drop:
         df_probs_new = df_probs_new.drop('cluster%d'%td,1)
-    
+
     # merge assignments in certainties table
     ccert_new = pd.DataFrame(ccert,copy=True)
     for mid in merged_ids:
@@ -225,10 +234,9 @@ def post_process_clusters(mcmc,sv_df,snv_df,clus_out_dir,sup,dep,cn_states,spara
     if map_ is not None:
         run_fit = pd.DataFrame([['BIC', map_.BIC], ['AIC', map_.AIC]])
 
-    # assign points to highest probabiliy cluster
+    # assign points to highest probability cluster
     npoints = len(snv_df) + len(sv_df)
 
-    #alpha_trace = mcmc.trace('alpha')[:]
     z_trace = mcmc.trace('z')[:]
     z_trace_burn = z_trace[burn:]
     z_trace_burn = z_trace_burn[range(0,len(z_trace_burn),thin)] if thin > 1 else z_trace_burn #thinning
@@ -242,7 +250,7 @@ def post_process_clusters(mcmc,sv_df,snv_df,clus_out_dir,sup,dep,cn_states,spara
     # cluster distribution
     clus_info = pd.DataFrame(clus_idx, columns=['clus_id'])
     clus_info['size'] = clus_mp_counts
-    
+
     if len(clus_info) < 1:
         print("Warning! Could not converge on any major SV clusters. Skipping.\n")
         return None
@@ -260,7 +268,7 @@ def post_process_clusters(mcmc,sv_df,snv_df,clus_out_dir,sup,dep,cn_states,spara
     clus_info['phi'] = phis[:,0]
     clus_info['95p_HPD_lo'] = phis[:,1]
     clus_info['95p_HPD_hi'] = phis[:,2]
-    
+
     clus_ids = clus_info.clus_id.values
     clus_members = np.array([np.where(np.array(clus_max_prob)==i)[0] for i in clus_ids])
 
@@ -284,36 +292,41 @@ def post_process_clusters(mcmc,sv_df,snv_df,clus_out_dir,sup,dep,cn_states,spara
     dump_out_dir = clus_out_dir
     if len(snv_df)>0 and len(sv_df)==0:
         # snvs only trace output
-        dump_out_dir = '%s/snvs'%clus_out_dir        
+        dump_out_dir = '%s/snvs'%clus_out_dir
     trace_out = 'premerge_' if merge_clusts else ''
     trace_out = '%s/%s'%(dump_out_dir,trace_out)
     write_output.dump_trace(center_trace, trace_out+'phi_trace.txt')
     write_output.dump_trace(z_trace, trace_out+'z_trace.txt')
-    #write_output.dump_trace(alpha_trace, trace_out+'alpha_trace.txt')
-    
+
+    try:
+        alpha_trace = mcmc.trace('alpha')[:]
+        write_output.dump_trace(alpha_trace, trace_out+'alpha_trace.txt')
+    except KeyError:
+        pass
+
     # cluster plotting
     if plot:
-        plot_clusters(center_trace, clus_idx, clus_max_prob, sup, dep, clus_out_dir, cparams)
-    
+        plot_clusters(mcmc.trace, clus_idx, clus_max_prob, sup, dep, clus_out_dir, cparams)
+
     # merge clusters
-    if len(clus_info)>1 and merge_clusts:        
+    if len(clus_info)>1 and merge_clusts:
         clus_merged = pd.DataFrame(columns=clus_info.columns,index=clus_info.index)
         clus_merged, clus_members, merged_ids  = merge_clusters(clus_out_dir,clus_info,clus_merged,\
                 clus_members,[],sup,dep,cn_states,sparams,cparams,subclone_diff,clus_limit,phi_limit)
-        
+
         if len(clus_merged)!=len(clus_info):
             clus_info = clus_merged
-            df_probs, ccert = merge_results(clus_merged, merged_ids, df_probs, ccert)    
+            df_probs, ccert = merge_results(clus_merged, merged_ids, df_probs, ccert)
 
     snv_probs = pd.DataFrame()
     snv_ccert = pd.DataFrame()
     snv_members = np.empty(0)
-    
+
     if len(snv_df)>0:
         snv_pos = ['chrom','pos']
         snv_probs = df_probs.loc[:len(snv_df)-1]
         snv_probs = snv_df[snv_pos].join(snv_probs)
-        
+
         snv_ccert = ccert.loc[:len(snv_df)-1]
         snv_ccert = snv_df[snv_pos].join(snv_ccert)
 
@@ -326,22 +339,22 @@ def post_process_clusters(mcmc,sv_df,snv_df,clus_out_dir,sup,dep,cn_states,spara
         write_output.write_out_files(snv_df,clus_info,snv_members,
                 snv_probs,snv_ccert,clus_out_dir,sparams['sample'],sparams['pi'],snv_sup,
                 snv_dep,snv_cn_states,run_fit,z_trace,smc_het,cnv_pval,are_snvs=True)
-    
+
     sv_probs = pd.DataFrame()
     sv_ccert = pd.DataFrame()
     sv_members = np.empty(0)
     if len(sv_df)>0:
         lb = len(snv_df) if len(snv_df)>0 else 0
-        
+
         sv_pos = ['chr1','pos1','dir1','chr2','pos2','dir2']
         sv_probs = df_probs.loc[lb:lb+len(sv_df)-1]
         sv_probs.index = sv_df.index
         sv_probs = sv_df[sv_pos].join(sv_probs)
-        
+
         sv_ccert = ccert.loc[lb:lb+len(sv_df)-1]
         sv_ccert.index = sv_df.index
         sv_ccert = sv_df[sv_pos].join(sv_ccert)
-        
+
         sv_max_probs = np.array(clus_max_prob)[:len(sv_df)]
         sv_members = np.array([np.where(np.array(sv_max_probs)==i)[0] for i in clus_ids])
 
@@ -458,7 +471,7 @@ def string_to_bool(v):
   return v.lower() in ("yes", "true", "t", "1")
 
 def run_clustering(args):
-    
+
     snv_file        = args.snv_file
     sv_file         = args.sv_file
     sample          = args.sample
@@ -474,10 +487,9 @@ def run_clustering(args):
     if len(cfg_file)==0:
         raise ValueError('No configuration file found')
 
-    shape  = Config.get('BetaParameters', 'alpha')
-    scale  = Config.get('BetaParameters', 'beta')
-    beta   = ','.join([str(shape),str(scale)])
-
+    shape           = float(Config.get('BetaParameters', 'alpha'))
+    scale           = float(Config.get('BetaParameters', 'beta'))
+    fixed_alpha     = Config.get('BetaParameters', 'fixed_alpha')
     phi_limit       = float(Config.get('ClusterParameters', 'phi_limit'))
     clus_limit      = int(Config.get('ClusterParameters', 'clus_limit'))
     subclone_diff   = float(Config.get('ClusterParameters', 'subclone_diff'))
@@ -507,11 +519,13 @@ def run_clustering(args):
     rlen, insert, std = svp_load.get_read_params(param_file, sample, out)
 
     sample_params  = { 'sample': sample, 'ploidy': pl, 'pi': pi, 'rlen': rlen, 'insert': insert }
-    cluster_params = { 'n_iter': n_iter, 'burn': burn, 'thin': thin, 'beta': beta, 'use_map': use_map, 'hpd_alpha': hpd_alpha,
-                       'merge_clusts': merge_clusts, 'adjusted': adjusted, 'phi_limit': phi_limit, 'clus_limit': clus_limit,
-                       'subclone_diff': subclone_diff, 'cocluster': cocluster , 'clonal_cnv_pval': cnv_pval, 'adjust_phis': adjust_phis }
+    cluster_params = { 'n_iter': n_iter, 'burn': burn, 'thin': thin, 'alpha': shape, 'beta': scale,
+                       'use_map': use_map, 'hpd_alpha': hpd_alpha, 'fixed_alpha': fixed_alpha,
+                       'merge_clusts': merge_clusts, 'adjusted': adjusted, 'phi_limit': phi_limit,
+                       'clus_limit': clus_limit, 'subclone_diff': subclone_diff, 'cocluster': cocluster ,
+                       'clonal_cnv_pval': cnv_pval, 'adjust_phis': adjust_phis }
     output_params  = { 'plot': plot, 'smc_het': smc_het }
-    
+
     sv_df       = pd.DataFrame()
     snv_df      = pd.DataFrame()
 

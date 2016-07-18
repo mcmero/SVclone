@@ -14,16 +14,16 @@ def remove_duplicates(svs):
 
 def load_input_vcf(svin,class_field,use_dir):
     sv_dtype = [s for i,s in enumerate(dtypes.sv_dtype)]
-    
+
     sv_vcf = vcf.Reader(filename=svin)
     sv_dict = OrderedDict()
     for sv in sv_vcf:
-        
+
         if sv.FILTER is not None:
             if len(sv.FILTER)>0:
                 continue
-        
-        sv_dict[sv.ID] = {'CHROM': sv.CHROM, 'POS': sv.POS, 'INFO': sv.INFO, 
+
+        sv_dict[sv.ID] = {'CHROM': sv.CHROM, 'POS': sv.POS, 'INFO': sv.INFO,
                           'REF': str(sv.REF[0]), 'ALT': str(sv.ALT[0])}
 
     svs = np.empty(0,sv_dtype)
@@ -34,11 +34,11 @@ def load_input_vcf(svin,class_field,use_dir):
             sv = sv_dict[sv_id]
             mate_field = 'PARID' if 'PARID' in sv['INFO'] else 'MATEID'
             mate_id = sv['INFO'][mate_field]
-            if type(mate_id) == type([]): 
+            if type(mate_id) == type([]):
                 mate_id = mate_id[0]
             mate = sv_dict[mate_id]
 
-            if (sv_id in procd) or (mate_id in procd): 
+            if (sv_id in procd) or (mate_id in procd):
                 continue
 
             dir1, dir2 = '?', '?'
@@ -88,10 +88,10 @@ def load_input_socrates(svin,use_dir,min_mapq,filt_repeats,Config):
 
     sv_id = 0
     for row in soc_in:
-        try: 
+        try:
             bp1 = row[pos_field1].split(':')
             bp2 = row[pos_field2].split(':')
-            chr1, pos1 = bp1[0], int(bp1[1]) 
+            chr1, pos1 = bp1[0], int(bp1[1])
             chr2, pos2 = bp2[0], int(bp2[1])
             #classification = row['classification']
             if 'normal' in row.dtype.names:
@@ -106,17 +106,17 @@ def load_input_socrates(svin,use_dir,min_mapq,filt_repeats,Config):
                     filtered_out += 1
                     continue
             add_sv = np.empty(0)
-            
+
             dir1 = row[dir_field1] if use_dir else '?'
             dir2 = row[dir_field2] if use_dir else '?'
-            
+
             add_sv = np.array([(sv_id,chr1,pos1,dir1,chr2,pos2,dir2,'')],dtype=sv_dtype)
             svs = np.append(svs,add_sv)
             sv_id += 1
         except IndexError:
             raise Exception('Supplied Socrates file does not match column names specified in the parameters.py file')
-    
-    print('Filtered out %d Socrates SVs, keeping %d SVs' % (filtered_out,len(svs)))            
+
+    print('Filtered out %d Socrates SVs, keeping %d SVs' % (filtered_out,len(svs)))
     return remove_duplicates(svs)
 
 def load_input_simple(svin,use_dir,class_field):
@@ -162,16 +162,16 @@ def load_blacklist(blist_file):
 def get_purity_ploidy(pp_file, sample, out):
     '''
     Gets purity/ploidy values from input file,
-    if not found, returns defaults. Writes the 
+    if not found, returns defaults. Writes the
     purity/ploidy file to the default loc if it
     doesn't exist.
     '''
     pi      = 1. #default purity
     pl      = 2. #default ploidy
-    
+
     default_loc = '%s/purity_ploidy.txt' % out
     pp_file = default_loc if pp_file == '' else pp_file
-    
+
     if os.path.exists(pp_file):
         pur_pl  = np.genfromtxt(pp_file,delimiter='\t',names=True,dtype=None,invalid_raise=False)
         pi      = float(pur_pl['purity'])
@@ -183,13 +183,13 @@ def get_purity_ploidy(pp_file, sample, out):
         with open('%s/purity_ploidy.txt'%out,'w') as outf:
             outf.write("sample\tpurity\tploidy\n")
             outf.write('%s\t%f\t%f\n'%(sample,pi,pl))
-    
+
     return pi, pl
-  
+
 def get_read_params(params_file, sample, out):
     '''
     Gets read parameter values from input file,
-    if not found, returns defaults. Writes the 
+    if not found, returns defaults. Writes the
     purity/ploidy file to the default loc if it
     doesn't exist.
     '''
@@ -197,7 +197,7 @@ def get_read_params(params_file, sample, out):
     insert  = 300 #default insert size
     std     = 20
 
-    default_loc =  '%s/read_params.txt' % out 
+    default_loc =  '%s/read_params.txt' % out
     params_file = default_loc if params_file == '' else params_file
 
     if os.path.exists(params_file):
@@ -206,11 +206,11 @@ def get_read_params(params_file, sample, out):
         insert      = float(read_params['insert_mean'])
         std         = float(read_params['insert_std'])
     else:
-        print('WARNING: read_params.txt file not found! Assuming read length = %d, mean insert length = %d' % (rlen,insert)) 
+        print('WARNING: read_params.txt file not found! Assuming read length = %d, mean insert length = %d' % (rlen,insert))
 
     if params_file != default_loc:
         with open('%s/read_params.txt'%out,'w') as outf:
             outf.write("sample\tread_len\tinsert_mean\tinsert_std\n")
             outf.write('%s\t%f\t%f\t%f\n\n'%(sample,rlen,insert,std))
-       
+
     return rlen, insert, std
