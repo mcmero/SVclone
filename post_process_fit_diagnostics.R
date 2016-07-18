@@ -44,7 +44,7 @@ for (dir in list.dirs()) {
     }
 }
 runs <- unique(runs)
-    
+
 ############################################################################################
 # Cluster stability of runs
 ############################################################################################
@@ -52,19 +52,19 @@ runs <- unique(runs)
 compare_runs <- function(run1, run2) {
     clus_cert_file <- paste(run1, '/', snv_dir, id, '_cluster_certainty.txt', sep='')
     clus_cert1 <- read.delim(clus_cert_file, sep='\t', stringsAsFactors=F)
-    
+
     clus_cert_file <- paste(run2, '/', snv_dir, id, '_cluster_certainty.txt', sep='')
     clus_cert2 <- read.delim(clus_cert_file, sep='\t', stringsAsFactors=F)
-    
+
     clus1 <- as.numeric(names(table(clus_cert1$most_likely_assignment)))
     dist <- 0
     for (clus in clus1) {
         if (sum(clus_cert1$most_likely_assignment == clus) <= 1)
             next
-        
+
         cert1_tmp <- clus_cert1[clus_cert1$most_likely_assignment == clus,]
         cert2_tmp <- clus_cert2[clus_cert1$most_likely_assignment == clus,]
-        
+
         points_in_clus <- nrow(cert1_tmp)
         combs <- t(combn(points_in_clus, 2))
         for (i in 1:nrow(combs)) {
@@ -75,7 +75,7 @@ compare_runs <- function(run1, run2) {
             }
         }
     }
-    
+
     total_combs <- ncol(combn(nrow(clus_cert1), 2))
     #print(paste('Dist:', dist, ';', 'combs:', total_combs))
     metric <- 1 - (dist / total_combs)
@@ -87,11 +87,11 @@ if (clus_stab) {
     print('Comparing clustering stability between runs...')
     all_comps <- combn(runs,2)
     n <- length(runs)
-    
+
     results <- matrix(0, n, n)
     colnames(results) <- runs
     rownames(results) <- runs
-    
+
     for (i in 1:nrow(results)) {
         for (j in 1:ncol(results)) {
             run1 <- rownames(results)[i]
@@ -103,13 +103,13 @@ if (clus_stab) {
             }
         }
     }
-    
+
     # cluster stability metric plot
     pdf(paste(id, '_cluster_stability_heatmap.pdf',sep=''),height=6)
     cols <- colorRampPalette(brewer.pal(9,'Blues'))(30)
     heatmap.2(results, trace='none', Rowv=F, Colv=F, dendrogram='none', col=cols)
     dev.off()
-    
+
     results <- cbind(rownames(results), results)
     write.table(results, paste(id,'_cluster_stability.csv', sep=''), sep=',', quote=F, row.names=F)
 }
@@ -117,7 +117,7 @@ if (clus_stab) {
 # cluster proportions plot
 clusts <- NULL
 for (run in runs) {
-    sv_clust <- read.table(paste(run, '/', snv_dir, id, '_subclonal_structure.txt', sep=''), 
+    sv_clust <- read.table(paste(run, '/', snv_dir, id, '_subclonal_structure.txt', sep=''),
                            header=T, sep='\t', stringsAsFactors=F)
     clusts <- rbind(clusts, data.frame(run=run, n_ssms=sv_clust$n_ssms, cluster=sv_clust$cluster))
 }
@@ -138,22 +138,23 @@ if (length(args)>2 & map) {
         ic <- cbind(run=run, ic)
         ic_table <- rbind(ic_table, ic)
     }
-    
+
+    ic_plot <- ggplot(ic_table, aes(y=V2, x=run, group=V1, color=factor(V1))) + ylab('value') + geom_line()
     pdf(paste(id, 'aic_bic_plot.pdf',sep='_'), height=4)
-    print(ggplot(ic_table, aes(y=V2, x=run, group=V1, color=factor(V1))) + ylab('value') + geom_line())
+    print(ic_plot)
     dev.off()
-    
+
     ic_table <- cast(ic_table, run~V1, value='V2')
     min_bic <- ic_table[min(ic_table$BIC)==ic_table$BIC,]
     min_bic$AIC <- min_bic$run
     min_bic$run <- 'min_BIC'
     ic_table <- rbind(ic_table, min_bic)
-    
+
     min_aic <- ic_table[min(ic_table$AIC)==ic_table$AIC,]
     min_aic$BIC <- min_aic$run
     min_aic$run <- 'min_AIC'
     ic_table <- rbind(ic_table, min_aic)
-    
+
     write.table(ic_table, paste(id,'_aic_bic_metrics.csv', sep=''), sep=',', quote=F, row.names=F)
 }
 
@@ -190,23 +191,23 @@ gg_color_hue <- function(n) {
 ggQQ <- function(dat) {
     p <- ggplot(dat) +
         stat_qq(aes(sample=CCF, colour = factor(most_likely_assignment)), alpha = 0.5)
-    
+
     dat_tmp <- dat[!is.na(dat$CCF),]
-    
+
     clusts <- as.numeric(names(table(dat_tmp$most_likely_assignment)))
     cols <- gg_color_hue(length(clusts))
-    
+
     for (i in 1:length(clusts)) {
         clus <- clusts[i]
-        tmp <- dat_tmp[dat_tmp$most_likely_assignment == clus, 'CCF'] 
+        tmp <- dat_tmp[dat_tmp$most_likely_assignment == clus, 'CCF']
         y <- quantile(tmp, c(0.25, 0.75))
         x <- qnorm(c(0.25, 0.75))
         slope <- diff(y)/diff(x)
-        intercept <- y[1L] - slope * x[1L]   
-        
+        intercept <- y[1L] - slope * x[1L]
+
         p <- p + geom_abline(slope = slope, intercept = intercept, color=cols[i], alpha=0.5)
     }
-    
+
     return(p)
 }
 
@@ -236,8 +237,8 @@ get_frac <- function(x, snvs) {
     return(sc1[2])
 }
 
-for (run in runs) {        
-    mlcn <- read.table(paste(run, '/', snv_dir, id, '_most_likely_copynumbers.txt', sep=''), header=T, sep='\t', stringsAsFactors=F)    
+for (run in runs) {
+    mlcn <- read.table(paste(run, '/', snv_dir, id, '_most_likely_copynumbers.txt', sep=''), header=T, sep='\t', stringsAsFactors=F)
     dat <- NULL
     if (snvs) {
         dat <- merge(svs, mlcn, by.x=c(1,2), by.y=c(1,2))
@@ -250,40 +251,40 @@ for (run in runs) {
         certain <- read.table(paste(run, '/', id, '_cluster_certainty.txt', sep=''), sep='\t', header=T)
         dat <- merge(dat, certain,by.x=merge_cols, by.y=merge_cols)
     }
-    
+
     dat$cn_frac <- apply(dat, 1, function(x){get_frac(x, snvs)})
     dat <- cbind(dat, CCF=get_adjust_factor(dat, pur) * dat$adjusted_vaf)
     dat$CCF <- sapply(dat$CCF,function(x){min(2,x)})
-    
+
     sv_clust <- read.table(paste(run, '/', snv_dir, id, '_subclonal_structure.txt', sep=''), header=T, sep='\t', stringsAsFactors=F)
     sv_clust <- sv_clust[sv_clust$n_ssms>1, ]
-    dat <- dat[dat$most_likely_assignment%in%sv_clust$cluster,]    
-    
+    dat <- dat[dat$most_likely_assignment%in%sv_clust$cluster,]
+
     above_ssm_th <- sv_clust$n_ssms / (sum(sv_clust$n_ssms)) > 0.1
     below_ssm_th <- sv_clust$n_ssms / (sum(sv_clust$n_ssms)) < 0.1
     clus_intercepts <- 1 / pur * as.numeric(sv_clust$proportion[above_ssm_th & sv_clust$n_ssms > 2])
     clus_intercepts_minor <- 1 / pur * as.numeric(sv_clust$proportion[below_ssm_th | sv_clust$n_ssms<=2])
-        
-    plot1 <- ggplot(dat, aes(x=as.numeric(dat$CCF), 
-                    fill=factor(most_likely_assignment), color=factor(most_likely_assignment))) + 
+
+    plot1 <- ggplot(dat, aes(x=as.numeric(dat$CCF),
+                    fill=factor(most_likely_assignment), color=factor(most_likely_assignment))) +
                     xlim(0,2) + geom_histogram(alpha=0.3,position='identity',binwidth=0.05)+xlab('CCF') +
                     geom_vline(xintercept=clus_intercepts, colour='blue', size=1)
-    
+
     if (length(clus_intercepts_minor) > 0) {
         plot1 <- plot1 + geom_vline(xintercept=clus_intercepts_minor,colour='red',lty=2)
     }
-        
+
     plot2 <- ggQQ(dat)
-    
+
     #attach table for convenience, also add BIC/AIC
     tabout <- sv_clust[order(as.numeric(sv_clust[,3]),decreasing=TRUE),]
     sc_tab <- tableGrob(tabout, rows=c())
     if (map) {
-        ic <- read.table(paste(run, '/', snv_dir, id, '_fit.txt', sep=''), 
+        ic <- read.table(paste(run, '/', snv_dir, id, '_fit.txt', sep=''),
                      sep='\t', header=F, stringsAsFactors = F)
         ic <- data.frame(t(ic)); colnames(ic) <- c('BIC','AIC'); ic <- ic[-1,]
         ic_tab <- tableGrob(ic, rows=c())
-        
+
         height <- 7+round(nrow(tabout)*0.2)
         pdf(paste(id, run, 'fit.pdf',sep='_'), height=height)
         grid.arrange(arrangeGrob(sc_tab, ic_tab, nrow=1), plot1, plot2, ncol=1)
@@ -296,3 +297,88 @@ for (run in runs) {
     }
 }
 
+get_run_info <- function(id, run) {
+    scs_file <- paste(run, '/', snv_dir, id, '_subclonal_structure.txt', sep='')
+    scs <- read.table(scs_file, sep = '\t', header = T)
+    scs <- scs[scs$n_ssms>3,]
+    scs <- scs[order(scs$CCF, decreasing=T), ]
+    scs$new_cluster <- 1:nrow(scs)
+
+    sv_df <- NULL
+    if (snvs) {
+        sv_df <- read.table(paste(id, '_filtered_snvs.tsv', sep=''),
+                            header=T, sep='\t', stringsAsFactors=F)
+    } else {
+        sv_df <- read.table(paste(id, '_filtered_svs.tsv', sep=''),
+                            header=T, sep='\t', stringsAsFactors=F)
+    }
+    pur <- read.table(paste('purity_ploidy.txt', sep=''),
+                      header=T, sep='\t', stringsAsFactors=F)$purity
+
+    cc_file <-  paste(run, '/', snv_dir, id, '_cluster_certainty.txt', sep = '')
+    cc <- read.table(cc_file, sep = '\t', stringsAsFactors = F, header = T)
+
+    mlcn_file <- paste(run, '/', snv_dir, id, '_most_likely_copynumbers.txt', sep='')
+    mlcn <- read.table(mlcn_file, header = T, sep = '\t', stringsAsFactors = F)
+
+    merge_cols <- c('chr1', 'pos1', 'dir1', 'chr2', 'pos2', 'dir2')
+    if (snvs) {
+        colnames(sv_df)[1] <- 'chr'
+        colnames(cc)[1] <- 'chr'
+        merge_cols <- c('chr', 'pos')
+    }
+    dat <- merge(sv_df, mlcn, by.x=merge_cols, by.y=merge_cols)
+    dat <- merge(dat, cc, by.x=merge_cols, by.y=merge_cols)
+    if (snvs) {
+        dat$adjusted_vaf <- dat$var / (dat$ref + dat$var)
+    }
+    dat$cn_frac <- apply(dat, 1, function(x){get_frac(x, snvs)})
+    dat <- cbind(dat, CCF=get_adjust_factor(dat, pur) * dat$adjusted_vaf)
+
+    dat$cluster <- NA
+    for (j in 1:nrow(scs)) {
+        dat[dat$most_likely_assignment==scs$cluster[j], 'cluster'] <- scs$new_cluster[j]
+    }
+    if (snvs) {
+        dat$sv <- paste(dat$chr, dat$pos, sep='_')
+    } else {
+        dat$sv <- paste(dat$chr1, dat$pos1, dat$chr2, dat$pos2, sep=':')
+    }
+
+    scs$cluster <- scs$new_cluster
+    scs <- scs[,1:4]
+    scs$variant_proportion <- scs$n_ssms/sum(scs$n_ssms)
+    return(list(dat,scs))
+}
+
+var_id <- c('chr1','pos1','chr2','pos2')
+if (snvs) {var_id <- c('chr', 'pos')}
+
+all_runs_ccfs <- NULL
+all_runs_scs <- NULL
+for(run in runs) {
+    runinf <- get_run_info(id, run)
+    dat <- runinf[[1]]
+    scs <- runinf[[2]]
+
+    scs$run <- run
+    ccfs <- data.frame(sv = apply(dat[,var_id], 1, paste, collapse=':'),
+                       CCF = dat$CCF, cluster = dat$cluster,
+                       run = run)
+    all_runs_ccfs <- rbind(all_runs_ccfs, ccfs)
+    all_runs_scs <- rbind(all_runs_scs, scs)
+}
+
+rp <- ggplot(data = all_runs_scs) +
+    scale_y_continuous(breaks = seq(0, 2, 0.2), limits = c(0,2)) + xlab('') +
+    geom_line(data = all_runs_ccfs, aes(x = run, y = CCF, group = sv,
+                                        colour = factor(cluster)), alpha=0.2) +
+    geom_jitter(data = all_runs_ccfs, aes(x = run, y = CCF, colour = factor(cluster)),
+                position=position_jitter(width=0.4), alpha = 0.5, size = 2) +
+    scale_size(range = c(4,25), guide = FALSE) +
+    geom_point(aes(x = run, y = CCF, size=variant_proportion), colour = '#4d4d4d', alpha=0.8)
+
+pdf_name <- paste(id, '_run_summary.pdf', sep='')
+pdf(pdf_name, height = 6, width = 16)
+grid.arrange(rp, ic_plot, ncol = 2)
+dev.off()

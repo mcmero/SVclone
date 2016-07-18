@@ -36,10 +36,10 @@ def gen_new_colours(N):
     RGB_tuples = map(lambda x: colorsys.hsv_to_rgb(*x), HSV_tuples)
     return RGB_tuples
 
-def plot_clusters(center_trace, alpha_trace, clusters, assignments, sup, dep, clus_out_dir, cparams):
+def plot_clusters(center_trace, clusters, assignments, sup, dep, clus_out_dir, cparams):
     burn = cparams['burn']
     phi_limit = cparams['phi_limit']
-    fig, axes = plt.subplots(4, 1, sharex=False, sharey=False, figsize=(12.5,12))
+    fig, axes = plt.subplots(4, 1, sharex=False, sharey=False, figsize=(12.5,9))
 
     RGB_tuples = gen_new_colours(len(clusters))
 
@@ -48,7 +48,7 @@ def plot_clusters(center_trace, alpha_trace, clusters, assignments, sup, dep, cl
     axes[1].set_ylim([0, phi_limit + 0.1])
     axes[1].set_title("Adjusted trace of $\phi_k$")
     axes[2].set_title("Raw VAFs")
-    axes[3].set_title("Alpha trace")
+    #axes[3].set_title("Alpha trace")
 
     center_trace_adj = get_adjusted_phi_trace(center_trace, clusters)
     x_burn = np.arange(burn+1)
@@ -68,7 +68,7 @@ def plot_clusters(center_trace, alpha_trace, clusters, assignments, sup, dep, cl
         dep_clus = dep[clus_idx]
         axes[2].hist(sup_clus/dep_clus,bins=np.array(range(0,100,2))/100.,alpha=0.75,color=RGB_tuples[idx])
 
-    axes[3].plot(np.arange(len(alpha_trace)), alpha_trace, lw=1)
+    #axes[3].plot(np.arange(len(alpha_trace)), alpha_trace, lw=1)
     plt.savefig('%s/cluster_trace_hist'%clus_out_dir)
 
 def index_max(values):
@@ -228,7 +228,7 @@ def post_process_clusters(mcmc,sv_df,snv_df,clus_out_dir,sup,dep,cn_states,spara
     # assign points to highest probabiliy cluster
     npoints = len(snv_df) + len(sv_df)
 
-    alpha_trace = mcmc.trace('alpha')[:]
+    #alpha_trace = mcmc.trace('alpha')[:]
     z_trace = mcmc.trace('z')[:]
     z_trace_burn = z_trace[burn:]
     z_trace_burn = z_trace_burn[range(0,len(z_trace_burn),thin)] if thin > 1 else z_trace_burn #thinning
@@ -289,11 +289,11 @@ def post_process_clusters(mcmc,sv_df,snv_df,clus_out_dir,sup,dep,cn_states,spara
     trace_out = '%s/%s'%(dump_out_dir,trace_out)
     write_output.dump_trace(center_trace, trace_out+'phi_trace.txt')
     write_output.dump_trace(z_trace, trace_out+'z_trace.txt')
-    write_output.dump_trace(alpha_trace, trace_out+'alpha_trace.txt')
+    #write_output.dump_trace(alpha_trace, trace_out+'alpha_trace.txt')
     
     # cluster plotting
     if plot:
-        plot_clusters(center_trace, alpha_trace, clus_idx, clus_max_prob, sup, dep, clus_out_dir, cparams)
+        plot_clusters(center_trace, clus_idx, clus_max_prob, sup, dep, clus_out_dir, cparams)
     
     # merge clusters
     if len(clus_info)>1 and merge_clusts:        
