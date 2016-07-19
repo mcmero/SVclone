@@ -191,7 +191,7 @@ def is_same_sv(sv1, sv2, threshold):
 def remove_duplicates(svs, threshold):
     to_delete = []
     for idx1, sv1 in enumerate(svs):
-        if idx1+1 == len(svs): 
+        if idx1+1 == len(svs):
             break
         for idx2, sv2 in enumerate(svs[idx1+1:]):
             if idx1 != idx2:
@@ -247,7 +247,7 @@ def split_dirs_dual_mixed_sv(svs, row, idx, ca, threshold):
                                 svs[idx]['pos2'], svs, threshold, mixed=True)
 
     if len(svmatch1) > 0 and len(svmatch2) > 0:
-        
+
         if len(svmatch1) > 1 or len(svmatch2) > 1:
 
             svs = set_svs_as_complex(svs, svmatch1)
@@ -294,7 +294,7 @@ def split_dirs_dual_mixed_sv(svs, row, idx, ca, threshold):
                     new_pos2 = ca[idxs]['ca_right2'] if \
                                 dirs[1] == '+' else ca[idxs]['ca_left2']
                     svs[idxs] = set_dir_class(sv, dirs[0], dirs[1], '', new_pos1, new_pos2)
-            else:                
+            else:
                 svs = set_svs_as_complex(svs, svmatch1)
                 svs = set_svs_as_complex(svs, svmatch2)
                 return svs
@@ -332,7 +332,7 @@ def split_mixed_svs(svs, ca, threshold):
                 new_svs = split_dirs_dual_mixed_sv(svs, row, idx, ca, threshold)
 
             elif row['dir1'] in ['-','+']:
-                #set dir to -, create new sv with dir set to +                
+                #set dir to -, create new sv with dir set to +
                 new_sv = svs[idx].copy()
                 new_pos2 = ca[idx]['ca_right2']
                 new_sv = set_dir_class(new_sv, row['dir1'], '+', '', 0, new_pos2)
@@ -406,6 +406,40 @@ def infer_sv_dirs(svs, ca, bam, max_dep, sc_len, threshold, blist):
 
     return svs, ca
 
+def classify_svs(svs):
+    sv_id = 0
+    svd_prev_result, prev_sv = None, None
+    for idx, sv in enumerate(svs):
+        if sv['classification'] == '':
+            sv_class, sv_id, svd_prev_result, prev_sv = \
+                classify_event(sv, sv_id, svd_prev_result, prev_sv)
+            svs[idx]['classification'] = sv_class
+        else:
+            sv_id += 1
+        svs[idx]['ID'] = sv_id
+
+    # reclassify once all have been processed
+    for idx, sv in enumerate(svs):
+        trx_label = svd.getResultType([svd.SVtypes.translocation])
+        intins_label = svd.getResultType([svd.SVtypes.interspersedDuplication])
+        if sv['classification'] == intins_label:
+            svs[idx-1]['classification'] = intins_label
+            translocs = svd.detectTransloc(idx, svs, threshold)
+            if len(translocs) > 0:
+                new_idx = idx-1
+                for i in translocs:
+                    svs[i]['classification'] = trx_label
+                    svs[i]['ID'] = new_idx
+    return svs
+
+def write_svs(svs, outname):
+    with open(outname, 'w') as outf:
+        writer = csv.writer(outf, delimiter='\t', quoting=csv.QUOTE_NONE, quotechar='')
+        header = [field for field, dtype in dtypes.sv_dtype]
+        writer.writerow(header)
+        for sv_out in svs:
+            writer.writerow(sv_out)
+
 def string_to_bool(v):
   return v.lower() in ("yes", "true", "t", "1")
 
@@ -470,13 +504,13 @@ def preproc_svs(args):
 
     if rlen<0:
         rlen = bamtools.estimateTagSize(bam)
-    
+
     inserts = bamtools.estimateInsertSizeDistribution(bam)
     inserts = (max(rlen*2,inserts[0]),inserts[1])
-    
+
     max_ins = inserts[0]+(3*inserts[1]) #max fragment size = mean fragment len + (fragment std * 3)
     max_dep = ((mean_cov*(max_ins*2))/rlen)*max_cn
-    
+
     if not use_dir:
         svs, ca = infer_sv_dirs(svs, ca, bam, max_dep, sc_len, threshold, blist)
     elif not trust_sc_pos:
@@ -505,34 +539,7 @@ def preproc_svs(args):
 
     print('Removing duplicate SVs...')
     svs = remove_duplicates(svs, threshold)
-
-    sv_id = 0
-    svd_prev_result, prev_sv = None, None
-    for idx, sv in enumerate(svs):
-        if sv['classification'] == '':
-            sv_class, sv_id, svd_prev_result, prev_sv = \
-                classify_event(sv, sv_id, svd_prev_result, prev_sv)
-            svs[idx]['classification'] = sv_class
-        else:
-            sv_id += 1
-        svs[idx]['ID'] = sv_id
-
-    # reclassify once all have been processed
-    for idx, sv in enumerate(svs):
-        trx_label = svd.getResultType([svd.SVtypes.translocation])
-        intins_label = svd.getResultType([svd.SVtypes.interspersedDuplication])
-        if sv['classification'] == intins_label:
-            svs[idx-1]['classification'] = intins_label
-            translocs = svd.detectTransloc(idx, svs, threshold)
-            if len(translocs) > 0:
-                new_idx = idx-1
-                for i in translocs:
-                    svs[i]['classification'] = trx_label
-                    svs[i]['ID'] = new_idx
-
-    with open(outname, 'w') as outf:
-        writer = csv.writer(outf, delimiter='\t', quoting=csv.QUOTE_NONE, quotechar='')
-        header = [field for field, dtype in dtypes.sv_dtype]
-        writer.writerow(header)
-        for sv_out in svs:
-            writer.writerow(sv_out)
+    print('Classifying SVs...')
+    svs = classify_svs(svs)
+    print('Writing SV output...')
+    write_svs(svs, outname)
