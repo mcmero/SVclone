@@ -216,7 +216,7 @@ def get_adjusted_phis(clus_info, center_trace, cparams):
     else:
         return(phis)
 
-def post_process_clusters(mcmc,sv_df,snv_df,clus_out_dir,sup,dep,cn_states,sparams,cparams,output_params,map_):
+def post_process_clusters(mcmc,sv_df,snv_df,clus_out_dir,sup,dep,norm,cn_states,sparams,cparams,output_params,map_):
 
     merge_clusts  = cparams['merge_clusts']
     subclone_diff = cparams['subclone_diff']
@@ -334,10 +334,11 @@ def post_process_clusters(mcmc,sv_df,snv_df,clus_out_dir,sup,dep,cn_states,spara
 
         snv_sup  = sup[:len(snv_df)]
         snv_dep  = dep[:len(snv_df)]
+        snv_norm  = norm[:len(snv_df)]
         snv_cn_states = cn_states[:len(snv_df)]
         write_output.write_out_files(snv_df,clus_info,snv_members,
                 snv_probs,snv_ccert,clus_out_dir,sparams['sample'],sparams['pi'],snv_sup,
-                snv_dep,snv_cn_states,run_fit,z_trace,smc_het,cnv_pval,are_snvs=True)
+                snv_dep,snv_norm,snv_cn_states,run_fit,z_trace,smc_het,cnv_pval,are_snvs=True)
 
     sv_probs = pd.DataFrame()
     sv_ccert = pd.DataFrame()
@@ -359,12 +360,14 @@ def post_process_clusters(mcmc,sv_df,snv_df,clus_out_dir,sup,dep,cn_states,spara
 
         sv_sup  = sup[lb:lb+len(sv_df)]
         sv_dep  = dep[lb:lb+len(sv_df)]
+        sv_norm = norm[lb:lb+len(sv_df)]
         sv_cn_states = cn_states[lb:lb+len(sv_df)]
         write_output.write_out_files(sv_df,clus_info,sv_members,
                     sv_probs,sv_ccert,clus_out_dir,sparams['sample'],sparams['pi'],sv_sup,
-                    sv_dep,sv_cn_states,run_fit,z_trace,smc_het,cnv_pval)
+                    sv_dep,sv_norm,sv_cn_states,run_fit,z_trace,smc_het,cnv_pval)
 
 def cluster_and_process(sv_df, snv_df, run, out_dir, sample_params, cluster_params, output_params):
+    male = cluster_params['male']
     # set random seed
     seed = int(round((time.time() - int(time.time())) * 10000 * (run+1)))
     np.random.seed(seed)
@@ -373,19 +376,20 @@ def cluster_and_process(sv_df, snv_df, run, out_dir, sample_params, cluster_para
     if not os.path.exists(clus_out_dir):
         os.makedirs(clus_out_dir)
 
-    Nvar, sup, dep, cn_states = None, None, None, None
+    Nvar, sup, dep, cn_states, norm = None, None, None, None, None
     if cluster_params['cocluster'] and len(sv_df)>0 and len(snv_df)>0:
         # coclustering
-        sup, dep, cn_states, Nvar = load_data.get_snv_vals(snv_df)
-        sv_sup, sv_dep, sv_cn_states, sv_Nvar = load_data.get_sv_vals(sv_df, cluster_params['adjusted'])
+        sup, dep, cn_states, Nvar = load_data.get_snv_vals(snv_df, male)
+        sv_sup, sv_dep, sv_cn_states, sv_Nvar, sv_chr = load_data.get_sv_vals(sv_df, cluster_params['adjusted'], male)
         sup = np.append(sup, sv_sup)
         dep = np.append(dep, sv_dep)
+        norm = np.append(norm, sv_chr)
         cn_states = pd.concat([pd.DataFrame(cn_states),pd.DataFrame(sv_cn_states)])[0].values
         Nvar = Nvar + sv_Nvar
         print("Coclustering %d SVs & %d SNVs..." % (len(sv_df), len(snv_df)))
         mcmc, map_ = cluster.cluster(sup, dep, cn_states, Nvar, sample_params,
-                                     cluster_params, cluster_params['phi_limit'])
-        post_process_clusters(mcmc, sv_df, snv_df, clus_out_dir, sup, dep, cn_states,
+                                     cluster_params, cluster_params['phi_limit'], norm)
+        post_process_clusters(mcmc, sv_df, snv_df, clus_out_dir, sup, dep, norm, cn_states,
                           sample_params, cluster_params, output_params, map_)
 
     elif len(sv_df) > 0 or len(snv_df) > 0:
@@ -393,19 +397,19 @@ def cluster_and_process(sv_df, snv_df, run, out_dir, sample_params, cluster_para
         if len(snv_df) > 0:
             if not os.path.exists('%s/snvs'%clus_out_dir):
                 os.makedirs('%s/snvs'%clus_out_dir)
-            sup,dep,cn_states,Nvar = load_data.get_snv_vals(snv_df)
+            sup,dep,cn_states,Nvar,norm = load_data.get_snv_vals(snv_df, male)
             print('Clustering %d SNVs...' % len(snv_df))
             mcmc, map_ = cluster.cluster(sup, dep, cn_states, Nvar, sample_params,
-                                         cluster_params, cluster_params['phi_limit'])
-            post_process_clusters(mcmc, pd.DataFrame(), snv_df, clus_out_dir, sup, dep, cn_states,
-                              sample_params, cluster_params, output_params, map_)
+                                         cluster_params, cluster_params['phi_limit'], norm)
+            post_process_clusters(mcmc, pd.DataFrame(), snv_df, clus_out_dir, sup, dep, norm,
+                                  cn_states,sample_params, cluster_params, output_params, map_)
         if len(sv_df) > 0:
-            sup, dep, cn_states, Nvar = load_data.get_sv_vals(sv_df,cluster_params['adjusted'])
+            sup, dep, cn_states, Nvar, norm = load_data.get_sv_vals(sv_df,cluster_params['adjusted'], male)
             print('Clustering %d SVs...' % len(sv_df))
             mcmc, map_ = cluster.cluster(sup, dep, cn_states, Nvar, sample_params,
-                                         cluster_params, cluster_params['phi_limit'])
-            post_process_clusters(mcmc, sv_df, pd.DataFrame(), clus_out_dir, sup, dep, cn_states,
-                              sample_params, cluster_params, output_params, map_)
+                                         cluster_params, cluster_params['phi_limit'], norm)
+            post_process_clusters(mcmc, sv_df, pd.DataFrame(), clus_out_dir, sup, dep, norm,
+                                  cn_states, sample_params, cluster_params, output_params, map_)
 
     else:
         raise ValueError("No valid variants to cluster!")
@@ -506,6 +510,7 @@ def run_clustering(args):
     adjusted        = string_to_bool(Config.get('ClusterParameters', 'adjusted'))
     cnv_pval        = float(Config.get('ClusterParameters', 'clonal_cnv_pval'))
     adjust_phis     = string_to_bool(Config.get('ClusterParameters', 'adjust_phis'))
+    male            = string_to_bool(Config.get('ClusterParameters', 'male'))
 
     plot            = string_to_bool(Config.get('OutputParameters', 'plot'))
     ccf_reject      = float(Config.get('OutputParameters', 'ccf_reject_threshold'))
@@ -519,7 +524,7 @@ def run_clustering(args):
 
     sample_params  = { 'sample': sample, 'ploidy': pl, 'pi': pi, 'rlen': rlen, 'insert': insert }
     cluster_params = { 'n_iter': n_iter, 'burn': burn, 'thin': thin, 'alpha': shape, 'beta': scale,
-                       'use_map': use_map, 'hpd_alpha': hpd_alpha, 'fixed_alpha': fixed_alpha,
+            'use_map': use_map, 'hpd_alpha': hpd_alpha, 'fixed_alpha': fixed_alpha, 'male': male,
                        'merge_clusts': merge_clusts, 'adjusted': adjusted, 'phi_limit': phi_limit,
                        'clus_limit': clus_limit, 'subclone_diff': subclone_diff, 'cocluster': cocluster ,
                        'clonal_cnv_pval': cnv_pval, 'adjust_phis': adjust_phis }

@@ -93,8 +93,10 @@ def fit_and_sample(model, iters, burn, thin, use_map):
     else:
         return mcmc, None
 
-def get_pv(phi, cn_r, cn_v, mu, cn_f, pi):
-    pn = (1.0 - pi) * 2.0       #proportion of normal reads coming from normal cells
+def get_pv(phi, combo, pi, ni):
+    cn_r, cn_v, mu, cn_f = combo
+
+    pn = (1.0 - pi) * ni        #proportion of normal reads coming from normal cells
     pr = pi * cn_r * (1. - cn_f) if cn_f < 1 else 0 # incorporate ref population CNV fraction if present
     pv = pi * cn_v * cn_f       #proportion of variant + normal reads coming from this (the variant) cluster
     norm_const = pn + pv + pr
@@ -107,24 +109,24 @@ def filter_cns(cn_states):
     cn_str = np.unique(np.array(cn_str))
     return [map(float,cn) for cn in map(methodcaller('split',','),cn_str)]
 
-def calc_lik_with_clonal(combo, si, di, phi_i, pi):
-    pvs = np.array([get_pv(phi_i, c[0], c[1], c[2], c[3], pi) for c in combo])
+def calc_lik_with_clonal(combo, si, di, phi_i, pi, ni):
+    pvs = np.array([get_pv(phi_i, c, pi, ni) for c in combo])
     lls = np.array([pm.binomial_like(si, di, pvs[i]) for i,c in enumerate(combo)])-0.00000001
     # also calculate with clonal phi
-    pvs_cl = np.array([get_pv(np.array(1), c[0], c[1], c[2], c[3], pi) for c in combo])
+    pvs_cl = np.array([get_pv(np.array(1), c, pi, ni) for c in combo])
     lls_cl = np.array([pm.binomial_like(si, di, pvs[i]) for i,c in enumerate(combo)])-0.00000001
     #lls currently uses precision fudge factor to get
     #around 0 probability errors when pv = 1
     #TODO: investigate look this bug more
     return np.array([[pvs, lls], [pvs_cl, lls_cl]])
 
-def calc_lik(combo, si, di, phi_i, pi):
-    pvs = np.array([get_pv(phi_i, c[0], c[1], c[2], c[3], pi) for c in combo])
+def calc_lik(combo, si, di, phi_i, pi, ni):
+    pvs = np.array([get_pv(phi_i, c, pi, ni) for c in combo])
     lls = np.array([pm.binomial_like(si, di, pvs[i]) for i,c in enumerate(combo)])-0.00000001
     return np.array([pvs, lls])
 
-def get_probs(var_states,s,d,phi,pi):
-    llik = calc_lik(var_states,s,d,phi,pi)[1]
+def get_probs(var_states,s,d,phi,pi,norm):
+    llik = calc_lik(var_states,s,d,phi,pi,norm)[1]
     probs = get_probs_from_llik(llik)
     probs = ','.join(map(lambda x: str(round(x,4)),probs))
     return probs
@@ -175,22 +177,22 @@ def get_most_likely_cn(cn_states, cn_lik, i, pval_cutoff):
     else:
         return cn_states[i][index_of_max(cn_lik_phi)]
 
-def get_most_likely_cn_states(cn_states, s, d, phi, pi, pval_cutoff):
+def get_most_likely_cn_states(cn_states, s, d, phi, pi, pval_cutoff, norm):
     '''
     Obtain the copy-number states which maximise the binomial likelihood
     of observing the supporting read depths at each variant location
     '''
     #cn_ll_clonal = [calc_lik(cn_states[i],s[i],d[i],np.array(1),pi)[1] for i in range(len(cn_states))]
-    cn_ll_combined = [calc_lik_with_clonal(cn_states[i],s[i],d[i],phi[i],pi)[1] for i in range(len(cn_states))]
+    cn_ll_combined = [calc_lik_with_clonal(cn_states[i],s[i],d[i],phi[i],pi,norm[i])[1] for i in range(len(cn_states))]
     #cn_ll_combined = zip(cn_ll_clonal,cn_ll_phi)
 
     most_likely_cn = [get_most_likely_cn(cn_states,cn_lik,i,pval_cutoff) for i, cn_lik in enumerate(cn_ll_combined)]
-    cn_ll = [calc_lik(cn_states[i],s[i],d[i],phi[i],pi) for i in range(len(most_likely_cn))]
+    cn_ll = [calc_lik(cn_states[i],s[i],d[i],phi[i],pi,norm[i]) for i in range(len(most_likely_cn))]
     most_likely_pv = [get_most_likely_pv(cn_lik) for cn_lik in cn_ll]
 
     return most_likely_cn, most_likely_pv
 
-def cluster(sup,dep,cn_states,Nvar,sparams,cparams,phi_limit):
+def cluster(sup,dep,cn_states,Nvar,sparams,cparams,phi_limit,norm):
     '''
     clustering model using Dirichlet Process
     '''
@@ -239,7 +241,7 @@ def cluster(sup,dep,cn_states,Nvar,sparams,cparams,phi_limit):
             z = [0 for x in z]
             # ^ some fmin optimization methods initialise this array with -ve numbers
         most_lik_cn_states, pvs = \
-                get_most_likely_cn_states(cn_states, sup, dep, phi_k[z], purity, pval_cutoff)
+                get_most_likely_cn_states(cn_states, sup, dep, phi_k[z], purity, pval_cutoff, norm)
         return pvs
 
     cbinom = pm.Binomial('cbinom', dep, p_var, observed=True, value=sup)

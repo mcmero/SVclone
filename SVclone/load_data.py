@@ -6,26 +6,36 @@ import vcf
 
 from . import cluster
 
-def get_sv_vals(sv_df,adjusted):
+def get_normal_copynumber(chrom, male):
+    if male and (chrom == 'X' or chrom == 'chrX'):
+        return 1.
+    elif chrom == 'Y' or chrom == 'chrY':
+        return 1.
+    else:
+        return 2.
+
+def get_sv_vals(sv_df, adjusted, male):
     combos = sv_df.apply(cluster.get_sv_allele_combos,axis=1)
     sides = sv_df.preferred_side.values
     cn_states = [cn[side] for cn,side in zip(combos,sides)]
     cn_states = pd.DataFrame([[sv] for sv in cn_states])[0].values
+    chroms = [c1 if side == 0 else c2 for c1,c2 in zip(sv_df.chr1.values,sv_df.chr2.values)]
+    norm = [get_normal_copynumber(c, male) for c in chroms]
 
     if adjusted:
         sup = sv_df.adjusted_support.map(float).values
         dep = sv_df.adjusted_depth.map(float).values
         Nvar = len(sv_df)
-        return sup,dep,cn_states,Nvar
+        return sup,dep,cn_states,Nvar,norm
     else:
         sup  = sv_df.support.map(float).values
         norm = zip(sv_df.norm1.values,sv_df.norm2.values)
         norm = np.array([float(n[side]) for n,side in zip(norm,sv_df.preferred_side.values)])
         dep  = norm+sup 
         Nvar = len(sv_df)
-        return sup,dep,cn_states,Nvar
+        return sup,dep,cn_states,Nvar,norm
 
-def get_snv_vals(df):
+def get_snv_vals(df, male):
     n = df['ref'].map(float).values
     b = df['var'].map(float).values
 
@@ -33,7 +43,8 @@ def get_snv_vals(df):
         return cluster.get_allele_combos(snv.gtype.split('|'))
      
     cn_states = df.apply(get_snv_allele_combos,axis=1)
-    return b,(n+b),cn_states,len(b)
+    norm = [get_normal_copynumber(c, male) for c in df.chrom.values]
+    return b,(n+b),cn_states,len(b),norm
 
 def load_svs(sv_file):
     dat = pd.read_csv(sv_file,delimiter='\t',dtype=None, low_memory=False)

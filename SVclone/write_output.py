@@ -15,7 +15,7 @@ def dump_trace(center_trace, outf):
         df_traces = pd.DataFrame(center_trace)
         df_traces.to_csv(fout, sep='\t', index=False, header=False)
 
-def write_out_files(df, clus_info, clus_members, df_probs, clus_cert, clus_out_dir, sample, pi, sup, dep, cn_states, run_fit, z_trace, smc_het, cnv_pval, are_snvs=False):
+def write_out_files(df, clus_info, clus_members, df_probs, clus_cert, clus_out_dir, sample, pi, sup, dep, norm, cn_states, run_fit, z_trace, smc_het, cnv_pval, are_snvs=False):
     if are_snvs:
         clus_out_dir = '%s/snvs'%clus_out_dir
         if not os.path.exists(clus_out_dir):
@@ -69,7 +69,7 @@ def write_out_files(df, clus_info, clus_members, df_probs, clus_cert, clus_out_d
     clus_vars   = df.loc[cmem].copy()
     
     phis = clus_cert.average_ccf.values
-    cns, pvs = cluster.get_most_likely_cn_states(cn_states, sup, dep, phis, pi, cnv_pval)
+    cns, pvs = cluster.get_most_likely_cn_states(cn_states, sup, dep, phis, pi, cnv_pval, norm)
 
     for idx, var in clus_vars.iterrows():
         gtype1, gtype2 = None, None
@@ -109,7 +109,7 @@ def write_out_files(df, clus_info, clus_members, df_probs, clus_cert, clus_out_d
             var_states = cn_states[idx]
             tot_opts = ','.join(map(str,[int(x[1]) for x in var_states]))
             var_opts = ','.join(map(str,[int(round(x[1]*x[2])) for x in var_states]))
-            probs =  cluster.get_probs(var_states, sup[idx], dep[idx], phis[idx], pi)
+            probs =  cluster.get_probs(var_states, sup[idx], dep[idx], phis[idx], pi, norm[idx])
             
             mult_new_row = np.array([(chr1, pos1, dir1, chr2, pos2, dir2, sc_cn,
                                      int(round(freq*sc_cn)), tot_opts, var_opts, probs)], dtype=mult_dtype)
@@ -135,7 +135,7 @@ def write_out_files(df, clus_info, clus_members, df_probs, clus_cert, clus_out_d
             var_states = cn_states[idx]
             tot_opts = ','.join(map(str,[int(x[1]) for x in var_states]))
             var_opts = ','.join(map(str,[int(round(x[1]*x[2])) for x in var_states]))
-            probs =  cluster.get_probs(var_states, sup[idx], dep[idx], phis[idx], pi)
+            probs =  cluster.get_probs(var_states, sup[idx], dep[idx], phis[idx], pi, norm[idx])
 
             mult_new_row = np.array([(chrom, pos, sc_cn, int(round(freq*sc_cn)), tot_opts, var_opts, probs)], 
                     dtype=mult_dtype)
