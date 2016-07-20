@@ -505,10 +505,14 @@ def extract_sv_info(svin, bam, rparams, outname):
         sv_prop = row[chr1_field],row[pos1_field],row[chr2_field],row[pos2_field]
         sv_str = '%s:%d|%s:%d'%sv_prop
 
+        skip = False
         for svc in row[sv_class].split(';'):
             if svc in ['BLACKLIST', 'UNKNOWN_DIR', 'HIDEP', 'MIXED', 'READ_FETCH_FAILED']:
-                print('skipping %s (%s)' % (sv_str, svc))
-                continue
+                skip = True
+                break
+        if skip:
+            print('skipping %s (%s)' % (sv_str, svc))
+            continue
 
         print('processing %s'%sv_str)
         sv_rc, split_reads, span_reads, anom_reads = \
