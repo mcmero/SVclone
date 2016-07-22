@@ -159,7 +159,7 @@ def get_most_likely_cn(cn_states, cn_lik, i, pval_cutoff):
     most likely clonal (phi=1) case (log likelihood ratio test)
     - in this case, pick the most CN state with the highest clonal likelihood
     '''
-    cn_lik_clonal, cn_lik_phi = cn_lik
+    cn_lik_phi, cn_lik_clonal = cn_lik
 
     #reinstitute hack - uncomment below
     #cn_lik_phi = cn_lik_clonal
