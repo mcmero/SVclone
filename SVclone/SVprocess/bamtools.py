@@ -74,7 +74,14 @@ def estimateInsertSizeDistribution(bamfile,
     inserts = numpy.array(
         [read.tlen for read in samfile.head(alignments)
          if read.is_proper_pair and read.tlen > 0])
-    return numpy.mean(inserts), numpy.std(inserts)
+    insert_mean, insert_std = numpy.mean(inserts), numpy.std(inserts)
+    print('Insert mean of %f, with standard deviation of %f inferred' % 
+            (insert_mean, insert_std))
+    if insert_mean > 10000 or insert_std > 1000 or \
+        insert_mean < 1 or insert_std < 1:
+            print('''WARNING: anomalous insert sizes detected. Please 
+              double check or consider setting values manually.''')
+    return insert_mean, insert_std
 
 
 def estimateTagSize(bamfile,
