@@ -4,7 +4,7 @@ input=example_data/tumour_p80_DEL_svs_simple.txt
 bam=example_data/tumour_p80_DEL_sv_extract_sorted.bam
 sample=tumour_p80_DEL
 
-./SVclone.py identify -i $input -b $bam -s $sample --sv_format simple
+./SVclone.py annotate -i $input -b $bam -s $sample --sv_format simple
 
 ./SVclone.py count -i ${sample}/${sample}_svin.txt -b $bam -s $sample
 

@@ -6,7 +6,7 @@ Commandline input for running SV
 
 from SVclone import run_filter
 from SVclone import run_clus
-from SVclone.SVprocess import identify
+from SVclone.SVprocess import annotate
 from SVclone.SVprocess import count
 
 import argparse
@@ -20,31 +20,31 @@ subparsers = parser.add_subparsers()
 
 ##########################################################################################################
 
-identify_parser = subparsers.add_parser('identify', help='Extract directions and SV classifications')
+annotate_parser = subparsers.add_parser('annotate', help='Extract directions and SV classifications')
 
-identify_parser.add_argument("-cfg","--config",dest="cfg",default="svclone_config.ini",
+annotate_parser.add_argument("-cfg","--config",dest="cfg",default="svclone_config.ini",
                     help="Config file.")
 
-identify_parser.add_argument("-i","--input",dest="svin",required=True,
+annotate_parser.add_argument("-i","--input",dest="svin",required=True,
                     help="Structural variants input file. See README for input format")
 
-identify_parser.add_argument("-b","--bam",dest="bam",required=True,
+annotate_parser.add_argument("-b","--bam",dest="bam",required=True,
                     help="Corresponding indexed BAM file")
 
-identify_parser.add_argument("-s","--sample",dest="sample",required=True,
+annotate_parser.add_argument("-s","--sample",dest="sample",required=True,
                     help='''Sample name. Output is written to <out_dir>/<sample>_svin.txt.''')
 
-identify_parser.add_argument("-o","--out",dest="out",default="",
+annotate_parser.add_argument("-o","--out",dest="out",default="",
                     help='''Output directory. Sample name by default.''')
 
-identify_parser.add_argument("--sv_format",dest="sv_format",choices=['vcf','simple','socrates'],default='vcf',
+annotate_parser.add_argument("--sv_format",dest="sv_format",choices=['vcf','simple','socrates'],default='vcf',
                     help="Possible SV input formats: vcf, simple, socrates")
 
-identify_parser.add_argument("--blacklist", dest="blist", default="",
+annotate_parser.add_argument("--blacklist", dest="blist", default="",
                     help='''Takes a file in BED format as an argument. Skip processing of any break-pairs
                     where either SV break-end overlaps an interval specified in the supplied bed file.''')
 
-identify_parser.set_defaults(func=identify.preproc_svs)
+annotate_parser.set_defaults(func=annotate.preproc_svs)
 
 ##########################################################################################################
 

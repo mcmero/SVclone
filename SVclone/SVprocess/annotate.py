@@ -463,8 +463,8 @@ def preproc_svs(args):
     mean_cov     = int(Config.get('BamParameters', 'mean_cov'))
     rlen         = int(Config.get('BamParameters', 'read_len'))
 
-    use_dir      = string_to_bool(Config.get('SVidentifyParameters', 'use_dir'))
-    trust_sc_pos = string_to_bool(Config.get('SVidentifyParameters', 'trust_sc_position'))
+    use_dir      = string_to_bool(Config.get('SVannotateParameters', 'use_dir'))
+    trust_sc_pos = string_to_bool(Config.get('SVannotateParameters', 'trust_sc_position'))
     sc_len       = int(Config.get('SVcountParameters', 'sc_len'))
     threshold    = int(Config.get('SVcountParameters', 'threshold'))
 
@@ -474,7 +474,7 @@ def preproc_svs(args):
     filt_repeats = filt_repeats.split(', ') if filt_repeats != '' else filt_repeats
     filt_repeats = [rep for rep in filt_repeats if rep != '']
 
-    class_field  = str(Config.get('SVidentifyParameters', 'sv_class_field'))
+    class_field  = str(Config.get('SVannotateParameters', 'sv_class_field'))
     class_field  = '' if class_field == 'none' else class_field
 
     out = sample if out == "" else out
