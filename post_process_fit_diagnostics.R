@@ -163,15 +163,14 @@ if (length(args)>2 & map) {
 ############################################################################################
 
 get_adjust_factor <- function(dat, pur) {
-    cn <- dat$most_likely_variant_copynumber
+    cn_v <- dat$most_likely_variant_copynumber
+    cn_r <- dat$most_likely_ref_copynumber
     mut_prop <- dat$prop_chrs_bearing_mutation
     vaf <- dat$adjusted_vaf
     frac <- dat$cn_frac
-    prob <- (cn * mut_prop * pur) / (2 * (1 - pur) + cn * pur)
+    prob <- (cn_v * mut_prop * pur) / (2 * (1 - pur) + cn_v * pur)
     if (handle_sc) {
-        cn_r <- dat$most_likely_ref_copynumber * (1. - frac)
-        cn_r <- sapply(cn_r,function(x){if(x==1){0}else{x}})
-        prob <- (cn * mut_prop * pur) / (2 * (1 - pur) + cn * pur + cn_r * pur)
+        prob <- (cn_v * mut_prop * pur) / (2 * (1 - pur) + (cn_v * pur * frac) + (cn_r * pur * (1. - frac)))
     }
     return((1 / prob))
 }
