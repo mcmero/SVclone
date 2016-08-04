@@ -26,9 +26,9 @@ svs<-read.table(paste(id,"_filtered_svs.tsv",sep=""),header=T,sep="\t",stringsAs
 #svs<-svs[order(svs$bp1_chr,svs$bp1_pos,svs$bp2_chr,svs$bp2_pos),]
 mlcn<-read.table(paste(batch,"/",id,"_most_likely_copynumbers.txt",sep=""),header=T,sep="\t",stringsAsFactors=F)
 pp<-read.table("purity_ploidy.txt",header=T,sep="\t",stringsAsFactors=F)
-dat<-merge(svs,mlcn,by.x=c(2,3,5,6),by.y=c(1,2,3,4))
+dat<-merge(svs,mlcn,by.x=2:7,by.y=1:6)
 certain<-read.table(paste(batch,"/",id,"_cluster_certainty.txt",sep=""),sep="\t",header=T)
-dat<-merge(dat,certain,by.x=c(1,2,3,4),by.y=c(1,2,3,4))
+dat<-merge(dat,certain,by.x=1:6,by.y=1:6)
 
 dat<-cbind(dat,CCF=convert_vafs_sv(dat,pp))
 dat<-dat[order(dat$CCF),]
@@ -96,19 +96,17 @@ for(j in 1:nrow(dat))
 {
       x<-dat[j,]
       ccf<-x$average_proportion*(1/pp$purity)
-      if(ccf>1.2)
-      {
+      if(ccf>1.2) {
         lcol=colours[1]
-      }
-      else if(ccf<1.2&ccf>0.9)
-      {
+      } else if(ccf<1.2 & ccf>0.9) {
         lcol=colours[1]
-      }
-      else
-      {
+      } else {
         lcol=colours[2]
       }
-      circos.link(paste("chr",as.character(x[1]),sep=""),as.numeric(x[2]),paste("chr",as.character(x[3]),sep=""),as.numeric(x[4]),col=lcol,lwd=2)
+      circos.link(paste("chr",as.character(x[1]),sep=""),
+                  as.numeric(x[2]),
+                  paste("chr",as.character(x[4]),sep=""),
+                  as.numeric(x[5]),col=lcol,lwd=2)
 }
 
 dev.off()

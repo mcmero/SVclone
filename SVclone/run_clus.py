@@ -379,11 +379,11 @@ def cluster_and_process(sv_df, snv_df, run, out_dir, sample_params, cluster_para
     Nvar, sup, dep, cn_states, norm = None, None, None, None, None
     if cluster_params['cocluster'] and len(sv_df)>0 and len(snv_df)>0:
         # coclustering
-        sup, dep, cn_states, Nvar = load_data.get_snv_vals(snv_df, male)
-        sv_sup, sv_dep, sv_cn_states, sv_Nvar, sv_chr = load_data.get_sv_vals(sv_df, cluster_params['adjusted'], male)
+        sup, dep, cn_states, Nvar, norm = load_data.get_snv_vals(snv_df, male)
+        sv_sup, sv_dep, sv_cn_states, sv_Nvar, sv_norm = load_data.get_sv_vals(sv_df, cluster_params['adjusted'], male)
         sup = np.append(sup, sv_sup)
         dep = np.append(dep, sv_dep)
-        norm = np.append(norm, sv_chr)
+        norm = np.append(norm, sv_norm)
         cn_states = pd.concat([pd.DataFrame(cn_states),pd.DataFrame(sv_cn_states)])[0].values
         Nvar = Nvar + sv_Nvar
         print("Coclustering %d SVs & %d SNVs..." % (len(sv_df), len(snv_df)))
@@ -397,7 +397,7 @@ def cluster_and_process(sv_df, snv_df, run, out_dir, sample_params, cluster_para
         if len(snv_df) > 0:
             if not os.path.exists('%s/snvs'%clus_out_dir):
                 os.makedirs('%s/snvs'%clus_out_dir)
-            sup,dep,cn_states,Nvar,norm = load_data.get_snv_vals(snv_df, male)
+            sup, dep, cn_states, Nvar, norm = load_data.get_snv_vals(snv_df, male)
             print('Clustering %d SNVs...' % len(snv_df))
             mcmc, map_ = cluster.cluster(sup, dep, cn_states, Nvar, sample_params,
                                          cluster_params, cluster_params['phi_limit'], norm)
