@@ -462,6 +462,8 @@ def preproc_svs(args):
     max_cn       = int(Config.get('BamParameters', 'max_cn'))
     mean_cov     = int(Config.get('BamParameters', 'mean_cov'))
     rlen         = int(Config.get('BamParameters', 'read_len'))
+    insert_mean  = int(Config.get('BamParameters', 'insert_mean'))
+    insert_std   = int(Config.get('BamParameters', 'insert_std'))
 
     use_dir      = string_to_bool(Config.get('SVannotateParameters', 'use_dir'))
     trust_sc_pos = string_to_bool(Config.get('SVannotateParameters', 'trust_sc_position'))
@@ -502,14 +504,26 @@ def preproc_svs(args):
                         ('ca_right2', int), ('ca_left2', int)]
     ca = np.zeros(len(svs), dtype=consens_dtype)
 
-    if rlen<0:
+    if rlen < 0:
         rlen = bamtools.estimateTagSize(bam)
 
-    inserts = bamtools.estimateInsertSizeDistribution(bam)
-    inserts = (max(rlen*2,inserts[0]),inserts[1])
+    inserts = [insert_mean, insert_std]
+    if rlen < 0:
+        rlen = bamtools.estimateTagSize(bam)
+    if inserts[0] < 0 or inserts[1] < 0:
+        inserts = bamtools.estimateInsertSizeDistribution(bam)
+        inserts = (max(rlen*2,inserts[0]),inserts[1])
+    else:
+        inserts[0] = inserts[0]
 
     max_ins = inserts[0]+(3*inserts[1]) #max fragment size = mean fragment len + (fragment std * 3)
     max_dep = ((mean_cov*(max_ins*2))/rlen)*max_cn
+
+    default_loc = '%s/read_params.txt'%out
+    if not os.path.exists(default_loc):
+        with open(default_loc,'w') as outp:
+            outp.write('sample\tread_len\tinsert_mean\tinsert_std\n')
+            outp.write('%s\t%d\t%f\t%f\n\n'%(sample,rlen,inserts[0],inserts[1]))
 
     if not use_dir:
         svs, ca = infer_sv_dirs(svs, ca, bam, max_dep, sc_len, threshold, blist)
