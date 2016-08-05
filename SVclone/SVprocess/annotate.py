@@ -406,7 +406,7 @@ def infer_sv_dirs(svs, ca, bam, max_dep, sc_len, threshold, blist):
 
     return svs, ca
 
-def classify_svs(svs):
+def classify_svs(svs, threshold):
     sv_id = 0
     svd_prev_result, prev_sv = None, None
     for idx, sv in enumerate(svs):
@@ -554,6 +554,6 @@ def preproc_svs(args):
     print('Removing duplicate SVs...')
     svs = remove_duplicates(svs, threshold)
     print('Classifying SVs...')
-    svs = classify_svs(svs)
+    svs = classify_svs(svs, threshold)
     print('Writing SV output...')
     write_svs(svs, outname)
