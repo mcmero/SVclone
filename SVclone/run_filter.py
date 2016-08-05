@@ -488,7 +488,6 @@ def adjust_sv_read_counts(sv_df,pi,pl,min_dep,rlen,Config):
         # prefer sides with subclonal genotype data
         exclusive_subclones = zip(sv_df.gtype1.values[one_sc],sv_df.gtype2.values[one_sc])
         sides[one_sc] = [0 if len(gt1.split('|'))>1 else 1 for gt1,gt2 in exclusive_subclones]
-
     norm = np.array([float(ni[si]) for ni,si in zip(n, sides)])
     combos = sv_df.apply(cluster.get_sv_allele_combos, axis=1)
     cn_states = [cn[side] for cn,side in zip(combos, sides)]
@@ -503,13 +502,13 @@ def adjust_sv_read_counts(sv_df,pi,pl,min_dep,rlen,Config):
         # normal read counts for DNA gains are adjusted by purity and ploidy
         if sum(dups)>0:
             # estimate adjustment from normal counts for SV events where there is no gain of DNA
-            # if these events don't exist, adjust by:
-            # normal component + 1/ploidy (estimated half tumour normal) + estimated bias of normal reads
-            # not counted due to norm overlap threshold cutoff
-            alt_adjust = 1./(1+(float(pi)/pl))
-            adjust_factor = np.mean(norm[loss])/np.mean(norm[dups]) if sum(loss)>5 else alt_adjust
+            # otherwise use a calculated approximation factor
+            alt_adjust = 1. - (float(pi)/pl)
+            adjust_factor = np.mean(norm[loss])/np.mean(norm[dups]) if sum(loss)>10 else alt_adjust
             if adjust_factor < 1:
                 norm[dups] = norm[dups] * adjust_factor
+            else:
+                norm[dups] = norm[dups] * alt_adjust
 
     except AttributeError:
         print('Warning, no valid classifications found. SV read counts cannot be adjusted')
