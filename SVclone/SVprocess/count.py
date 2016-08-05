@@ -48,9 +48,9 @@ def is_normal_non_overlap(read,mate,pos,min_ins,max_ins,threshold):
             not (mate['ref_start'] < (pos + threshold) and mate['ref_end'] > (pos - threshold)) and \
             not (read['ref_start'] < pos and mate['ref_end'] > pos)
 
-def is_normal_across_break(read,pos,min_ins,max_ins,norm_overlap,threshold):
+def is_normal_across_break(read,pos,min_ins,max_ins,norm_overlap):
     # must overhang break by at least the norm overlap parameter
-    return  is_below_sc_threshold(read,threshold) and \
+    return  is_below_sc_threshold(read,2) and \
             (abs(read['ins_len']) < max_ins and abs(read['ins_len']) > min_ins) and \
             (read['ref_start'] < (pos - norm_overlap) and read['ref_end'] > (pos + norm_overlap))
 
@@ -244,7 +244,7 @@ def get_loc_counts(bp,loc_reads,pos,rc,reproc,split,norm,min_ins,max_ins,sc_len,
         r2 = loc_reads[idx+1] if (idx+2)<=len(loc_reads) else None
         if is_normal_non_overlap(r1,r2,pos,min_ins,max_ins,threshold):
             continue
-        elif is_normal_across_break(x,pos,min_ins,max_ins,norm_overlap,threshold):
+        elif is_normal_across_break(x,pos,min_ins,max_ins,norm_overlap):
             norm = np.append(norm,r1)
             split_norm = 'split_norm%d'%bp_num
             norm_olap = 'norm_olap_bp%d'%bp_num

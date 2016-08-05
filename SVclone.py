@@ -134,7 +134,6 @@ cluster_parser.add_argument("-s","--sample",dest="sample",required=True,
 cluster_parser.add_argument("-o","--outdir",dest="outdir",default="",
                     help="Output directory. Default: sample name.")
 
-
 cluster_parser.add_argument("--params",dest="param_file",default="",
                     help='''Read parameters file containing read length, average insert and insert standard
                     deviation (see README). If not supplied, the default search path is <outdir>/<sample>_params.txt. 
