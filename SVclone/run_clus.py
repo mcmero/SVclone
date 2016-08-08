@@ -15,7 +15,6 @@ import IPython
 import multiprocessing
 import time
 import shutil
-#import cProfile, pstats, StringIO
 
 from distutils.dir_util import copy_tree
 from collections import OrderedDict
@@ -235,12 +234,14 @@ def post_process_clusters(mcmc,sv_df,snv_df,clus_out_dir,sup,dep,norm,cn_states,
     if map_ is not None:
         run_fit = pd.DataFrame([['BIC', map_.BIC], ['AIC', map_.AIC]])
 
-    # assign points to highest probability cluster
+    sv_df = sv_df[sv_df.classification.values!='SIMU_SV']
     npoints = len(snv_df) + len(sv_df)
+    sup, dep, norm, cn_states = sup[:npoints], dep[:npoints], norm[:npoints], cn_states[:npoints]
 
     z_trace = mcmc.trace('z')[:]
     z_trace_burn = z_trace[burn:]
 
+    # assign points to highest probability cluster
     clus_counts = [np.bincount(z_trace_burn[:,i]) for i in range(npoints)]
     clus_max_prob = [index_max(c) for c in clus_counts]
     clus_mp_counts = np.bincount(clus_max_prob)
@@ -470,6 +471,15 @@ def pick_best_run(n_runs, out, sample, ccf_reject, cocluster, are_snvs=False):
             f = open('%s/run%s.txt' % (best_run_dest, min_bic), 'w')
             f.close()
 
+def simu_sv(sv):
+    simu_sv = sv.copy()
+    simu_sv.classification = 'SIMU_SV'
+    simu_sv[8:30] = 0
+    simu_sv.raw_mean_vaf = 0.0
+    simu_sv.adjusted_support = np.random.binomial(simu_sv.adjusted_depth, simu_sv.adjusted_vaf)
+    simu_sv.adjusted_vaf = float(simu_sv.adjusted_support) / simu_sv.adjusted_depth
+    return simu_sv
+
 def string_to_bool(v):
   return v.lower() in ("yes", "true", "t", "1")
 
@@ -511,6 +521,7 @@ def run_clustering(args):
     cnv_pval        = float(Config.get('ClusterParameters', 'clonal_cnv_pval'))
     adjust_phis     = string_to_bool(Config.get('ClusterParameters', 'adjust_phis'))
     male            = string_to_bool(Config.get('ClusterParameters', 'male'))
+    sv_to_sim       = int(Config.get('ClusterParameters', 'sv_to_sim'))
 
     plot            = string_to_bool(Config.get('OutputParameters', 'plot'))
     ccf_reject      = float(Config.get('OutputParameters', 'ccf_reject_threshold'))
@@ -549,8 +560,12 @@ def run_clustering(args):
 
     clus_info,center_trace,ztrace,clus_members = None,None,None,None
 
-#    pr = cProfile.Profile()
-#    pr.enable()
+    print('Simulating %d SV...' % (len(sv_df) * sv_to_sim))
+    if sv_to_sim > 0:
+        nvar = len(sv_df)
+        for i in range(nvar):
+            for j in range(sv_to_sim):
+                sv_df.loc[len(sv_df)] = simu_sv(sv_df.loc[i])
 
     if threads == 1:
         for run in range(n_runs):
@@ -559,27 +574,17 @@ def run_clustering(args):
         conc_runs = max(1, n_runs / threads) if n_runs % threads == 0 else (n_runs / threads) + 1
         for i in range(conc_runs):
             jobs = []
-
             for j in range(threads):
-
                 run = j + (i * threads)
                 if not run > n_runs-1:
                     print("Thread %d; cluster run: %d" % (j, run))
                     process = multiprocessing.Process(target=cluster_and_process,args=(sv_df,snv_df,run,out,
                                                       sample_params,cluster_params,output_params))
                     jobs.append(process)
-
             for j in jobs:
                 j.start()
             for j in jobs:
                 j.join()
-
-#    pr.disable()
-#    s = StringIO.StringIO()
-#    sortby = 'cumulative'
-#    ps = pstats.Stats(pr, stream=s).sort_stats(sortby)
-#    ps.print_stats()
-#    print(s.getvalue())
 
     # select the best run based on min BIC
     if use_map and n_runs > 1:
