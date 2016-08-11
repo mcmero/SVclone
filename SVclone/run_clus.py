@@ -476,7 +476,7 @@ def simu_sv(sv):
     simu_sv.classification = 'SIMU_SV'
     simu_sv[8:30] = 0
     simu_sv.raw_mean_vaf = 0.0
-    simu_sv.adjusted_support = np.random.binomial(simu_sv.adjusted_depth, simu_sv.adjusted_vaf)
+    simu_sv.adjusted_support = np.random.binomial(sv.adjusted_depth, sv.adjusted_vaf)
     simu_sv.adjusted_vaf = float(simu_sv.adjusted_support) / simu_sv.adjusted_depth
     return simu_sv
 

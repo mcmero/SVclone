@@ -81,9 +81,8 @@ def write_out_files(df, clus_info, clus_members, df_probs, clus_cert, clus_out_d
             maj_cn1, min_cn1 = map(float, gtype1[0])[:2] if gtype1[0][0]!='' else [0., 0.]
             maj_cn2, min_cn2 = map(float, gtype2[0])[:2] if gtype2[0][0]!='' else [0., 0.]
 
-            maj_cn1, min_cn1 = map(float, gtype1[0])[:2] if gtype1[0][0]!='' else [0., 0.]
             tot_cn1 = maj_cn1 + min_cn1
-            tot_cn2 = maj_cn2+min_cn2 if not are_snvs else 0
+            tot_cn2 = maj_cn2 + min_cn2 if not are_snvs else 0
 
             chr1 = str(var['chr1'])
             pos1 = int(var['pos1'])
