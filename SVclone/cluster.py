@@ -162,19 +162,25 @@ def get_most_likely_cn(combo, cn_lik, pval_cutoff):
     cn_lik_phi, cn_lik_clonal = cn_lik
     ll_phi, ll_clonal = cn_lik_phi[1], cn_lik_clonal[1]
 
-    if len(cn_lik_clonal)==0:
-        return [float('nan'), float('nan'), float('nan')]
-
-    if np.all(ll_phi == ll_clonal):
+    empty_result = [float('nan'), float('nan'), float('nan'), float('nan')]
+    if len(combo) == 0:
+        return empty_result
+    elif len(combo) == 1:
+        return combo[0]
+    elif np.all(np.isnan(ll_phi)) and np.all(np.isnan(ll_clonal)):
+        return empty_result
+    elif np.all(np.isnan(ll_phi)):
+        return combo[index_of_max(ll_clonal)]
+    elif np.all(ll_phi == ll_clonal):
         return combo[index_of_max(ll_phi)]
 
     # log likelihood ratio test; null hypothesis = likelihood under phi
-    LLR   = 2 * (np.nanmax(ll_clonal) - np.nanmax(ll_phi))
+    # use clonal if best clonal solution significantly better than worst phi solution
+    #LLR   = 2 * (np.nanmax(ll_clonal) - np.nanmax(ll_phi))
+    LLR   = 2 * (np.nanmax(ll_clonal) - np.nanmin(ll_phi))
     p_val = stats.chisqprob(LLR, 1) if not np.isnan(LLR) else 1
 
-    if np.all(np.isnan(ll_phi)):
-        return combo[0]
-    elif p_val < pval_cutoff:
+    if p_val < pval_cutoff:
         return combo[index_of_max(ll_clonal)]
     else:
         return combo[index_of_max(ll_phi)]
