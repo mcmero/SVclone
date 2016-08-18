@@ -72,14 +72,14 @@ def load_input_vcf(svin,class_field,use_dir):
 def load_input_socrates(svin,use_dir,min_mapq,filt_repeats,Config):
     #sv_dtype =  [s for s in dtypes.sv_dtype] if use_dir else [s for i,s in enumerate(dtypes.sv_dtype) if i not in [2,5]]
     sv_dtype = dtypes.sv_dtype
-    pos_field1 = Config.get('SocratesFields', 'pos1')
-    pos_field2 = Config.get('SocratesFields', 'pos2')
-    dir_field1 = Config.get('SocratesFields', 'dir1')
-    dir_field2 = Config.get('SocratesFields', 'dir2')
-    avg_mapq1_field = Config.get('SocratesFields', 'avg_mapq1')
-    avg_mapq2_field = Config.get('SocratesFields', 'avg_mapq2')
-    repeat1_field = Config.get('SocratesFields', 'repeat1')
-    repeat2_field = Config.get('SocratesFields', 'repeat2')
+    pos_field1 = Config.get('SocratesOpts', 'pos1')
+    pos_field2 = Config.get('SocratesOpts', 'pos2')
+    dir_field1 = Config.get('SocratesOpts', 'dir1')
+    dir_field2 = Config.get('SocratesOpts', 'dir2')
+    avg_mapq1_field = Config.get('SocratesOpts', 'avg_mapq1')
+    avg_mapq2_field = Config.get('SocratesOpts', 'avg_mapq2')
+    repeat1_field = Config.get('SocratesOpts', 'repeat1')
+    repeat2_field = Config.get('SocratesOpts', 'repeat2')
 
     #TODO: make parsing of socrates input more robust
     soc_in = np.genfromtxt(svin,delimiter='\t',names=True,dtype=None,invalid_raise=False)
