@@ -369,8 +369,15 @@ def post_process_clusters(mcmc,sv_df,snv_df,clus_out_dir,sup,dep,norm,cn_states,
 
 def cluster_and_process(sv_df, snv_df, run, out_dir, sample_params, cluster_params, output_params):
     male = cluster_params['male']
+    seed = cluster_params['seed']
+
+    seed = seed.strip('"').strip("'").strip()
     # set random seed
-    seed = int(round((time.time() - int(time.time())) * 10000 * (run+1)))
+    try:
+        seed = int(seed) * (run+1)
+    except ValueError:
+        seed = int(round((time.time() - int(time.time())) * 10000 * (run+1)))
+    print('Random seed is %d' % seed)
     np.random.seed(seed)
 
     clus_out_dir = '%s/run%d'%(out_dir, run)
@@ -522,6 +529,7 @@ def run_clustering(args):
     adjust_phis     = string_to_bool(Config.get('ClusterParameters', 'adjust_phis'))
     male            = string_to_bool(Config.get('ClusterParameters', 'male'))
     sv_to_sim       = int(Config.get('ClusterParameters', 'sv_to_sim'))
+    seed            = Config.get('ClusterParameters', 'seed')
 
     plot            = string_to_bool(Config.get('OutputParameters', 'plot'))
     ccf_reject      = float(Config.get('OutputParameters', 'ccf_reject_threshold'))
@@ -535,10 +543,10 @@ def run_clustering(args):
 
     sample_params  = { 'sample': sample, 'ploidy': pl, 'pi': pi, 'rlen': rlen, 'insert': insert }
     cluster_params = { 'n_iter': n_iter, 'burn': burn, 'thin': thin, 'alpha': shape, 'beta': scale,
-            'use_map': use_map, 'hpd_alpha': hpd_alpha, 'fixed_alpha': fixed_alpha, 'male': male,
+                       'use_map': use_map, 'hpd_alpha': hpd_alpha, 'fixed_alpha': fixed_alpha, 'male': male,
                        'merge_clusts': merge_clusts, 'adjusted': adjusted, 'phi_limit': phi_limit,
                        'clus_limit': clus_limit, 'subclone_diff': subclone_diff, 'cocluster': cocluster ,
-                       'clonal_cnv_pval': cnv_pval, 'adjust_phis': adjust_phis }
+                       'clonal_cnv_pval': cnv_pval, 'adjust_phis': adjust_phis , 'seed': seed}
     output_params  = { 'plot': plot, 'smc_het': smc_het }
 
     sv_df       = pd.DataFrame()

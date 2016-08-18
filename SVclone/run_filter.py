@@ -333,11 +333,11 @@ def match_copy_numbers(var_df, cnv_df, sv_offset, bp_fields=['chr1','pos1','dir1
             cnv_gtype,adj_cnv = '',''
 
             if classification=='DEL':
-                adjpos = pos-sv_offset if gtype_field == 'gtype1' else pos+sv_offset
+                adjpos = pos-sv_offset if gtype_field == 'gtype1' else otherpos+sv_offset
             elif classification=='INV':
-                adjpos = pos+sv_offset if gtype_field == 'gtype1' else pos-sv_offset
+                adjpos = pos+sv_offset if gtype_field == 'gtype1' else otherpos-sv_offset
             elif classification=='DUP':
-                adjpos = pos-sv_offset if gtype_field == 'gtype1' else pos+sv_offset
+                adjpos = pos-sv_offset if gtype_field == 'gtype1' else otherpos+sv_offset
             elif classification=='INTDUP':
                 adjpos = pos-sv_offset if gtype_field == 'gtype1' else otherpos-sv_offset
             elif classification=='INTRX':
