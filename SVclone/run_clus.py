@@ -15,6 +15,7 @@ import IPython
 import multiprocessing
 import time
 import shutil
+import random
 
 from distutils.dir_util import copy_tree
 from collections import OrderedDict
@@ -367,18 +368,10 @@ def post_process_clusters(mcmc,sv_df,snv_df,clus_out_dir,sup,dep,norm,cn_states,
                     sv_probs,sv_ccert,clus_out_dir,sparams['sample'],sparams['pi'],sv_sup,
                     sv_dep,sv_norm,sv_cn_states,run_fit,z_trace,smc_het,cnv_pval)
 
-def cluster_and_process(sv_df, snv_df, run, out_dir, sample_params, cluster_params, output_params):
+def cluster_and_process(sv_df, snv_df, run, out_dir, sample_params, cluster_params, output_params, seeds):
     male = cluster_params['male']
-    seed = cluster_params['seed']
-
-    seed = seed.strip('"').strip("'").strip()
-    # set random seed
-    try:
-        seed = int(seed) * (run+1)
-    except ValueError:
-        seed = int(round((time.time() - int(time.time())) * 10000 * (run+1)))
-    print('Random seed is %d' % seed)
-    np.random.seed(seed)
+    np.random.seed(seeds[run])
+    print('Random seed for run %d is %d' % (run, seeds[run]))
 
     clus_out_dir = '%s/run%d'%(out_dir, run)
     if not os.path.exists(clus_out_dir):
@@ -499,6 +492,7 @@ def run_clustering(args):
     param_file      = args.param_file
     pp_file         = args.pp_file
     cfg             = args.cfg
+    seeds           = args.seeds
 
     out = sample if out == "" else out
     Config = ConfigParser.ConfigParser()
@@ -529,7 +523,6 @@ def run_clustering(args):
     adjust_phis     = string_to_bool(Config.get('ClusterParameters', 'adjust_phis'))
     male            = string_to_bool(Config.get('ClusterParameters', 'male'))
     sv_to_sim       = int(Config.get('ClusterParameters', 'sv_to_sim'))
-    seed            = Config.get('ClusterParameters', 'seed')
 
     plot            = string_to_bool(Config.get('OutputParameters', 'plot'))
     ccf_reject      = float(Config.get('OutputParameters', 'ccf_reject_threshold'))
@@ -537,6 +530,14 @@ def run_clustering(args):
 
     if out!='' and not os.path.exists(out):
         os.makedirs(out)
+
+    try:
+        if seeds =='':
+            seeds = [random.randint(0,10000) for i in range(n_runs)]
+        else:
+            seeds = [int(s) for s in seeds.split(',')]
+    except ValueError:
+        seeds = [random.randint(0,10000) for i in range(n_runs)]
 
     pi, pl = svp_load.get_purity_ploidy(pp_file, sample, out)
     rlen, insert, std = svp_load.get_read_params(param_file, sample, out)
@@ -546,7 +547,7 @@ def run_clustering(args):
                        'use_map': use_map, 'hpd_alpha': hpd_alpha, 'fixed_alpha': fixed_alpha, 'male': male,
                        'merge_clusts': merge_clusts, 'adjusted': adjusted, 'phi_limit': phi_limit,
                        'clus_limit': clus_limit, 'subclone_diff': subclone_diff, 'cocluster': cocluster ,
-                       'clonal_cnv_pval': cnv_pval, 'adjust_phis': adjust_phis , 'seed': seed}
+                       'clonal_cnv_pval': cnv_pval, 'adjust_phis': adjust_phis }
     output_params  = { 'plot': plot, 'smc_het': smc_het }
 
     sv_df       = pd.DataFrame()
@@ -577,7 +578,7 @@ def run_clustering(args):
 
     if threads == 1:
         for run in range(n_runs):
-            cluster_and_process(sv_df,snv_df,run,out,sample_params,cluster_params,output_params)
+            cluster_and_process(sv_df,snv_df,run,out,sample_params,cluster_params,output_params,seeds)
     else:
         conc_runs = max(1, n_runs / threads) if n_runs % threads == 0 else (n_runs / threads) + 1
         for i in range(conc_runs):
@@ -587,7 +588,7 @@ def run_clustering(args):
                 if not run > n_runs-1:
                     print("Thread %d; cluster run: %d" % (j, run))
                     process = multiprocessing.Process(target=cluster_and_process,args=(sv_df,snv_df,run,out,
-                                                      sample_params,cluster_params,output_params))
+                                                      sample_params,cluster_params,output_params,seeds))
                     jobs.append(process)
             for j in jobs:
                 j.start()
