@@ -233,7 +233,9 @@ def post_process_clusters(mcmc,sv_df,snv_df,clus_out_dir,sup,dep,norm,cn_states,
     # fit to data frame
     run_fit = pd.DataFrame()
     if map_ is not None:
-        run_fit = pd.DataFrame([['BIC', map_.BIC], ['AIC', map_.AIC]])
+        run_fit = pd.DataFrame([['BIC', map_.BIC], ['AIC', map_.AIC], ['AICc', map_.AICc],
+                                ['lnL', map_.lnL], ['logp', map_.logp], ['logp_at_max', map_.logp_at_max],
+                                ['param_len', map_.len], ['data_len', map_.data_len]])
 
     sv_df = sv_df[sv_df.classification.values!='SIMU_SV']
     npoints = len(snv_df) + len(sv_df)
@@ -415,21 +417,25 @@ def cluster_and_process(sv_df, snv_df, run, out_dir, sample_params, cluster_para
     else:
         raise ValueError("No valid variants to cluster!")
 
-def pick_best_run(n_runs, out, sample, ccf_reject, cocluster, are_snvs=False):
+def pick_best_run(n_runs, out, sample, ccf_reject, cocluster, fit_metric, are_snvs=False):
     snv_dir = 'snvs/' if are_snvs else ''
 
-    bics = []
+    ics = []
     for run in range(n_runs):
         fit_file = '%s/run%d/%s%s_fit.txt' % (out, run, snv_dir, sample)
         fit = pd.read_csv(fit_file, delimiter='\t', dtype=None, header=None)
-        bics.append(fit.loc[0][1])
-    bics = np.array(bics)
+        try:
+            ic_val = fit.loc[fit[0]==fit_metric].values[0][1]
+            ics.append(ic_val)
+        except IndexError:
+            raise ValueError('Invalid fit metric specified or fit metric does not exist in run.')
+    ics = np.array(ics)
 
-    min_bic = -1
-    bic_sort = np.argsort(bics)
+    min_ic = -1
+    ic_sort = np.argsort(ics)
     for idx in range(n_runs):
-        min_bic = bic_sort[idx]
-        struct_file = '%s/run%d/%s%s_subclonal_structure.txt' % (out, min_bic, snv_dir, sample)
+        min_ic = ic_sort[idx]
+        struct_file = '%s/run%d/%s%s_subclonal_structure.txt' % (out, min_ic, snv_dir, sample)
         clus_struct = pd.read_csv(struct_file, delimiter='\t', dtype=None, header=0)
         clus_struct = clus_struct[clus_struct.n_ssms > 3] #filter out small clusters
 
@@ -438,37 +444,37 @@ def pick_best_run(n_runs, out, sample, ccf_reject, cocluster, are_snvs=False):
         elif clus_struct.CCF[0] > ccf_reject:
             break
         else:
-            min_bic = -1
+            min_ic = -1
 
-    if min_bic == -1:
+    if min_ic == -1:
         print('No optimal run found! Consider more runs and/or more iterations.')
     else:
         if are_snvs:
-            print('Selecting run %d as best run for SNVs' % min_bic)
-            best_run = '%s/run%d/snvs' % (out, min_bic)
+            print('Selecting run %d as best run for SNVs' % min_ic)
+            best_run = '%s/run%d/snvs' % (out, min_ic)
             best_run_dest = '%s/best_run_snvs' % out
             copy_tree(best_run, best_run_dest)
             if cocluster:
-                shutil.copyfile('%s/run%d/phi_trace.txt.gz' % (out, min_bic), '%s/phi_trace.txt.gz' % best_run_dest)
-                shutil.copyfile('%s/run%d/z_trace.txt.gz' % (out, min_bic), '%s/z_trace.txt.gz' % best_run_dest)
+                shutil.copyfile('%s/run%d/phi_trace.txt.gz' % (out, min_ic), '%s/phi_trace.txt.gz' % best_run_dest)
+                shutil.copyfile('%s/run%d/z_trace.txt.gz' % (out, min_ic), '%s/z_trace.txt.gz' % best_run_dest)
             else:
-                shutil.copyfile('%s/run%d/snvs/phi_trace.txt.gz' % (out, min_bic), '%s/phi_trace.txt.gz' % best_run_dest)
-                shutil.copyfile('%s/run%d/snvs/z_trace.txt.gz' % (out, min_bic), '%s/z_trace.txt.gz' % best_run_dest)
+                shutil.copyfile('%s/run%d/snvs/phi_trace.txt.gz' % (out, min_ic), '%s/phi_trace.txt.gz' % best_run_dest)
+                shutil.copyfile('%s/run%d/snvs/z_trace.txt.gz' % (out, min_ic), '%s/z_trace.txt.gz' % best_run_dest)
 
-            shutil.copyfile('%s/run%d/cluster_trace_hist.png' % (out, min_bic),
+            shutil.copyfile('%s/run%d/cluster_trace_hist.png' % (out, min_ic),
                             '%s/cluster_trace_hist.png' % best_run_dest)
 
-            f = open('%s/run%s.txt' % (best_run_dest, min_bic), 'w')
+            f = open('%s/run%s.txt' % (best_run_dest, min_ic), 'w')
             f.close()
         else:
-            print('Selecting run %d as best run for SVs' % min_bic)
-            best_run = '%s/run%d' % (out, min_bic)
+            print('Selecting run %d as best run for SVs' % min_ic)
+            best_run = '%s/run%d' % (out, min_ic)
             best_run_dest = '%s/best_run_svs' % out
             copy_tree(best_run, best_run_dest)
             snv_folder = '%s/best_run_svs/snvs' % out
             if os.path.exists(snv_folder):
                 shutil.rmtree(snv_folder)
-            f = open('%s/run%s.txt' % (best_run_dest, min_bic), 'w')
+            f = open('%s/run%s.txt' % (best_run_dest, min_ic), 'w')
             f.close()
 
 def simu_sv(sv):
@@ -527,6 +533,7 @@ def run_clustering(args):
     plot            = string_to_bool(Config.get('OutputParameters', 'plot'))
     ccf_reject      = float(Config.get('OutputParameters', 'ccf_reject_threshold'))
     smc_het         = string_to_bool(Config.get('OutputParameters', 'smc_het'))
+    fit_metric      = Config.get('OutputParameters', 'fit_metric')
 
     if out!='' and not os.path.exists(out):
         os.makedirs(out)
@@ -598,8 +605,8 @@ def run_clustering(args):
     # select the best run based on min BIC
     if use_map and n_runs > 1:
         if len(sv_df) > 0:
-            pick_best_run(n_runs, out, sample, ccf_reject, cocluster)
+            pick_best_run(n_runs, out, sample, ccf_reject, cocluster, fit_metric)
         if len(snv_df) > 0:
-            pick_best_run(n_runs, out, sample, ccf_reject, cocluster, are_snvs=True)
+            pick_best_run(n_runs, out, sample, ccf_reject, cocluster, fit_metric, are_snvs=True)
 
 
