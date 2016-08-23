@@ -16,7 +16,7 @@ def get_normal_copynumber(chrom, male):
 
 def get_sv_vals(sv_df, adjusted, male):
     combos = sv_df.apply(cluster.get_sv_allele_combos,axis=1)
-    sides = sv_df.preferred_side.values
+    sides = sv_df.preferred_side.map(int).values
     cn_states = [cn[side] for cn,side in zip(combos,sides)]
     cn_states = pd.DataFrame([[sv] for sv in cn_states])[0].values
     chroms = [c1 if side == 0 else c2 for c1,c2 in zip(sv_df.chr1.values,sv_df.chr2.values)]

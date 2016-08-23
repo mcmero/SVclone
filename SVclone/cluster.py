@@ -240,7 +240,7 @@ def cluster(sup,dep,cn_states,Nvar,sparams,cparams,phi_limit,norm):
     print('phi lower limit: %f; phi upper limit: %f' % (sens, phi_limit))
 
     @pm.deterministic
-    def p_var(z=z,phi_k=phi_k):
+    def p_var(z=z, phi_k=phi_k):
         if np.any(np.isnan(phi_k)):
             phi_k = phi_init
         if np.any(z < 0):

@@ -147,7 +147,7 @@ cluster_parser.add_argument("--snvs",dest="snv_file",default="",
                     help="To specify filtered SNVs output from Filter Step. Default loc: <outdir>/<sample>_filtered_snvs.tsv")
 
 cluster_parser.add_argument("--seeds",dest="seeds",default="",
-                    help="To specify filtered SNVs output from Filter Step. Default loc: <outdir>/<sample>_filtered_snvs.tsv")
+                    help="Random seeds passed on to pymc (use for replicating runs).")
 
 cluster_parser.set_defaults(func=run_clus.run_clustering)
 
