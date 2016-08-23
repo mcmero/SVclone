@@ -12,6 +12,7 @@ map <- FALSE
 clus_stab <- FALSE
 snvs <- FALSE
 handle_sc <- FALSE
+allowed_ics <- c( 'AICc', 'AIC', 'BIC')
 
 if(length(args) > 2) {
     map <- '--map' %in% args
@@ -135,6 +136,7 @@ if (length(args)>2 & map) {
     ic_table <- NULL
     for (run in runs) {
         ic <- read.table(paste(run, '/', snv_dir, id, '_fit.txt', sep=''), sep='\t', header=F, stringsAsFactors = F)
+        ic <- ic[ic$V1%in%allowed_ics,]
         ic <- cbind(run=run, ic)
         ic_table <- rbind(ic_table, ic)
     }
@@ -151,9 +153,14 @@ if (length(args)>2 & map) {
     ic_table <- rbind(ic_table, min_bic)
 
     min_aic <- ic_table[min(ic_table$AIC)==ic_table$AIC,]
-    min_aic$BIC <- min_aic$run
+    min_aic$AICc <- min_aic$run
     min_aic$run <- 'min_AIC'
     ic_table <- rbind(ic_table, min_aic)
+
+    min_aicc <- ic_table[min(ic_table$AICc)==ic_table$AICc,]
+    min_aicc$BIC <- min_aicc$run
+    min_aicc$run <- 'min_AICc'
+    ic_table <- rbind(ic_table, min_aicc)
 
     write.table(ic_table, paste(id,'_aic_bic_metrics.csv', sep=''), sep=',', quote=F, row.names=F)
 }
@@ -256,7 +263,7 @@ for (run in runs) {
     dat$CCF <- sapply(dat$CCF,function(x){min(2,x)})
 
     sv_clust <- read.table(paste(run, '/', snv_dir, id, '_subclonal_structure.txt', sep=''), header=T, sep='\t', stringsAsFactors=F)
-    sv_clust <- sv_clust[sv_clust$n_ssms>1, ]
+#     sv_clust <- sv_clust[sv_clust$n_ssms>1, ]
     dat <- dat[dat$most_likely_assignment%in%sv_clust$cluster,]
 
     above_ssm_th <- sv_clust$n_ssms / (sum(sv_clust$n_ssms)) > 0.1
@@ -281,9 +288,9 @@ for (run in runs) {
     if (map) {
         ic <- read.table(paste(run, '/', snv_dir, id, '_fit.txt', sep=''),
                      sep='\t', header=F, stringsAsFactors = F)
-        ic <- data.frame(t(ic)); colnames(ic) <- c('BIC','AIC'); ic <- ic[-1,]
+        ic <- ic[ic$V1%in%allowed_ics,]
+        ic <- data.frame(t(ic)); colnames(ic) <- allowed_ics; ic <- ic[-1,]
         ic_tab <- tableGrob(ic, rows=c())
-
         height <- 7+round(nrow(tabout)*0.2)
         pdf(paste(id, run, 'fit.pdf',sep='_'), height=height)
         grid.arrange(arrangeGrob(sc_tab, ic_tab, nrow=1), plot1, plot2, ncol=1)
