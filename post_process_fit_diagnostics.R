@@ -289,7 +289,7 @@ for (run in runs) {
         ic <- read.table(paste(run, '/', snv_dir, id, '_fit.txt', sep=''),
                      sep='\t', header=F, stringsAsFactors = F)
         ic <- ic[ic$V1%in%allowed_ics,]
-        ic <- data.frame(t(ic)); colnames(ic) <- allowed_ics; ic <- ic[-1,]
+        ic <- data.frame(t(ic)); colnames(ic) <- ic[1,]; ic <- ic[-1,]
         ic_tab <- tableGrob(ic, rows=c())
         height <- 7+round(nrow(tabout)*0.2)
         pdf(paste(id, run, 'fit.pdf',sep='_'), height=height)
