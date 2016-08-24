@@ -340,7 +340,7 @@ def post_process_clusters(mcmc,sv_df,snv_df,clus_out_dir,sup,dep,norm,cn_states,
         snv_dep  = dep[:len(snv_df)]
         snv_norm  = norm[:len(snv_df)]
         snv_cn_states = cn_states[:len(snv_df)]
-        write_output.write_out_files(snv_df,clus_info,snv_members,
+        write_output.write_out_files(snv_df,clus_info.copy(),snv_members,
                 snv_probs,snv_ccert,clus_out_dir,sparams['sample'],sparams['pi'],snv_sup,
                 snv_dep,snv_norm,snv_cn_states,run_fit,z_trace,smc_het,cnv_pval,are_snvs=True)
 
@@ -366,7 +366,7 @@ def post_process_clusters(mcmc,sv_df,snv_df,clus_out_dir,sup,dep,norm,cn_states,
         sv_dep  = dep[lb:lb+len(sv_df)]
         sv_norm = norm[lb:lb+len(sv_df)]
         sv_cn_states = cn_states[lb:lb+len(sv_df)]
-        write_output.write_out_files(sv_df,clus_info,sv_members,
+        write_output.write_out_files(sv_df,clus_info.copy(),sv_members,
                     sv_probs,sv_ccert,clus_out_dir,sparams['sample'],sparams['pi'],sv_sup,
                     sv_dep,sv_norm,sv_cn_states,run_fit,z_trace,smc_het,cnv_pval)
 
