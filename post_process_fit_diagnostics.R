@@ -266,8 +266,8 @@ for (run in runs) {
 #     sv_clust <- sv_clust[sv_clust$n_ssms>1, ]
     dat <- dat[dat$most_likely_assignment%in%sv_clust$cluster,]
 
-    above_ssm_th <- sv_clust$n_ssms / (sum(sv_clust$n_ssms)) > 0.1
-    below_ssm_th <- sv_clust$n_ssms / (sum(sv_clust$n_ssms)) < 0.1
+    above_ssm_th <- sv_clust$n_ssms / (sum(sv_clust$n_ssms)) >= 0.05
+    below_ssm_th <- sv_clust$n_ssms / (sum(sv_clust$n_ssms)) < 0.05
     clus_intercepts <- 1 / pur * as.numeric(sv_clust$proportion[above_ssm_th & sv_clust$n_ssms > 2])
     clus_intercepts_minor <- 1 / pur * as.numeric(sv_clust$proportion[below_ssm_th | sv_clust$n_ssms<=2])
 
@@ -289,7 +289,8 @@ for (run in runs) {
         ic <- read.table(paste(run, '/', snv_dir, id, '_fit.txt', sep=''),
                      sep='\t', header=F, stringsAsFactors = F)
         ic <- ic[ic$V1%in%allowed_ics,]
-        ic <- data.frame(t(ic)); colnames(ic) <- ic[1,]; ic <- ic[-1,]
+        rownames(ic) <- ic$V1
+        ic <- data.frame(t(ic)); ic <- ic[-1,]
         ic_tab <- tableGrob(ic, rows=c())
         height <- 7+round(nrow(tabout)*0.2)
         pdf(paste(id, run, 'fit.pdf',sep='_'), height=height)
