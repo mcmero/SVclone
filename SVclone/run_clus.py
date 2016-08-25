@@ -227,15 +227,9 @@ def post_process_clusters(mcmc,sv_df,snv_df,clus_out_dir,sup,dep,norm,cn_states,
     cnv_pval      = cparams['clonal_cnv_pval']
     hpd_alpha     = cparams['hpd_alpha']
     adjust_phis   = cparams['adjust_phis']
+    clus_penalty  = output_params['cluster_penalty']
     smc_het       = output_params['smc_het']
     plot          = output_params['plot']
-
-    # fit to data frame
-    run_fit = pd.DataFrame()
-    if map_ is not None:
-        run_fit = pd.DataFrame([['BIC', map_.BIC], ['AIC', map_.AIC], ['AICc', map_.AICc],
-                                ['lnL', map_.lnL], ['logp', map_.logp], ['logp_at_max', map_.logp_at_max],
-                                ['param_len', map_.len], ['data_len', map_.data_len]])
 
     sv_df = sv_df[sv_df.classification.values!='SIMU_SV']
     npoints = len(snv_df) + len(sv_df)
@@ -324,6 +318,15 @@ def post_process_clusters(mcmc,sv_df,snv_df,clus_out_dir,sup,dep,norm,cn_states,
     snv_probs = pd.DataFrame()
     snv_ccert = pd.DataFrame()
     snv_members = np.empty(0)
+
+    # compile run fit statistics
+    run_fit = pd.DataFrame()
+    if map_ is not None:
+        nclus = len(clus_info)
+        bic = -2 * map_.lnL + (1 + npoints + nclus * 2) + (nclus * clus_penalty) * np.log(npoints)
+        run_fit = pd.DataFrame([['BIC', bic], ['BIC_pymc', map_.BIC], ['AIC', map_.AIC], ['AICc', map_.AICc],
+                                ['lnL', map_.lnL], ['logp', map_.logp], ['logp_at_max', map_.logp_at_max],
+                                ['param_len', map_.len], ['data_len', map_.data_len]])
 
     if len(snv_df)>0:
         snv_pos = ['chrom','pos']
@@ -417,7 +420,7 @@ def cluster_and_process(sv_df, snv_df, run, out_dir, sample_params, cluster_para
     else:
         raise ValueError("No valid variants to cluster!")
 
-def pick_best_run(n_runs, out, sample, ccf_reject, cocluster, fit_metric, are_snvs=False):
+def pick_best_run(n_runs, out, sample, ccf_reject, cocluster, fit_metric, cluster_penalty, are_snvs=False):
     snv_dir = 'snvs/' if are_snvs else ''
 
     ics = []
@@ -534,6 +537,7 @@ def run_clustering(args):
     ccf_reject      = float(Config.get('OutputParameters', 'ccf_reject_threshold'))
     smc_het         = string_to_bool(Config.get('OutputParameters', 'smc_het'))
     fit_metric      = Config.get('OutputParameters', 'fit_metric')
+    cluster_penalty = int(Config.get('OutputParameters', 'cluster_penalty'))
 
     if out!='' and not os.path.exists(out):
         os.makedirs(out)
@@ -555,7 +559,7 @@ def run_clustering(args):
                        'merge_clusts': merge_clusts, 'adjusted': adjusted, 'phi_limit': phi_limit,
                        'clus_limit': clus_limit, 'subclone_diff': subclone_diff, 'cocluster': cocluster ,
                        'clonal_cnv_pval': cnv_pval, 'adjust_phis': adjust_phis }
-    output_params  = { 'plot': plot, 'smc_het': smc_het }
+    output_params  = { 'plot': plot, 'smc_het': smc_het, 'cluster_penalty': cluster_penalty }
 
     sv_df       = pd.DataFrame()
     snv_df      = pd.DataFrame()
@@ -605,8 +609,8 @@ def run_clustering(args):
     # select the best run based on min BIC
     if use_map and n_runs > 1:
         if len(sv_df) > 0:
-            pick_best_run(n_runs, out, sample, ccf_reject, cocluster, fit_metric)
+            pick_best_run(n_runs, out, sample, ccf_reject, cocluster, fit_metric, cluster_penalty)
         if len(snv_df) > 0:
-            pick_best_run(n_runs, out, sample, ccf_reject, cocluster, fit_metric, are_snvs=True)
+            pick_best_run(n_runs, out, sample, ccf_reject, cocluster, fit_metric, cluster_penalty, are_snvs=True)
 
 
