@@ -539,6 +539,11 @@ def run_clustering(args):
     fit_metric      = Config.get('OutputParameters', 'fit_metric')
     cluster_penalty = int(Config.get('OutputParameters', 'cluster_penalty'))
 
+    if args.XX:
+        male = False
+    if args.XY:
+        male = True
+
     if out!='' and not os.path.exists(out):
         os.makedirs(out)
 

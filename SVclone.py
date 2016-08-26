@@ -149,6 +149,12 @@ cluster_parser.add_argument("--snvs",dest="snv_file",default="",
 cluster_parser.add_argument("--seeds",dest="seeds",default="",
                     help="Random seeds passed on to pymc (use for replicating runs).")
 
+cluster_parser.add_argument("--XX",dest="XX",action="store_true",
+                    help="Specify XX genotype (overwrites config file.)")
+
+cluster_parser.add_argument("--XY",dest="XY",action="store_true",
+                    help="Specify XY genotype (overwrites config file.)")
+
 cluster_parser.set_defaults(func=run_clus.run_clustering)
 
 ##########################################################################################################
