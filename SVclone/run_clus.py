@@ -37,7 +37,7 @@ def gen_new_colours(N):
     return RGB_tuples
 
 def plot_clusters(trace, clusters, assignments, sup, dep, clus_out_dir, cparams):
-    burn, thin = cparams['burn'], cparams['thin']
+    # burn, thin = cparams['burn'], cparams['thin']
     phi_limit = cparams['phi_limit']
 
     center_trace = trace("phi_k")[:]
@@ -61,14 +61,15 @@ def plot_clusters(trace, clusters, assignments, sup, dep, clus_out_dir, cparams)
     axes[2].set_title("Raw VAFs")
 
     center_trace_adj = get_adjusted_phi_trace(center_trace, clusters)
-    burn = burn/thin
-    x_burn = np.arange(burn+1)
-    x = np.arange(burn, len(center_trace))
+    # burn = burn/thin
+    # x_burn = np.arange(burn+1)
+    # x = np.arange(burn, len(center_trace))
+    x = np.arange(len(center_trace))
     for idx,clus in enumerate(clusters):
-        axes[0].plot(x_burn, center_trace[:burn+1, clus], c=RGB_tuples[idx], lw=1, alpha=0.4)
-        axes[0].plot(x, center_trace[burn:, clus], label="trace of center %d" % clus, c=RGB_tuples[idx], lw=1)
-        axes[1].plot(x_burn, center_trace_adj[:burn+1, clus], c=RGB_tuples[idx], lw=1, alpha=0.4)
-        axes[1].plot(x, center_trace_adj[burn:, clus], label="adjusted trace of center %d" % clus, c=RGB_tuples[idx], lw=1)
+        # axes[0].plot(x_burn, center_trace[:burn+1, clus], c=RGB_tuples[idx], lw=1, alpha=0.4)
+        axes[0].plot(x, center_trace, label="trace of center %d" % clus, c=RGB_tuples[idx], lw=1)
+        # axes[1].plot(x_burn, center_trace_adj[:burn+1, clus], c=RGB_tuples[idx], lw=1, alpha=0.4)
+        axes[1].plot(x, center_trace_adj, label="adjusted trace of center %d" % clus, c=RGB_tuples[idx], lw=1)
 
     leg = axes[0].legend(loc="upper right")
     leg.get_frame().set_alpha(0.7)
@@ -196,8 +197,8 @@ def get_adjusted_phis(clus_info, center_trace, cparams):
     Fixes potential label-switching problems by re-ordering phi traces from
     smallest to largest then assigning phis in the order of the unadjusted phis
     '''
-    burn          = cparams['burn']
-    thin          = cparams['thin']
+    #burn          = cparams['burn']
+    #thin          = cparams['thin']
     hpd_alpha     = cparams['hpd_alpha']
 
     clus_idx = clus_info.clus_id.values
@@ -222,8 +223,8 @@ def post_process_clusters(mcmc,sv_df,snv_df,clus_out_dir,sup,dep,norm,cn_states,
     subclone_diff = cparams['subclone_diff']
     phi_limit     = cparams['phi_limit']
     merge_clusts  = cparams['merge_clusts']
-    thin          = cparams['thin']
-    burn          = cparams['burn']/thin
+    # thin          = cparams['thin']
+    # burn          = cparams['burn']
     cnv_pval      = cparams['clonal_cnv_pval']
     hpd_alpha     = cparams['hpd_alpha']
     adjust_phis   = cparams['adjust_phis']
@@ -236,10 +237,10 @@ def post_process_clusters(mcmc,sv_df,snv_df,clus_out_dir,sup,dep,norm,cn_states,
     sup, dep, norm, cn_states = sup[:npoints], dep[:npoints], norm[:npoints], cn_states[:npoints]
 
     z_trace = mcmc.trace('z')[:]
-    z_trace_burn = z_trace[burn:]
+    # z_trace_burn = z_trace[burn:]
 
     # assign points to highest probability cluster
-    clus_counts = [np.bincount(z_trace_burn[:,i]) for i in range(npoints)]
+    clus_counts = [np.bincount(z_trace[:,i]) for i in range(npoints)]
     clus_max_prob = [index_max(c) for c in clus_counts]
     clus_mp_counts = np.bincount(clus_max_prob)
     clus_idx = np.nonzero(clus_mp_counts)[0]
@@ -254,7 +255,7 @@ def post_process_clusters(mcmc,sv_df,snv_df,clus_out_dir,sup,dep,norm,cn_states,
         return None
 
     center_trace = mcmc.trace("phi_k")[:]
-    center_trace_burn = center_trace[burn:]
+    # center_trace_burn = center_trace[burn:]
 
     phis = np.array([mean_confidence_interval(center_trace[:,cid], hpd_alpha) for cid in clus_idx])
     if adjust_phis:
