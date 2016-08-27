@@ -67,9 +67,9 @@ def plot_clusters(trace, clusters, assignments, sup, dep, clus_out_dir, cparams)
     x = np.arange(len(center_trace))
     for idx,clus in enumerate(clusters):
         # axes[0].plot(x_burn, center_trace[:burn+1, clus], c=RGB_tuples[idx], lw=1, alpha=0.4)
-        axes[0].plot(x, center_trace, label="trace of center %d" % clus, c=RGB_tuples[idx], lw=1)
+        axes[0].plot(x, center_trace[:, clus], label="trace of center %d" % clus, c=RGB_tuples[idx], lw=1)
         # axes[1].plot(x_burn, center_trace_adj[:burn+1, clus], c=RGB_tuples[idx], lw=1, alpha=0.4)
-        axes[1].plot(x, center_trace_adj, label="adjusted trace of center %d" % clus, c=RGB_tuples[idx], lw=1)
+        axes[1].plot(x, center_trace_adj[:, clus], label="adjusted trace of center %d" % clus, c=RGB_tuples[idx], lw=1)
 
     leg = axes[0].legend(loc="upper right")
     leg.get_frame().set_alpha(0.7)
