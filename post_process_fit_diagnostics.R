@@ -32,6 +32,7 @@ require(gplots)
 require(ggplot2)
 require(gridExtra)
 require(reshape)
+require(gtools)
 
 # Get number of runs
 runs <- c()
@@ -141,6 +142,7 @@ if (length(args)>2 & map) {
         ic_table <- rbind(ic_table, ic)
     }
 
+    ic_table$run <- factor(ic_table$run, levels=mixedsort(unique(as.character(ic_table$run))))
     ic_plot <- ggplot(ic_table, aes(y=V2, x=run, group=V1, color=factor(V1))) + ylab('value') + geom_line()
     pdf(paste(id, 'aic_bic_plot.pdf',sep='_'), height=4)
     print(ic_plot)
@@ -243,6 +245,21 @@ get_frac <- function(x, snvs) {
     return(sc1[2])
 }
 
+if (map) {
+    ic_table <- NULL
+    for (run in runs) {
+        ic <- read.table(paste(run, '/', snv_dir, id, '_fit.txt', sep=''), sep='\t', header=F, stringsAsFactors = F)
+        ic <- ic[ic$V1%in%allowed_ics,]
+        ic <- cbind(run=run, ic)
+        ic_table <- rbind(ic_table, ic)
+    }
+    ic_table$rank <- NULL
+    for (aic in allowed_ics) {
+        ic_table[ic_table$V1 == aic, 'rank'] <-
+            rank(ic_table[ic_table$V1 == aic, 'V2'])
+    }
+}
+
 for (run in runs) {
     mlcn <- read.table(paste(run, '/', snv_dir, id, '_most_likely_copynumbers.txt', sep=''), header=T, sep='\t', stringsAsFactors=F)
     dat <- NULL
@@ -280,18 +297,25 @@ for (run in runs) {
         plot1 <- plot1 + geom_vline(xintercept=clus_intercepts_minor,colour='red',lty=2)
     }
 
-    plot2 <- ggQQ(dat)
+    #plot2 <- ggQQ(dat)
+    plot2 <- ggplot(dat, aes(x=CCF, y=adjusted_vaf,
+                             fill=factor(most_likely_assignment),
+                             colour=factor(most_likely_assignment))) +
+                    geom_point(size=2) + xlim(0,2) + ylim(0,1) + ylab('VAF')
 
     #attach table for convenience, also add BIC/AIC
     tabout <- sv_clust[order(as.numeric(sv_clust[,3]),decreasing=TRUE),]
     sc_tab <- tableGrob(tabout, rows=c())
     if (map) {
-        ic <- read.table(paste(run, '/', snv_dir, id, '_fit.txt', sep=''),
-                     sep='\t', header=F, stringsAsFactors = F)
-        ic <- ic[ic$V1%in%allowed_ics,]
-        rownames(ic) <- ic$V1
-        ic <- data.frame(t(ic)); ic <- ic[-1,]
-        ic_tab <- tableGrob(ic, rows=c())
+#         ic <- read.table(paste(run, '/', snv_dir, id, '_fit.txt', sep=''),
+#                      sep='\t', header=F, stringsAsFactors = F)
+#         ic <- ic[ic$V1%in%allowed_ics,]
+#         rownames(ic) <- ic$V1
+        ic <- t(ic_table[ic_table$run==run,])
+        colnames(ic) <- as.character(ic[2,])
+        ic <- ic[-c(1:2),]
+        rownames(ic)[1] <- 'value'
+        ic_tab <- tableGrob(ic)
         height <- 7+round(nrow(tabout)*0.2)
         pdf(paste(id, run, 'fit.pdf',sep='_'), height=height)
         grid.arrange(arrangeGrob(sc_tab, ic_tab, nrow=1), plot1, plot2, ncol=1)
@@ -375,6 +399,7 @@ for(run in runs) {
     all_runs_ccfs <- rbind(all_runs_ccfs, ccfs)
     all_runs_scs <- rbind(all_runs_scs, scs)
 }
+all_runs_ccfs$run <- factor(all_runs_ccfs$run, levels=mixedsort(unique(as.character(all_runs_ccfs$run))))
 
 rp <- ggplot(data = all_runs_scs) +
     scale_y_continuous(breaks = seq(0, 2, 0.2), limits = c(0,2)) + xlab('') +
@@ -385,7 +410,14 @@ rp <- ggplot(data = all_runs_scs) +
     scale_size(range = c(4,25), guide = FALSE) +
     geom_point(aes(x = run, y = CCF, size=variant_proportion), colour = '#4d4d4d', alpha=0.8)
 
-pdf_name <- paste(id, '_run_summary.pdf', sep='')
-pdf(pdf_name, height = 6, width = 16)
-grid.arrange(rp, ic_plot, ncol = 2)
-dev.off()
+if (map) {
+    pdf_name <- paste(id, '_run_summary.pdf', sep='')
+    pdf(pdf_name, height = 6, width = 16 * (length(runs)/12))
+    grid.arrange(rp, ic_plot, ncol = 2)
+    dev.off()
+} else {
+    pdf_name <- paste(id, '_run_summary.pdf', sep='')
+    pdf(pdf_name, height = 6, width = 8 * (length(runs)/10))
+    print(rp)
+    dev.off()
+}
