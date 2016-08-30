@@ -101,8 +101,9 @@ def write_out_files(df, clus_info, clus_members, df_probs, clus_cert, clus_out_d
 
             cn_new_row = np.array([(chr1, pos1, dir1, tot_cn1, chrs_bearing_mut,
                                     chr2, pos2, dir2, tot_cn2, chrs_bearing_mut)], dtype=cn_dtype)
+            pv_dev = np.abs(pv - var.adjusted_vaf)
             ml_new_row = np.array([(chr1, pos1, dir1, chr2, pos2, dir2, var['gtype1'], var['gtype2'], 
-                                    ref_cn, sc_cn, freq, sup[idx], dep[idx], pv, frac)], 
+                                    ref_cn, sc_cn, freq, sup[idx], dep[idx], frac, pv, pv_dev)],
                                     dtype=mlcn_dtype)
             
             var_states = cn_states[idx]
