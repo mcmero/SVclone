@@ -540,6 +540,10 @@ def run_clustering(args):
     fit_metric      = Config.get('OutputParameters', 'fit_metric')
     cluster_penalty = int(Config.get('OutputParameters', 'cluster_penalty'))
 
+    if burn == 0 and use_map:
+        print('No burn-in period specified, setting MAP to false.')
+        use_map = False
+
     if args.XX:
         male = False
     if args.XY:
@@ -586,8 +590,8 @@ def run_clustering(args):
 
     clus_info,center_trace,ztrace,clus_members = None,None,None,None
 
-    print('Simulating %d SV...' % (len(sv_df) * sv_to_sim))
     if sv_to_sim > 0:
+        print('Simulating %d SV...' % (len(sv_df) * sv_to_sim))
         nvar = len(sv_df)
         for i in range(nvar):
             for j in range(sv_to_sim):
