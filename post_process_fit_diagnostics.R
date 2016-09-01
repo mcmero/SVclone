@@ -301,7 +301,7 @@ for (run in runs) {
     plot2 <- ggplot(dat, aes(x=CCF, y=adjusted_vaf,
                              fill=factor(most_likely_assignment),
                              colour=factor(most_likely_assignment))) +
-                    geom_point(size=2) + xlim(0,2) + ylim(0,1) + ylab('VAF')
+                    geom_point(size=1) + xlim(0,2) + ylim(0,1) + ylab('VAF')
 
     #attach table for convenience, also add BIC/AIC
     tabout <- sv_clust[order(as.numeric(sv_clust[,3]),decreasing=TRUE),]

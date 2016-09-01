@@ -16,6 +16,7 @@ import multiprocessing
 import time
 import shutil
 import random
+import pymc as pm
 
 from distutils.dir_util import copy_tree
 from collections import OrderedDict
@@ -55,8 +56,10 @@ def plot_clusters(trace, clusters, assignments, sup, dep, clus_out_dir, cparams)
     RGB_tuples = gen_new_colours(len(clusters))
 
     axes[0].set_ylim([0, phi_limit + 0.1])
+    axes[0].set_xlim([0, len(center_trace)])
     axes[0].set_title("Trace of $\phi_k$")
     axes[1].set_ylim([0, phi_limit + 0.1])
+    axes[1].set_xlim([0, len(center_trace)])
     axes[1].set_title("Adjusted trace of $\phi_k$")
     axes[2].set_title("Raw VAFs")
 
@@ -324,8 +327,15 @@ def post_process_clusters(mcmc,sv_df,snv_df,clus_out_dir,sup,dep,norm,cn_states,
     run_fit = pd.DataFrame()
     if map_ is not None:
         nclus = len(clus_info)
-        bic = -2 * map_.lnL + (1 + npoints + nclus * 2) + (nclus * clus_penalty) * np.log(npoints)
-        run_fit = pd.DataFrame([['BIC', bic], ['BIC_pymc', map_.BIC], ['AIC', map_.AIC], ['AICc', map_.AICc],
+        # bic = -2 * map_.lnL + (1 + npoints + nclus * 2) + (nclus * clus_penalty) * np.log(npoints)
+        phis = ccert.average_ccf.values
+        cns, pvs = cluster.get_most_likely_cn_states(cn_states, sup, dep, phis, sparams['pi'], cnv_pval, norm)
+        lls = []
+        for si, di, pvi in zip(sup, dep, pvs):
+            lls.append(pm.binomial_like(si, di, pvi))
+        svc_ic = -2 * np.sum(lls) + (npoints + nclus*4) * np.log(npoints)
+
+        run_fit = pd.DataFrame([['svc_IC', svc_ic], ['BIC', map_.BIC], ['AIC', map_.AIC], ['AICc', map_.AICc],
                                 ['lnL', map_.lnL], ['logp', map_.logp], ['logp_at_max', map_.logp_at_max],
                                 ['param_len', map_.len], ['data_len', map_.data_len]])
 
