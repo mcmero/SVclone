@@ -96,11 +96,17 @@ def mean_confidence_interval(phi_trace, alpha):
     phi_hpd = hpd(phi_trace, alpha)
     return round(m,4), round(phi_hpd[0],4), round(phi_hpd[1],4) #round(m-h,4), round(m+h,4)
 
-def merge_clusters(clus_out_dir,clus_info,clus_merged,clus_members,merged_ids,sup,dep,cn_states,sparams,cparams,subclone_diff,clus_limit,phi_limit):
+def merge_clusters(clus_out_dir,clus_info,clus_merged,clus_members,merged_ids,sup,dep,norm,cn_states,sparams,cparams):
+    clus_limit = cparams['clus_limit']
+    phi_limit = cparams['phi_limit']
+    subclone_diff = cparams['subclone_diff']
+    norm = np.array(norm)
+
     if len(clus_info)==1:
         return (clus_info,clus_members)
 
-    clus_info = clus_info.sort('phi',ascending=False).copy()
+    clus_info = clus_info.copy()
+    clus_info = clus_info.sort_values('phi',ascending=False)
     clus_info.index = range(0,len(clus_info))
     to_del = []
     for idx,ci in clus_info.iterrows():
@@ -113,7 +119,7 @@ def merge_clusters(clus_out_dir,clus_info,clus_merged,clus_members,merged_ids,su
             new_size = ci['size'] + cn['size']
 
             new_members = np.concatenate([clus_members[idx],clus_members[idx+1]])
-            mcmc, map_ = cluster.cluster(sup[new_members],dep[new_members],cn_states[new_members],len(new_members),sparams,cparams,clus_limit,phi_limit)
+            mcmc, map_ = cluster.cluster(sup[new_members],dep[new_members],cn_states[new_members],len(new_members),sparams,cparams,phi_limit,norm[new_members],recluster=True)
             trace = mcmc.trace("phi_k")[:]
 
             phis = mean_confidence_interval(trace,cparams['hpd_alpha'])
@@ -151,12 +157,14 @@ def merge_clusters(clus_out_dir,clus_info,clus_merged,clus_members,merged_ids,su
         return (clus_merged,clus_members,merged_ids)
     else:
         new_df = pd.DataFrame(columns=clus_merged.columns,index=clus_merged.index)
-        return merge_clusters(clus_out_dir,clus_merged,new_df,clus_members,merged_ids,sup,dep,cn_states,sparams,cparams,subclone_diff,clus_limit,phi_limit)
+        return merge_clusters(clus_out_dir,clus_merged,new_df,clus_members,merged_ids,sup,dep,norm,cn_states,sparams,cparams)
 
 def merge_results(clus_merged, merged_ids, df_probs, ccert):
     # merge probability table
     to_drop = []
     df_probs_new = pd.DataFrame(df_probs,copy=True)
+    hpd_lo = ccert.columns.values[2]
+    hpd_hi = ccert.columns.values[3]
 
     for mid in merged_ids:
         clus1_vals = df_probs_new['cluster%d'%mid[0]].values
@@ -177,9 +185,9 @@ def merge_results(clus_merged, merged_ids, df_probs, ccert):
 
     #update phis
     for idx,ci in clus_merged.iterrows():
-        ccert_new.loc[ccert_new.most_likely_assignment==ci.clus_id,'average_ccf'] = ci.phi
-        ccert_new.loc[ccert_new.most_likely_assignment==ci.clus_id,'90_perc_CI_lo'] = ci.phi_low_conf
-        ccert_new.loc[ccert_new.most_likely_assignment==ci.clus_id,'90_perc_CI_hi'] = ci.phi_hi_conf
+        ccert_new.loc[ccert_new.most_likely_assignment==ci.clus_id, 'average_ccf'] = ci['phi']
+        ccert_new.loc[ccert_new.most_likely_assignment==ci.clus_id, hpd_lo] = ci[hpd_lo]
+        ccert_new.loc[ccert_new.most_likely_assignment==ci.clus_id, hpd_hi] = ci[hpd_hi]
 
     return df_probs_new,ccert_new
 
@@ -266,9 +274,12 @@ def post_process_clusters(mcmc,sv_df,snv_df,clus_out_dir,sup,dep,norm,cn_states,
         print('Correcting phi traces...')
         phis = get_adjusted_phis(clus_info, center_trace, cparams)
 
+
+    hpd_lo = '_'.join([str(int(100-(100*hpd_alpha))), 'HPD', 'lo'])
+    hpd_hi = '_'.join([str(int(100-(100*hpd_alpha))), 'HPD', 'hi'])
     clus_info['phi'] = phis[:,0]
-    clus_info['95p_HPD_lo'] = phis[:,1]
-    clus_info['95p_HPD_hi'] = phis[:,2]
+    clus_info[hpd_lo] = phis[:,1]
+    clus_info[hpd_hi] = phis[:,2]
 
     clus_ids = clus_info.clus_id.values
     clus_members = np.array([np.where(np.array(clus_max_prob)==i)[0] for i in clus_ids])
@@ -280,7 +291,7 @@ def post_process_clusters(mcmc,sv_df,snv_df,clus_out_dir,sup,dep,norm,cn_states,
 
     # cluster certainty
     clus_max_df = pd.DataFrame(clus_max_prob,columns=['most_likely_assignment'])
-    phi_cols = ["average_ccf","95p_HPD_lo","95p_HPD_hi"]
+    phi_cols = ["average_ccf", hpd_lo, hpd_hi]
     phi_matrix = pd.DataFrame(phis[:],index=clus_ids,columns=phi_cols).loc[clus_max_prob]
     phi_matrix.index = range(len(phi_matrix))
     ccert = clus_max_df.join(phi_matrix)
@@ -313,7 +324,7 @@ def post_process_clusters(mcmc,sv_df,snv_df,clus_out_dir,sup,dep,norm,cn_states,
     if len(clus_info)>1 and merge_clusts:
         clus_merged = pd.DataFrame(columns=clus_info.columns,index=clus_info.index)
         clus_merged, clus_members, merged_ids  = merge_clusters(clus_out_dir,clus_info,clus_merged,\
-                clus_members,[],sup,dep,cn_states,sparams,cparams,subclone_diff,clus_limit,phi_limit)
+                clus_members,[],sup,dep,norm,cn_states,sparams,cparams)
 
         if len(clus_merged)!=len(clus_info):
             clus_info = clus_merged

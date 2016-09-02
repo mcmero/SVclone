@@ -197,11 +197,12 @@ def get_most_likely_cn_states(cn_states, s, d, phi, pi, pval_cutoff, norm):
 
     return most_likely_cn, most_likely_pv
 
-def cluster(sup,dep,cn_states,Nvar,sparams,cparams,phi_limit,norm):
+def cluster(sup,dep,cn_states,Nvar,sparams,cparams,phi_limit,norm,recluster=False):
     '''
     clustering model using Dirichlet Process
     '''
-    Ndp = cparams['clus_limit']
+    Ndp = cparams['clus_limit'] if not recluster else 1
+    n_iter = cparams['n_iter'] if not recluster else int(cparams['n_iter']/4)
     purity, ploidy = sparams['pi'], sparams['ploidy']
     fixed_alpha, gamma_a, gamma_b = cparams['fixed_alpha'], cparams['alpha'], cparams['beta']
     sens = 1.0 / ((purity/ float(ploidy)) * np.mean(dep))
@@ -255,6 +256,6 @@ def cluster(sup,dep,cn_states,Nvar,sparams,cparams,phi_limit,norm):
     else:
         model = pm.Model([alpha, h, p, phi_k, z, p_var, cbinom])
 
-    mcmc, map_ = fit_and_sample(model,cparams['n_iter'],cparams['burn'],cparams['thin'],cparams['use_map'])
+    mcmc, map_ = fit_and_sample(model,n_iter,cparams['burn'],cparams['thin'],cparams['use_map'])
 
     return mcmc, map_

@@ -145,9 +145,11 @@ def write_out_files(df, clus_info, clus_members, df_probs, clus_cert, clus_out_d
             mult_vect = np.append(mult_vect, mult_new_row)
 
     #adjust cluster freqs to cell prevalence
+    hpd_lo = clus_cert.columns.values[-2]
+    hpd_hi = clus_cert.columns.values[-1]
     clus_cert.average_ccf = clus_cert.average_ccf.values*pi
-    clus_cert['95p_HPD_lo'] = clus_cert['95p_HPD_lo'].values*pi
-    clus_cert['95p_HPD_hi'] = clus_cert['95p_HPD_hi'].values*pi
+    clus_cert[hpd_lo] = clus_cert[hpd_lo].values*pi
+    clus_cert[hpd_hi] = clus_cert[hpd_hi].values*pi
 
     #rename cols
     rename_cols =  {'average_ccf': 'average_proportion'}
