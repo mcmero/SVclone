@@ -106,7 +106,7 @@ def merge_clusters(clus_out_dir,clus_info,clus_merged,clus_members,merged_ids,su
         return (clus_info,clus_members)
 
     clus_info = clus_info.copy()
-    clus_info = clus_info.sort_values('phi',ascending=False)
+    clus_info = clus_info.sort('phi',ascending=False)
     clus_info.index = range(0,len(clus_info))
     to_del = []
     for idx,ci in clus_info.iterrows():
