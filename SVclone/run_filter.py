@@ -555,7 +555,6 @@ def run(args):
         raise ValueError('No configuration file found')
 
     valid_chrs  = Config.get('ValidationParameters', 'chroms').split(',')
-
     gl_th       = int(Config.get('FilterParameters', 'germline_threshold'))
     sv_offset   = int(Config.get('FilterParameters', 'sv_offset'))
     minsplit    = int(Config.get('FilterParameters', 'min_split'))
@@ -590,15 +589,6 @@ def run(args):
 
     if pi < 0 or pi > 1:
         raise ValueError("Tumour purity value not between 0 and 1!")
-
-#    if len(svs)!=n or len(cnvs)!=n:
-#        raise ValueError("Number of samples does not match number of input files")
-
-#    if len(sample)>1:
-#        print("Multiple sample processing not yet implemented")
-#        #TODO: processing of multiple samples
-#    else:
-#        sample,sv,cnv,pi,ploidy = sample[0],svs[0],cnvs[0],pi[0],ploidy[0]
 
     sv_df  = pd.DataFrame()
     cnv_df = pd.DataFrame()

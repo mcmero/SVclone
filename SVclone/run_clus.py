@@ -344,7 +344,7 @@ def post_process_clusters(mcmc,sv_df,snv_df,clus_out_dir,sup,dep,norm,cn_states,
         lls = []
         for si, di, pvi in zip(sup, dep, pvs):
             lls.append(pm.binomial_like(si, di, pvi))
-        svc_ic = -2 * np.sum(lls) + (npoints + nclus*4) * np.log(npoints)
+        svc_ic = -2 * np.sum(lls) + (npoints + nclus * clus_penalty) * np.log(npoints)
 
         run_fit = pd.DataFrame([['svc_IC', svc_ic], ['BIC', map_.BIC], ['AIC', map_.AIC], ['AICc', map_.AICc],
                                 ['lnL', map_.lnL], ['logp', map_.logp], ['logp_at_max', map_.logp_at_max],
@@ -621,6 +621,12 @@ def run_clustering(args):
     if threads == 1:
         for run in range(n_runs):
             cluster_and_process(sv_df,snv_df,run,out,sample_params,cluster_params,output_params,seeds)
+        # select the best run based on min BIC
+        if use_map and n_runs > 1:
+            if len(sv_df) > 0:
+                pick_best_run(n_runs, out, sample, ccf_reject, cocluster, fit_metric, cluster_penalty)
+            if len(snv_df) > 0:
+                pick_best_run(n_runs, out, sample, ccf_reject, cocluster, fit_metric, cluster_penalty, are_snvs=True)
     else:
         conc_runs = max(1, n_runs / threads) if n_runs % threads == 0 else (n_runs / threads) + 1
         for i in range(conc_runs):
@@ -637,11 +643,12 @@ def run_clustering(args):
             for j in jobs:
                 j.join()
 
-    # select the best run based on min BIC
-    if use_map and n_runs > 1:
-        if len(sv_df) > 0:
-            pick_best_run(n_runs, out, sample, ccf_reject, cocluster, fit_metric, cluster_penalty)
-        if len(snv_df) > 0:
-            pick_best_run(n_runs, out, sample, ccf_reject, cocluster, fit_metric, cluster_penalty, are_snvs=True)
-
-
+        while True:
+            if not use_map or n_runs == 1:
+                break
+            if np.all(np.array([not j.is_alive() for j in jobs])):
+                if len(sv_df) > 0:
+                    pick_best_run(n_runs, out, sample, ccf_reject, cocluster, fit_metric, cluster_penalty)
+                if len(snv_df) > 0:
+                    pick_best_run(n_runs, out, sample, ccf_reject, cocluster, fit_metric, cluster_penalty, are_snvs=True)
+                break
