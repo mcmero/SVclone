@@ -12,7 +12,7 @@ map <- FALSE
 clus_stab <- FALSE
 snvs <- FALSE
 handle_sc <- FALSE
-allowed_ics <- c( 'AICc', 'AIC', 'BIC')
+allowed_ics <- c( 'AICc', 'AIC', 'BIC', 'svc_IC')
 
 if(length(args) > 2) {
     map <- '--map' %in% args
@@ -142,29 +142,51 @@ if (length(args)>2 & map) {
         ic_table <- rbind(ic_table, ic)
     }
 
-    ic_table$run <- factor(ic_table$run, levels=mixedsort(unique(as.character(ic_table$run))))
-    ic_plot <- ggplot(ic_table, aes(y=V2, x=run, group=V1, color=factor(V1))) + ylab('value') + geom_line()
+    ic_tmp <- ic_table[ic_table$V1!='svc_IC',]
+    ic_tmp$run <- factor(ic_tmp$run, levels=mixedsort(unique(as.character(ic_tmp$run))))
+    ic_plot <- ggplot(ic_tmp, aes(y=V2, x=run, group=V1, color=factor(V1))) + ylab('value') + geom_line()
     pdf(paste(id, 'aic_bic_plot.pdf',sep='_'), height=4)
     print(ic_plot)
+    dev.off()
+
+    # plot SVclone's metric
+    ic_tmp <- ic_table[ic_table$V1=='svc_IC',]
+    ic_tmp$run <- factor(ic_tmp$run, levels=mixedsort(unique(as.character(ic_tmp$run))))
+    svic_plot <- ggplot(ic_tmp, aes(y=V2, x=run, group=V1, color=factor(V1))) + ylab('value') + geom_line()
+    pdf(paste(id, 'svc_ic_plot.pdf',sep='_'), height=4)
+    print(svic_plot)
     dev.off()
 
     ic_table <- cast(ic_table, run~V1, value='V2')
     min_bic <- ic_table[min(ic_table$BIC)==ic_table$BIC,]
     min_bic$AIC <- min_bic$run
     min_bic$run <- 'min_BIC'
-    ic_table <- rbind(ic_table, min_bic)
+    min_bic$AICc <- min_bic$BIC
+    min_bic$BIC <- NA; min_bic$svc_IC <- NA
 
     min_aic <- ic_table[min(ic_table$AIC)==ic_table$AIC,]
-    min_aic$AICc <- min_aic$run
+    min_aic$AICc <- min_aic$AIC
+    min_aic$AIC <- min_aic$run
     min_aic$run <- 'min_AIC'
-    ic_table <- rbind(ic_table, min_aic)
+    min_aic$BIC <- NA; min_aic$svc_IC <- NA
 
     min_aicc <- ic_table[min(ic_table$AICc)==ic_table$AICc,]
-    min_aicc$BIC <- min_aicc$run
+    min_aicc$AIC <- min_aicc$run
     min_aicc$run <- 'min_AICc'
-    ic_table <- rbind(ic_table, min_aicc)
+    min_aicc$BIC <- NA; min_aicc$svc_IC <- NA
 
-    write.table(ic_table, paste(id,'_aic_bic_metrics.csv', sep=''), sep=',', quote=F, row.names=F)
+    min_svcic <- ic_table[min(ic_table$svc_IC,na.rm=T)==ic_table$svc_IC,]
+    min_svcic$AIC <- min_svcic$run
+    min_svcic$run <- 'min_svc_IC'
+    min_svcic$AICc <- min_svcic$svc_IC
+    min_svcic$BIC <- NA; min_svcic$svc_IC <- NA
+
+    ic_table <- rbind(ic_table, min_bic)
+    ic_table <- rbind(ic_table, min_aic)
+    ic_table <- rbind(ic_table, min_aicc)
+    ic_table <- rbind(ic_table, min_svcic)
+
+    write.table(ic_table, paste(id,'_aic_bic_metrics.csv', sep=''), sep=',', quote=F, row.names=F, na = '')
 }
 
 ############################################################################################
@@ -297,24 +319,20 @@ for (run in runs) {
         plot1 <- plot1 + geom_vline(xintercept=clus_intercepts_minor,colour='red',lty=2)
     }
 
-    #plot2 <- ggQQ(dat)
     plot2 <- ggplot(dat, aes(x=CCF, y=adjusted_vaf,
                              fill=factor(most_likely_assignment),
                              colour=factor(most_likely_assignment))) +
                     geom_point(size=1) + xlim(0,2) + ylim(0,1) + ylab('VAF')
 
-    #attach table for convenience, also add BIC/AIC
+    # attach table for convenience, also add BIC/AIC
     tabout <- sv_clust[order(as.numeric(sv_clust[,3]),decreasing=TRUE),]
     sc_tab <- tableGrob(tabout, rows=c())
     if (map) {
-#         ic <- read.table(paste(run, '/', snv_dir, id, '_fit.txt', sep=''),
-#                      sep='\t', header=F, stringsAsFactors = F)
-#         ic <- ic[ic$V1%in%allowed_ics,]
-#         rownames(ic) <- ic$V1
-        ic <- t(ic_table[ic_table$run==run,])
-        colnames(ic) <- as.character(ic[2,])
-        ic <- ic[-c(1:2),]
-        rownames(ic)[1] <- 'value'
+        ic <- ic_table[ic_table$run==run,]
+        rownames(ic) <- ic$V1
+        ic <- ic[,-c(1:2)]
+        colnames(ic)[1] <- 'value'
+        ic$value <- round(ic$value, 4)
         ic_tab <- tableGrob(ic)
         height <- 7+round(nrow(tabout)*0.2)
         pdf(paste(id, run, 'fit.pdf',sep='_'), height=height)
@@ -412,8 +430,8 @@ rp <- ggplot(data = all_runs_scs) +
 
 if (map) {
     pdf_name <- paste(id, '_run_summary.pdf', sep='')
-    pdf(pdf_name, height = 6, width = 16 * (length(runs)/12))
-    grid.arrange(rp, ic_plot, ncol = 2)
+    pdf(pdf_name, height = 6, width = 20 * (length(runs)/12))
+    grid.arrange(rp, ic_plot, svic_plot, nrow = 1)
     dev.off()
 } else {
     pdf_name <- paste(id, '_run_summary.pdf', sep='')
