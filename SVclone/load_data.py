@@ -3,8 +3,10 @@ from __future__ import print_function
 import pandas as pd
 import numpy as np
 import vcf
+import ConfigParser
 
 from . import cluster
+from SVprocess import load_data as svp_load
 
 def get_normal_copynumber(chrom, male):
     if male and (chrom == 'X' or chrom == 'chrX'):
@@ -31,7 +33,7 @@ def get_sv_vals(sv_df, adjusted, male):
         sup  = sv_df.support.map(float).values
         norm = zip(sv_df.norm1.values,sv_df.norm2.values)
         norm = np.array([float(n[side]) for n,side in zip(norm,sv_df.preferred_side.values)])
-        dep  = norm+sup 
+        dep  = norm+sup
         Nvar = len(sv_df)
         return sup,dep,cn_states,Nvar,norm
 
@@ -41,7 +43,7 @@ def get_snv_vals(df, male):
 
     def get_snv_allele_combos(snv):
         return cluster.get_allele_combos(snv.gtype.split('|'))
-     
+
     cn_states = df.apply(get_snv_allele_combos,axis=1)
     norm = [get_normal_copynumber(c, male) for c in df.chrom.values]
     return b,(n+b),cn_states,len(b),norm
@@ -61,7 +63,7 @@ def load_cnvs(cnv_file):
         # assume caveman csv file
         col_names = ['chr','startpos','endpos','norm_total','norm_minor','tumour_total','tumour_minor']
         cnv_df = pd.DataFrame(pd.read_csv(cnv_file,delimiter=',',dtype=None,names=col_names,index_col=0,skip_blank_lines=True))
-        
+
     try:
         if 'nMaj1_A' in cnv_df.columns.values:
             # battenberg input
@@ -80,7 +82,7 @@ def load_cnvs(cnv_file):
                                 cnv_sc['nMaj2_A'].map(str) + ',' + \
                                 cnv_sc['nMin2_A'].map(str) + ',' + \
                                 cnv_sc['frac2_A'].map(str)
-            
+
             cnv_df['gtype'] = gtypes
             select_cols = ['chr','startpos','endpos','gtype']
             return cnv_df[select_cols]
@@ -103,13 +105,13 @@ def load_cnvs(cnv_file):
             select_cols = ['chr','startpos','endpos','gtype']
             return cnv_df[select_cols]
     except KeyError:
-        raise Exception('''CNV file column names not recognised. 
+        raise Exception('''CNV file column names not recognised.
         Check the input is a battenberg output file (with headers) or an ASCAT caveman CSV.''')
 
 def load_snvs_mutect_callstats(snvs):
     snv_df = pd.DataFrame(pd.read_csv(snvs,delimiter='\t',low_memory=False,dtype=None,comment="#"))
-    snv_df = snv_df[snv_df['judgement']=='KEEP']   
-    
+    snv_df = snv_df[snv_df['judgement']=='KEEP']
+
     snv_out = {'chrom' : snv_df.contig.map(str),
                'pos'   : snv_df.position.map(int),
                'gtype' : '',
@@ -119,7 +121,7 @@ def load_snvs_mutect_callstats(snvs):
     snv_out = pd.DataFrame(snv_out)
     snv_out = snv_out[['chrom','pos','gtype','ref','var']]
     return snv_out
-    
+
 def load_snvs_mutect(snvs,sample):
     vcf_reader = vcf.Reader(filename=snvs)
     snv_dtype = [('chrom','S50'),('pos',int),('gtype','S50'),('ref',float),('var',float)]
@@ -157,7 +159,7 @@ def load_snvs_sanger(snvs):
 
     for record in vcf_reader:
         # get most likely genotypes
-        genotypes = []        
+        genotypes = []
         broad_syn = False
         if 'TG' in record.INFO and 'SG' in record.INFO:
           genotypes = [record.INFO['TG'], record.INFO['SG']]
@@ -171,7 +173,7 @@ def load_snvs_sanger(snvs):
         if record.FILTER is not None:
             if len(record.FILTER)>0:
                 continue
-    
+
         variant_set = set()
         reference_nt = ''
         while len(variant_set) == 0:
@@ -188,11 +190,11 @@ def load_snvs_sanger(snvs):
                 reference_nt = normal_gt[0]
                 variant_set = set(tumour_gt) - set(reference_nt)
         variant_nt = variant_set.pop() if len(variant_set)!=0 else ''
-        
+
         if variant_nt=='':
             print('Warning: no valid genotypes for variant %s:%d; skipping.'%(record.CHROM,record.POS))
             continue
-            
+
         normal = record.genotype('NORMAL')
         tumour = record.genotype('TUMOUR')
 
@@ -214,7 +216,7 @@ def load_snvs_sanger(snvs):
         ref_reads = tumor_reads['forward'][reference_nt] + tumor_reads['reverse'][reference_nt]
         variant_reads = tumor_reads['forward'][variant_nt] + tumor_reads['reverse'][variant_nt]
         total_reads = ref_reads + variant_reads
-        
+
         if variant_reads!=0:
             tmp = np.array((record.CHROM,record.POS,'',ref_reads,variant_reads),dtype=snv_dtype)
             snv_df = np.append(snv_df,tmp)
@@ -224,6 +226,71 @@ def load_snvs_sanger(snvs):
     #dep = snv_df['ref']+snv_df['var']
     #sup = map(float,snv_df['var'])
     #axes.hist(sup/dep);plt.savefig('/home/mcmero/Desktop/test')
-    
+
     return pd.DataFrame(snv_df)
 
+def string_to_bool(v):
+  return v.lower() in ("yes", "true", "t", "1")
+
+def get_params_cluster_step(sample, cfg, out, pp_file, param_file, XX, XY):
+    '''
+    Load in paramaters used in cluster step from config file
+    '''
+
+    Config = ConfigParser.ConfigParser()
+    cfg_file = Config.read(cfg)
+
+    if len(cfg_file)==0:
+        raise ValueError('No configuration file found')
+
+    shape           = float(Config.get('BetaParameters', 'alpha'))
+    scale           = float(Config.get('BetaParameters', 'beta'))
+    fixed_alpha     = Config.get('BetaParameters', 'fixed_alpha')
+    phi_limit       = float(Config.get('ClusterParameters', 'phi_limit'))
+    clus_limit      = int(Config.get('ClusterParameters', 'clus_limit'))
+    subclone_diff   = float(Config.get('ClusterParameters', 'subclone_diff'))
+    hpd_alpha       = float(Config.get('ClusterParameters', 'hpd_alpha'))
+
+    n_runs          = int(Config.get('ClusterParameters', 'n_runs'))
+    n_iter          = int(Config.get('ClusterParameters', 'n_iter'))
+    burn            = int(Config.get('ClusterParameters', 'burn'))
+    thin            = int(Config.get('ClusterParameters', 'thin'))
+    threads         = int(Config.get('ClusterParameters', 'threads'))
+
+    use_map         = string_to_bool(Config.get('ClusterParameters', 'map'))
+    merge_clusts    = string_to_bool(Config.get('ClusterParameters', 'merge'))
+    cocluster       = string_to_bool(Config.get('ClusterParameters', 'cocluster'))
+    adjusted        = string_to_bool(Config.get('ClusterParameters', 'adjusted'))
+    cnv_pval        = float(Config.get('ClusterParameters', 'clonal_cnv_pval'))
+    adjust_phis     = string_to_bool(Config.get('ClusterParameters', 'adjust_phis'))
+    male            = string_to_bool(Config.get('ClusterParameters', 'male'))
+    sv_to_sim       = int(Config.get('ClusterParameters', 'sv_to_sim'))
+
+    plot            = string_to_bool(Config.get('OutputParameters', 'plot'))
+    ccf_reject      = float(Config.get('OutputParameters', 'ccf_reject_threshold'))
+    smc_het         = string_to_bool(Config.get('OutputParameters', 'smc_het'))
+    fit_metric      = Config.get('OutputParameters', 'fit_metric')
+    cluster_penalty = int(Config.get('OutputParameters', 'cluster_penalty'))
+
+    if burn == 0 and use_map:
+        print('No burn-in period specified, setting MAP to false.')
+        use_map = False
+
+    if XX:
+        male = False
+    if XY:
+        male = True
+
+    pi, pl = svp_load.get_purity_ploidy(pp_file, sample, out)
+    rlen, insert, std = svp_load.get_read_params(param_file, sample, out)
+
+    sample_params  = { 'sample': sample, 'ploidy': pl, 'pi': pi, 'rlen': rlen, 'insert': insert }
+    cluster_params = { 'n_runs': n_runs, 'n_iter': n_iter, 'burn': burn, 'thin': thin, 'alpha': shape,
+                       'beta': scale, 'use_map': use_map, 'hpd_alpha': hpd_alpha, 'fixed_alpha': fixed_alpha,
+                       'male': male, 'merge_clusts': merge_clusts, 'adjusted': adjusted, 'phi_limit': phi_limit,
+                       'clus_limit': clus_limit, 'subclone_diff': subclone_diff, 'cocluster': cocluster ,
+                       'clonal_cnv_pval': cnv_pval, 'adjust_phis': adjust_phis, 'sv_to_sim': sv_to_sim,
+                       'threads': threads, 'ccf_reject': ccf_reject }
+    output_params  = { 'plot': plot, 'smc_het': smc_het, 'cluster_penalty': cluster_penalty }
+
+    return sample_params, cluster_params, output_params

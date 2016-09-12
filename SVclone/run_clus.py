@@ -5,7 +5,6 @@ from __future__ import print_function
 
 import subprocess
 import os
-import ConfigParser
 import pandas as pd
 import matplotlib
 matplotlib.use('Agg')
@@ -510,67 +509,25 @@ def simu_sv(sv):
     simu_sv.adjusted_vaf = float(simu_sv.adjusted_support) / simu_sv.adjusted_depth
     return simu_sv
 
-def string_to_bool(v):
-  return v.lower() in ("yes", "true", "t", "1")
-
 def run_clustering(args):
 
+    sample          = args.sample
+    cfg             = args.cfg
+    out             = sample if args.outdir == "" else args.outdir
+    pp_file         = args.pp_file
+    param_file      = args.param_file
     snv_file        = args.snv_file
     sv_file         = args.sv_file
-    sample          = args.sample
-    out             = args.outdir
-    param_file      = args.param_file
-    pp_file         = args.pp_file
-    cfg             = args.cfg
     seeds           = args.seeds
-
-    out = sample if out == "" else out
-    Config = ConfigParser.ConfigParser()
-    cfg_file = Config.read(cfg)
-
-    if len(cfg_file)==0:
-        raise ValueError('No configuration file found')
-
-    shape           = float(Config.get('BetaParameters', 'alpha'))
-    scale           = float(Config.get('BetaParameters', 'beta'))
-    fixed_alpha     = Config.get('BetaParameters', 'fixed_alpha')
-    phi_limit       = float(Config.get('ClusterParameters', 'phi_limit'))
-    clus_limit      = int(Config.get('ClusterParameters', 'clus_limit'))
-    subclone_diff   = float(Config.get('ClusterParameters', 'subclone_diff'))
-    hpd_alpha       = float(Config.get('ClusterParameters', 'hpd_alpha'))
-
-    n_runs          = int(Config.get('ClusterParameters', 'n_runs'))
-    n_iter          = int(Config.get('ClusterParameters', 'n_iter'))
-    burn            = int(Config.get('ClusterParameters', 'burn'))
-    thin            = int(Config.get('ClusterParameters', 'thin'))
-    threads         = int(Config.get('ClusterParameters', 'threads'))
-
-    use_map         = string_to_bool(Config.get('ClusterParameters', 'map'))
-    merge_clusts    = string_to_bool(Config.get('ClusterParameters', 'merge'))
-    cocluster       = string_to_bool(Config.get('ClusterParameters', 'cocluster'))
-    adjusted        = string_to_bool(Config.get('ClusterParameters', 'adjusted'))
-    cnv_pval        = float(Config.get('ClusterParameters', 'clonal_cnv_pval'))
-    adjust_phis     = string_to_bool(Config.get('ClusterParameters', 'adjust_phis'))
-    male            = string_to_bool(Config.get('ClusterParameters', 'male'))
-    sv_to_sim       = int(Config.get('ClusterParameters', 'sv_to_sim'))
-
-    plot            = string_to_bool(Config.get('OutputParameters', 'plot'))
-    ccf_reject      = float(Config.get('OutputParameters', 'ccf_reject_threshold'))
-    smc_het         = string_to_bool(Config.get('OutputParameters', 'smc_het'))
-    fit_metric      = Config.get('OutputParameters', 'fit_metric')
-    cluster_penalty = int(Config.get('OutputParameters', 'cluster_penalty'))
-
-    if burn == 0 and use_map:
-        print('No burn-in period specified, setting MAP to false.')
-        use_map = False
-
-    if args.XX:
-        male = False
-    if args.XY:
-        male = True
+    XX              = args.XX
+    XY              = args.XY
 
     if out!='' and not os.path.exists(out):
         os.makedirs(out)
+
+    sample_params, cluster_params, output_params = \
+                   load_data.get_params_cluster_step(sample, cfg, out, pp_file, param_file, XX, XY)
+    n_runs = cluster_params['n_runs']
 
     try:
         if seeds =='':
@@ -580,20 +537,9 @@ def run_clustering(args):
     except ValueError:
         seeds = [np.random.randint(0,10000) for i in range(n_runs)]
 
-    pi, pl = svp_load.get_purity_ploidy(pp_file, sample, out)
-    rlen, insert, std = svp_load.get_read_params(param_file, sample, out)
-
-    sample_params  = { 'sample': sample, 'ploidy': pl, 'pi': pi, 'rlen': rlen, 'insert': insert }
-    cluster_params = { 'n_iter': n_iter, 'burn': burn, 'thin': thin, 'alpha': shape, 'beta': scale,
-                       'use_map': use_map, 'hpd_alpha': hpd_alpha, 'fixed_alpha': fixed_alpha, 'male': male,
-                       'merge_clusts': merge_clusts, 'adjusted': adjusted, 'phi_limit': phi_limit,
-                       'clus_limit': clus_limit, 'subclone_diff': subclone_diff, 'cocluster': cocluster ,
-                       'clonal_cnv_pval': cnv_pval, 'adjust_phis': adjust_phis }
-    output_params  = { 'plot': plot, 'smc_het': smc_het, 'cluster_penalty': cluster_penalty }
 
     sv_df       = pd.DataFrame()
     snv_df      = pd.DataFrame()
-
     sv_file     = sv_file if sv_file != '' else '%s/%s_filtered_svs.tsv' % (out,sample)
     snv_file    = snv_file if snv_file != '' else '%s/%s_filtered_snvs.tsv' % (out,sample)
 
@@ -608,8 +554,9 @@ def run_clustering(args):
         snv_df = pd.read_csv(snv_file,delimiter='\t',dtype=None,header=0,low_memory=False)
         snv_df = pd.DataFrame(snv_df).fillna('')
 
-    clus_info,center_trace,ztrace,clus_members = None,None,None,None
+    clus_info, center_trace, ztrace, clus_members = None, None, None, None
 
+    sv_to_sim = cluster_params['sv_to_sim']
     if sv_to_sim > 0:
         print('Simulating %d SV...' % (len(sv_df) * sv_to_sim))
         nvar = len(sv_df)
@@ -617,6 +564,9 @@ def run_clustering(args):
             for j in range(sv_to_sim):
                 sv_df.loc[len(sv_df)] = simu_sv(sv_df.loc[i])
 
+    threads = cluster_params['threads']
+    use_map = cluster_params['use_map']
+    ccf_reject = cluster_params['ccf_reject']
     if threads == 1:
         for run in range(n_runs):
             cluster_and_process(sv_df,snv_df,run,out,sample_params,cluster_params,output_params,seeds)
