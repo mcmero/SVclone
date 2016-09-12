@@ -203,6 +203,9 @@ def cluster(sup,dep,cn_states,Nvar,sparams,cparams,phi_limit,norm,recluster=Fals
     '''
     Ndp = cparams['clus_limit'] if not recluster else 1
     n_iter = cparams['n_iter'] if not recluster else int(cparams['n_iter']/4)
+    burn = cparams['burn'] if not recluster else int(cparams['burn']/4)
+    thin, use_map = cparams['thin'], cparams['use_map']
+
     purity, ploidy = sparams['pi'], sparams['ploidy']
     fixed_alpha, gamma_a, gamma_b = cparams['fixed_alpha'], cparams['alpha'], cparams['beta']
     sens = 1.0 / ((purity/ float(ploidy)) * np.mean(dep))
@@ -256,6 +259,6 @@ def cluster(sup,dep,cn_states,Nvar,sparams,cparams,phi_limit,norm,recluster=Fals
     else:
         model = pm.Model([alpha, h, p, phi_k, z, p_var, cbinom])
 
-    mcmc, map_ = fit_and_sample(model,n_iter,cparams['burn'],cparams['thin'],cparams['use_map'])
+    mcmc, map_ = fit_and_sample(model, n_iter, burn, thin, use_map)
 
     return mcmc, map_
