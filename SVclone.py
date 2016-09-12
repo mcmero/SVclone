@@ -116,6 +116,9 @@ filter_parser.add_argument("--blacklist", dest="blist", default="",
                     help='''Takes a file in BED format as an argument. Filter out any break-pairs where
                     either SV break-end overlaps an interval specified in the supplied bed file.''')
 
+filter_parser.add_argument("--seed", dest="seed", default="",
+                    help='''Integer seed to set numpy's seed for replicability of subsampling.''')
+
 filter_parser.set_defaults(func=run_filter.run)
 
 ##########################################################################################################

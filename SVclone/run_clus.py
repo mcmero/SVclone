@@ -15,7 +15,6 @@ import IPython
 import multiprocessing
 import time
 import shutil
-import random
 import pymc as pm
 
 from distutils.dir_util import copy_tree
@@ -575,11 +574,11 @@ def run_clustering(args):
 
     try:
         if seeds =='':
-            seeds = [random.randint(0,10000) for i in range(n_runs)]
+            seeds = [np.random.randint(0,10000) for i in range(n_runs)]
         else:
             seeds = [int(s) for s in seeds.split(',')]
     except ValueError:
-        seeds = [random.randint(0,10000) for i in range(n_runs)]
+        seeds = [np.random.randint(0,10000) for i in range(n_runs)]
 
     pi, pl = svp_load.get_purity_ploidy(pp_file, sample, out)
     rlen, insert, std = svp_load.get_read_params(param_file, sample, out)

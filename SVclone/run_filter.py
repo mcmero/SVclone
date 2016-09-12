@@ -547,6 +547,7 @@ def run(args):
     cfg         = args.cfg
     blist_file  = args.blist
     subsample   = args.subsample
+    seed        = args.seed
 
     Config = ConfigParser.ConfigParser()
     cfg_file = Config.read(cfg)
@@ -580,6 +581,10 @@ def run(args):
     if out!='' and not os.path.exists(out):
         os.makedirs(out)
 
+    if seed != '':
+        seed = int(seed)
+        random.seed(seed)
+
     pi, ploidy = svp_load.get_purity_ploidy(pp_file, sample, out)
     rlen, insert, insert_std = svp_load.get_read_params(param_file, sample, out)
 
@@ -606,7 +611,7 @@ def run(args):
     if svs!="":
         sv_df = load_data.load_svs(svs)
         sv_df = run_simple_filter(sv_df,rlen,insert,minsplit,minspan,sizefilter, \
-                                    min_dep,filter_chrs,valid_chrs,blist)
+                                  min_dep,filter_chrs,valid_chrs,blist)
 
     if gml!="":
         sv_df = filter_germline(gml,sv_df,rlen,insert,gl_th)
@@ -625,7 +630,7 @@ def run(args):
             print('Matching copy-numbers for SNVs...')
             snv_df = match_snv_copy_numbers(snv_df,cnv_df,sv_offset)
             snv_df = run_cnv_filter(snv_df,cnvs,ploidy,neutral,filter_otl,strict_cnv_filt,
-                    filter_subclonal_cnvs,are_snvs=True)
+                                    filter_subclonal_cnvs,are_snvs=True)
             print('Keeping %d SNVs' % len(snv_df))
     else:
         print('No CNV input defined, assuming all loci major/minor allele copy-numbers are ploidy/2')
@@ -643,7 +648,7 @@ def run(args):
             default_gtype = '%d,%d,1.0' % (maj_allele, min_allele)
             snv_df['gtype'] = default_gtype
             snv_df = run_cnv_filter(snv_df,cnvs,ploidy,neutral,filter_otl,strict_cnv_filt,
-                    filter_subclonal_cnvs,are_snvs=True)
+                                    filter_subclonal_cnvs,are_snvs=True)
             print('Keeping %d SNVs' % len(snv_df))
 
     if len(sv_df)==0 and len(snv_df)==0:
@@ -662,4 +667,3 @@ def run(args):
         snv_df = sort_by_loc(snv_df)
         snv_df.index = range(len(snv_df)) #reindex
         snv_df.to_csv('%s/%s_filtered_snvs.tsv'%(out,sample),sep='\t',index=False,na_rep='')
-
