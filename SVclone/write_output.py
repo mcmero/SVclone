@@ -29,7 +29,7 @@ def write_out_files(df, clus_info, clus_members, df_probs, clus_cert, clus_out_d
     clus_info = clus_info[['clus_id','size','phi','CCF']]
     rename_cols =  {'clus_id': 'cluster', 'size': 'n_ssms', 'phi': 'proportion'}
     clus_info = clus_info.rename(columns = rename_cols)
-    
+
     if smc_het:
         purity = min(max(pi, 0), 1)
         out_file = '%s/smc_1A_cellularity.txt' % clus_out_dir
@@ -48,7 +48,7 @@ def write_out_files(df, clus_info, clus_members, df_probs, clus_cert, clus_out_d
             pd.options.mode.chained_assignment = None
             smc_cert.loc[mla.most_likely_assignment == clus.cluster, 'most_likely_assignment'] = int(clus.new_clus)
         smc_cert.to_csv('%s/smc_2A_mutations_to_clusters.txt' % clus_out_dir, sep='\t', index=False, header=False)
-        
+
         smc_clus_info.cluster = smc_clus_info.new_clus
         smc_clus_info = smc_clus_info[['cluster', 'n_ssms', 'proportion']]
         smc_clus_info.to_csv('%s/smc_1C_cluster_structure.txt' % clus_out_dir, sep='\t', index=False, header=False)
@@ -67,7 +67,7 @@ def write_out_files(df, clus_info, clus_members, df_probs, clus_cert, clus_out_d
     mlcn_vect   = np.empty((0, len(cmem)), dtype=mlcn_dtype)
     mult_vect   = np.empty((0, len(cmem)), dtype=mult_dtype)
     clus_vars   = df.loc[cmem].copy()
-    
+
     phis = clus_cert.average_ccf.values
     cns, pvs = cluster.get_most_likely_cn_states(cn_states, sup, dep, phis, pi, cnv_pval, norm)
 
@@ -102,18 +102,18 @@ def write_out_files(df, clus_info, clus_members, df_probs, clus_cert, clus_out_d
             cn_new_row = np.array([(chr1, pos1, dir1, tot_cn1, chrs_bearing_mut,
                                     chr2, pos2, dir2, tot_cn2, chrs_bearing_mut)], dtype=cn_dtype)
             pv_dev = np.abs(pv - var.adjusted_vaf)
-            ml_new_row = np.array([(chr1, pos1, dir1, chr2, pos2, dir2, var['gtype1'], var['gtype2'], 
+            ml_new_row = np.array([(chr1, pos1, dir1, chr2, pos2, dir2, var['gtype1'], var['gtype2'],
                                     ref_cn, sc_cn, freq, sup[idx], dep[idx], frac, pv, pv_dev)],
                                     dtype=mlcn_dtype)
-            
+
             var_states = cn_states[idx]
             tot_opts = ','.join(map(str,[int(x[1]) for x in var_states]))
             var_opts = ','.join(map(str,[int(round(x[1]*x[2])) for x in var_states]))
             probs =  cluster.get_probs(var_states, sup[idx], dep[idx], phis[idx], pi, norm[idx])
-            
+
             mult_new_row = np.array([(chr1, pos1, dir1, chr2, pos2, dir2, sc_cn,
                                      int(round(freq*sc_cn)), tot_opts, var_opts, probs)], dtype=mult_dtype)
-            
+
             cn_vect   = np.append(cn_vect, cn_new_row)
             mlcn_vect = np.append(mlcn_vect, ml_new_row)
             mult_vect = np.append(mult_vect, mult_new_row)
@@ -125,7 +125,7 @@ def write_out_files(df, clus_info, clus_members, df_probs, clus_cert, clus_out_d
 
             chrom = str(var['chrom'])
             pos = int(var['pos'])
-       
+
             ref_cn, sc_cn, freq, frac = cns[idx]
             pv = pvs[idx]
 
@@ -137,9 +137,9 @@ def write_out_files(df, clus_info, clus_members, df_probs, clus_cert, clus_out_d
             var_opts = ','.join(map(str,[int(round(x[1]*x[2])) for x in var_states]))
             probs =  cluster.get_probs(var_states, sup[idx], dep[idx], phis[idx], pi, norm[idx])
 
-            mult_new_row = np.array([(chrom, pos, sc_cn, int(round(freq*sc_cn)), tot_opts, var_opts, probs)], 
+            mult_new_row = np.array([(chrom, pos, sc_cn, int(round(freq*sc_cn)), tot_opts, var_opts, probs)],
                     dtype=mult_dtype)
-            
+
             cn_vect = np.append(cn_vect, cn_new_row)
             mlcn_vect = np.append(mlcn_vect, ml_new_row)
             mult_vect = np.append(mult_vect, mult_new_row)

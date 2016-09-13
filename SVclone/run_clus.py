@@ -567,6 +567,10 @@ def run_clustering(args):
     threads = cluster_params['threads']
     use_map = cluster_params['use_map']
     ccf_reject = cluster_params['ccf_reject']
+    cocluster = cluster_params['cocluster']
+    fit_metric = output_params['fit_metric']
+    cluster_penalty = output_params['cluster_penalty']
+
     if threads == 1:
         for run in range(n_runs):
             cluster_and_process(sv_df,snv_df,run,out,sample_params,cluster_params,output_params,seeds)

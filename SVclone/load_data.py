@@ -291,6 +291,6 @@ def get_params_cluster_step(sample, cfg, out, pp_file, param_file, XX, XY):
                        'clus_limit': clus_limit, 'subclone_diff': subclone_diff, 'cocluster': cocluster ,
                        'clonal_cnv_pval': cnv_pval, 'adjust_phis': adjust_phis, 'sv_to_sim': sv_to_sim,
                        'threads': threads, 'ccf_reject': ccf_reject }
-    output_params  = { 'plot': plot, 'smc_het': smc_het, 'cluster_penalty': cluster_penalty }
+    output_params  = { 'plot': plot, 'smc_het': smc_het, 'cluster_penalty': cluster_penalty, 'fit_metric': fit_metric }
 
     return sample_params, cluster_params, output_params
