@@ -541,7 +541,7 @@ def proc_svs(args):
     svin         = args.svin
     bam          = args.bam
     sample       = args.sample
-    out          = args.outdir
+    out          = args.out
     cfg          = args.cfg
 
     out = sample if out == "" else out

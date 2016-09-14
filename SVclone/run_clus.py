@@ -518,7 +518,7 @@ def run_clustering(args):
 
     sample          = args.sample
     cfg             = args.cfg
-    out             = sample if args.outdir == "" else args.outdir
+    out             = sample if args.out == "" else args.out
     pp_file         = args.pp_file
     param_file      = args.param_file
     snv_file        = args.snv_file

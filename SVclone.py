@@ -62,7 +62,7 @@ count_parser.add_argument("-b","--bam",dest="bam",required=True,
 count_parser.add_argument("-s","--sample",dest="sample",required=True,
                     help='''Sample name. Output is written to <out_dir>/<sample>_svinfo.txt.''')
 
-count_parser.add_argument("-o","--outdir",dest="outdir",default="",
+count_parser.add_argument("-o","--out",dest="out",default="",
                     help='''Output directory. Default: sample name.''')
 
 count_parser.set_defaults(func=count.proc_svs)
@@ -105,7 +105,7 @@ filter_parser.add_argument("--snv_format",dest="snv_format",
 filter_parser.add_argument("--subsample",dest="subsample",default=0,type=int,
                     help="Subsample N SNVs from total filtered output.")
 
-filter_parser.add_argument("-o","--outdir",dest="outdir",default="",
+filter_parser.add_argument("-o","--out",dest="out",default="",
                     help='''Output directory. Default: sample name.''')
 
 filter_parser.add_argument("-p","--purity_ploidy",dest="pp_file",default="",
@@ -117,7 +117,7 @@ filter_parser.add_argument("--blacklist", dest="blist", default="",
                     either SV break-end overlaps an interval specified in the supplied bed file.''')
 
 filter_parser.add_argument("--seed", dest="seed", default="",
-                    help='''Integer seed to set numpy's seed for replicability of subsampling.''')
+                    help='''Integer seed to set seed for replicability of subsampling.''')
 
 filter_parser.set_defaults(func=run_filter.run)
 
@@ -134,7 +134,7 @@ cluster_parser.add_argument("-i","--input",default="",dest="sv_file",
 cluster_parser.add_argument("-s","--sample",dest="sample",required=True,
                     help='''Sample name.''')
 
-cluster_parser.add_argument("-o","--outdir",dest="outdir",default="",
+cluster_parser.add_argument("-o","--out",dest="out",default="",
                     help="Output directory. Default: sample name.")
 
 cluster_parser.add_argument("--params",dest="param_file",default="",

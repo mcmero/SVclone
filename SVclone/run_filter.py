@@ -539,7 +539,7 @@ def run(args):
     svs         = args.procd_svs
     gml         = args.germline
     cnvs        = args.cnvs
-    out         = args.outdir
+    out         = args.out
     param_file  = args.param_file
     snvs        = args.snvs
     snv_format  = args.snv_format
