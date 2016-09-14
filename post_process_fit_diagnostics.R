@@ -3,7 +3,7 @@
 args <- commandArgs(trailingOnly = TRUE)
 
 if(length(args)==0 | args[1]=='-h') {
-    print('Usage: Rscript <workingdir> <sample id> --map --clus_stability --snvs --sc')
+    print('Usage: Rscript <workingdir> <sample id> --map --snvs')
 }
 
 setwd(args[1])
@@ -11,14 +11,11 @@ id <- args[2]
 map <- FALSE
 clus_stab <- FALSE
 snvs <- FALSE
-handle_sc <- FALSE
 allowed_ics <- c( 'AICc', 'AIC', 'BIC', 'svc_IC')
 
 if(length(args) > 2) {
     map <- '--map' %in% args
-    clus_stab <- '--clus_stability' %in% args
     snvs <- '--snvs' %in% args
-    handle_sc <- '--sc' %in% args
 }
 
 snv_dir <- ''
@@ -46,75 +43,6 @@ for (dir in list.dirs()) {
     }
 }
 runs <- unique(runs)
-
-############################################################################################
-# Cluster stability of runs
-############################################################################################
-
-compare_runs <- function(run1, run2) {
-    clus_cert_file <- paste(run1, '/', snv_dir, id, '_cluster_certainty.txt', sep='')
-    clus_cert1 <- read.delim(clus_cert_file, sep='\t', stringsAsFactors=F)
-
-    clus_cert_file <- paste(run2, '/', snv_dir, id, '_cluster_certainty.txt', sep='')
-    clus_cert2 <- read.delim(clus_cert_file, sep='\t', stringsAsFactors=F)
-
-    clus1 <- as.numeric(names(table(clus_cert1$most_likely_assignment)))
-    dist <- 0
-    for (clus in clus1) {
-        if (sum(clus_cert1$most_likely_assignment == clus) <= 1)
-            next
-
-        cert1_tmp <- clus_cert1[clus_cert1$most_likely_assignment == clus,]
-        cert2_tmp <- clus_cert2[clus_cert1$most_likely_assignment == clus,]
-
-        points_in_clus <- nrow(cert1_tmp)
-        combs <- t(combn(points_in_clus, 2))
-        for (i in 1:nrow(combs)) {
-            pair <- combs[i,]
-            clus_in_2 <- cert2_tmp[pair, 'most_likely_assignment']
-            if (clus_in_2[1] != clus_in_2[2]) {
-                dist <- dist + 1
-            }
-        }
-    }
-
-    total_combs <- ncol(combn(nrow(clus_cert1), 2))
-    #print(paste('Dist:', dist, ';', 'combs:', total_combs))
-    metric <- 1 - (dist / total_combs)
-    #print('-------------------')
-    return(metric)
-}
-
-if (clus_stab) {
-    print('Comparing clustering stability between runs...')
-    all_comps <- combn(runs,2)
-    n <- length(runs)
-
-    results <- matrix(0, n, n)
-    colnames(results) <- runs
-    rownames(results) <- runs
-
-    for (i in 1:nrow(results)) {
-        for (j in 1:ncol(results)) {
-            run1 <- rownames(results)[i]
-            run2 <- colnames(results)[j]
-            if (run1 == run2) {
-                results[i, j] <- 1.
-            } else {
-                results[i, j] <- compare_runs(run1, run2)
-            }
-        }
-    }
-
-    # cluster stability metric plot
-    pdf(paste(id, '_cluster_stability_heatmap.pdf',sep=''),height=6)
-    cols <- colorRampPalette(brewer.pal(9,'Blues'))(30)
-    heatmap.2(results, trace='none', Rowv=F, Colv=F, dendrogram='none', col=cols)
-    dev.off()
-
-    results <- cbind(rownames(results), results)
-    write.table(results, paste(id,'_cluster_stability.csv', sep=''), sep=',', quote=F, row.names=F)
-}
 
 # cluster proportions plot
 clusts <- NULL
@@ -199,10 +127,8 @@ get_adjust_factor <- function(dat, pur) {
     mut_prop <- dat$prop_chrs_bearing_mutation
     vaf <- dat$adjusted_vaf
     frac <- dat$cn_frac
-    prob <- (cn_v * mut_prop * pur) / (2 * (1 - pur) + cn_v * pur)
-    if (handle_sc) {
-        prob <- (cn_v * mut_prop * pur) / (2 * (1 - pur) + (cn_v * pur * frac) + (cn_r * pur * (1. - frac)))
-    }
+    # prob <- (cn_v * mut_prop * pur) / (2 * (1 - pur) + cn_v * pur)
+    prob <- (cn_v * mut_prop * pur) / (2 * (1 - pur) + (cn_v * pur * frac) + (cn_r * pur * (1. - frac)))
     return((1 / prob))
 }
 
@@ -430,12 +356,12 @@ rp <- ggplot(data = all_runs_scs) +
 
 if (map) {
     pdf_name <- paste(id, '_run_summary.pdf', sep='')
-    pdf(pdf_name, height = 6, width = 20 * (length(runs)/12))
+    pdf(pdf_name, height = 6, width = 18 + (length(runs)/2))
     grid.arrange(rp, ic_plot, svic_plot, nrow = 1)
     dev.off()
 } else {
     pdf_name <- paste(id, '_run_summary.pdf', sep='')
-    pdf(pdf_name, height = 6, width = 8 * (length(runs)/10))
+    pdf(pdf_name, height = 6, width = 8 + (length(runs)/6))
     print(rp)
     dev.off()
 }
