@@ -155,3 +155,14 @@ Once we have the filtered SV and/or SNV counts, we can run the clustering:
 #### Configuration file ####
 
 If customisation is required for parameters, these can be modified in the svclone_config.ini, or a new config file can be specified and each step run with the --config or -cfg flag for all steps.
+
+#### Post-processing (visualisation) ####
+
+A post-processing script is included to visualise output of individual run plots and a summary plot for all runs of a sample. Run the script as follows:
+
+    Rscript post_processing_fit_diagnostics.R <SVclone output dir> <sample name> [--map] [--snvs]
+
+Optional flags:
+
+* --map : use if SVclone was run with the map option (recommended if running multiple runs). This option will add fit metric plots.
+* --snvs : use if SVclone output is for SNVs rather than SVs.
