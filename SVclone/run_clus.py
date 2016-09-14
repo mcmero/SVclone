@@ -117,7 +117,9 @@ def merge_clusters(clus_out_dir,clus_info,clus_merged,clus_members,merged_ids,su
             new_size = ci['size'] + cn['size']
 
             new_members = np.concatenate([clus_members[idx],clus_members[idx+1]])
-            mcmc, map_ = cluster.cluster(sup[new_members],dep[new_members],cn_states[new_members],len(new_members),sparams,cparams,phi_limit,norm[new_members],recluster=True)
+            mcmc, map_ = cluster.cluster(sup[new_members], dep[new_members],
+                                         cn_states[new_members], len(new_members),
+                                         sparams,cparams, phi_limit, norm[new_members], recluster=True)
             trace = mcmc.trace("phi_k")[:]
 
             phis = mean_confidence_interval(trace,cparams['hpd_alpha'])
@@ -241,7 +243,10 @@ def post_process_clusters(mcmc,sv_df,snv_df,clus_out_dir,sup,dep,norm,cn_states,
     smc_het       = output_params['smc_het']
     plot          = output_params['plot']
 
-    sv_df = sv_df[sv_df.classification.values!='SIMU_SV']
+    try:
+        sv_df = sv_df[sv_df.classification.values!='SIMU_SV']
+    except AttributeError:
+        pass
     npoints = len(snv_df) + len(sv_df)
     sup, dep, norm, cn_states = sup[:npoints], dep[:npoints], norm[:npoints], cn_states[:npoints]
 
@@ -553,6 +558,9 @@ def run_clustering(args):
     if os.path.exists(snv_file):
         snv_df = pd.read_csv(snv_file,delimiter='\t',dtype=None,header=0,low_memory=False)
         snv_df = pd.DataFrame(snv_df).fillna('')
+
+    if len(sv_df) == 0 and cluster_params['cocluster']:
+        cluster_params['cocluster'] = False
 
     clus_info, center_trace, ztrace, clus_members = None, None, None, None
 
