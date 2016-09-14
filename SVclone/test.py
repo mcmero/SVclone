@@ -24,6 +24,9 @@ pp_file = 'example_data/purity_ploidy.txt'
 param_file = '%s/read_params.txt' % outdir
 sv_filt_file = '%s/%s_filtered_svs.tsv' % (outdir, sample)
 
+if not os.path.exists(outdir):
+    os.makedirs(outdir)
+
 pi, ploidy = load_data.get_purity_ploidy(pp_file, sample, outdir)
 rlen, insert, insert_std = load_data.get_read_params('', sample, outdir)
 svs = load_data.load_input_simple('example_data/tumour_p80_DEL_svs_simple.txt', use_dir=False, class_field='')
@@ -58,12 +61,9 @@ inserts = (max(rlen*2,inserts[0]),inserts[1])
 max_ins = inserts[0]+(3*inserts[1]) #max fragment size = mean fragment len + (fragment std * 3)
 max_dep = ((mean_cov*(max_ins*2))/rlen)*max_cn
 
-if not os.path.exists(outdir):
-    os.makedirs(outdir)
-
 class test_identify(unittest.TestCase):
 
-    def test_annotate_count(self):
+    def test_01_annotate_count(self):
         self.assertTrue(len(svs)==100)
         ca = np.zeros(len(svs), dtype=consens_dtype)
         sv_wdir, ca = identify.infer_sv_dirs(svs, ca, bam, max_dep, sc_len, threshold, blist)
@@ -76,6 +76,7 @@ class test_identify(unittest.TestCase):
         # write output for count steps
         identify.write_svs(sv_wdir, svin_out)
 
+    def test_02_count(self):
         rparams = count.get_params(cfg, bam, sample, outdir)
         split_reads, span_reads, anom_reads = count.extract_sv_info(svin_out, bam, rparams, svinfo_out)
         sv_df = svc_load.load_svs(svinfo_out)
@@ -94,7 +95,7 @@ class test_identify(unittest.TestCase):
         self.assertTrue(np.all([s > 0 and s < 1 for s in sv_df.vaf1.values]))
         self.assertTrue(np.all([s > 0 and s < 1 for s in sv_df.vaf2.values]))
 
-    def test_sv_filter(self):
+    def test_03_filter(self):
         self.assertTrue(pi > 0)
         self.assertTrue(pi <= 1)
 
@@ -120,7 +121,7 @@ class test_identify(unittest.TestCase):
 
         # TODO: add SNV loading test
 
-    def test_sv_cluster(self):
+    def test_04_cluster(self):
         sv_df = pd.read_csv(sv_filt_file, delimiter='\t', dtype=None, header=0, low_memory=False)
         sv_df = pd.DataFrame(sv_df).fillna('')
         sample_params, cluster_params, output_params = \
