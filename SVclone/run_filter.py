@@ -228,9 +228,9 @@ def run_cnv_filter(df_flt, cnv, ploidy, neutral, filter_outliers, strict_cnv_fil
 
             if filter_subclonal:
                 n_df = len(df_flt)
-                is_clon  = [float(x.split('|')[0].split(',')[2])<2 for x in df_flt.gtype.values]
-                df_filt = df_flt.loc[is_clon]
-                print('Filtered out %d SNVs with subclonal CNV states.' % (n_df - len(df_filt)))
+                is_clon  = [len(x.split('|'))==1 for x in df_flt.gtype.values]
+                df_flt = df_flt.loc[is_clon]
+                print('Filtered out %d SNVs with subclonal CNV states.' % (n_df - len(df_flt)))
         else:
             df_flt['gtype1'].fillna('')
             df_flt['gtype2'].fillna('')
