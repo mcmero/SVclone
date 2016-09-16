@@ -122,6 +122,23 @@ def load_snvs_mutect_callstats(snvs):
     snv_out = snv_out[['chrom','pos','gtype','ref','var']]
     return snv_out
 
+def load_snvs_consensus(snvs):
+    vcf_reader = vcf.Reader(filename=snvs)
+    snv_dtype = [('chrom','S50'),('pos',int),('gtype','S50'),('ref',float),('var',float)]
+    snv_df = np.empty([0,5],dtype=snv_dtype)
+
+    for record in vcf_reader:
+        try:
+            ref_reads, variant_reads = record.INFO['t_ref_count'], record.INFO['t_alt_count']
+            total_reads = ref_reads + variant_reads
+            if variant_reads != 0:
+                tmp = np.array((record.CHROM, record.POS, '', ref_reads, variant_reads), dtype=snv_dtype)
+                snv_df = np.append(snv_df,tmp)
+        except KeyError:
+            print('WARNING: missing count field(s) in record %s:%d' % (record.CHROM, record.POS))
+
+    return pd.DataFrame(snv_df)
+
 def load_snvs_mutect(snvs,sample):
     vcf_reader = vcf.Reader(filename=snvs)
     snv_dtype = [('chrom','S50'),('pos',int),('gtype','S50'),('ref',float),('var',float)]

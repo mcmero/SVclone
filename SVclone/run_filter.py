@@ -606,15 +606,16 @@ def run(args):
             snv_df = load_data.load_snvs_mutect(snvs,sample)
         elif snv_format == 'mutect_callstats':
             snv_df = load_data.load_snvs_mutect_callstats(snvs)
+        elif snv_format == 'consensus':
+            snv_df = load_data.load_snvs_consensus(snvs)
         snv_df = run_simple_snv_filter(snv_df, min_dep, blist, filter_chrs, valid_chrs)
 
     if svs!="":
         sv_df = load_data.load_svs(svs)
         sv_df = run_simple_filter(sv_df,rlen,insert,minsplit,minspan,sizefilter, \
                                   min_dep,filter_chrs,valid_chrs,blist)
-
-    if gml!="":
-        sv_df = filter_germline(gml,sv_df,rlen,insert,gl_th)
+        if gml!="":
+            sv_df = filter_germline(gml,sv_df,rlen,insert,gl_th)
 
     if cnvs!="":
         cnv_df = load_data.load_cnvs(cnvs)
