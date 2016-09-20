@@ -229,13 +229,13 @@ for (run in runs) {
 
     sv_clust <- read.table(paste(run, '/', snv_dir, id, '_subclonal_structure.txt', sep=''), header=T, sep='\t', stringsAsFactors=F)
 #     sv_clust <- sv_clust[sv_clust$n_ssms>1, ]
-    dat <- dat[dat$most_likely_assignment%in%sv_clust$cluster,]
+#     dat <- dat[dat$most_likely_assignment%in%sv_clust$cluster,]
 
     above_ssm_th <- sv_clust$n_ssms / (sum(sv_clust$n_ssms)) >= 0.05
     below_ssm_th <- sv_clust$n_ssms / (sum(sv_clust$n_ssms)) < 0.05
     clus_intercepts <- 1 / pur * as.numeric(sv_clust$proportion[above_ssm_th & sv_clust$n_ssms > 2])
     clus_intercepts_minor <- 1 / pur * as.numeric(sv_clust$proportion[below_ssm_th | sv_clust$n_ssms<=2])
-
+# 
     plot1 <- ggplot(dat, aes(x=as.numeric(dat$CCF),
                     fill=factor(most_likely_assignment), color=factor(most_likely_assignment))) +
                     xlim(0,2) + geom_histogram(alpha=0.3,position='identity',binwidth=0.05)+xlab('CCF') +
@@ -275,7 +275,7 @@ for (run in runs) {
 get_run_info <- function(id, run) {
     scs_file <- paste(run, '/', snv_dir, id, '_subclonal_structure.txt', sep='')
     scs <- read.table(scs_file, sep = '\t', header = T)
-    scs <- scs[scs$n_ssms>3,]
+    # scs <- scs[scs$n_ssms>3,]
     scs <- scs[order(scs$CCF, decreasing=T), ]
     scs$new_cluster <- 1:nrow(scs)
 

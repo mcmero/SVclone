@@ -128,9 +128,10 @@ def write_out_files(df, clus_info, clus_members, df_probs, clus_cert, clus_out_d
 
             ref_cn, sc_cn, freq, frac = cns[idx]
             pv = pvs[idx]
+            pv_dev = np.abs(pv - float(var['var']) / (var['var'] + var.ref))
 
             cn_new_row = np.array([(chrom, pos, tot_cn1, int(sc_cn*freq))], dtype=cn_dtype)
-            ml_new_row = np.array([(chrom, pos, var['gtype'], ref_cn, sc_cn, freq, frac)], dtype=mlcn_dtype)
+            ml_new_row = np.array([(chrom, pos, var['gtype'], ref_cn, sc_cn, freq, frac, pv, pv_dev)], dtype=mlcn_dtype)
 
             var_states = cn_states[idx]
             tot_opts = ','.join(map(str,[int(x[1]) for x in var_states]))
