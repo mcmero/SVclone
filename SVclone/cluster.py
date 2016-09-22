@@ -5,6 +5,7 @@ import math
 import ipdb
 import collections
 
+from sklearn.cluster import KMeans
 from scipy import stats
 from operator import methodcaller
 
@@ -109,14 +110,16 @@ def filter_cns(cn_states):
     return [map(float,cn) for cn in map(methodcaller('split',','),cn_str)]
 
 def calc_lik_with_clonal(combo, si, di, phi_i, pi, ni):
+
+    # calculate with given phi
+    # (lls currently uses precision fudge factor to get around 0 probability errors when pv = 1)
     pvs = np.array([get_pv(phi_i, c, pi, ni) for c in combo])
     lls = np.array([pm.binomial_like(si, di, pvs[i]) for i,c in enumerate(combo)])-0.00000001
-    # also calculate with clonal phi
+
+    # calculate with clonal phi
     pvs_cl = np.array([get_pv(np.array(1), c, pi, ni) for c in combo])
     lls_cl = np.array([pm.binomial_like(si, di, pvs[i]) for i,c in enumerate(combo)])-0.00000001
-    #lls currently uses precision fudge factor to get
-    #around 0 probability errors when pv = 1
-    #TODO: investigate look this bug more
+
     return np.array([[pvs, lls], [pvs_cl, lls_cl]])
 
 def calc_lik(combo, si, di, phi_i, pi, ni):
@@ -148,7 +151,6 @@ def get_most_likely_pv(cn_lik):
         return 0.0000001
     elif len(cn_lik[0]) > 0:
         return cn_lik[0][index_of_max(cn_lik[1])]
-        #return cn_lik[0][np.where(np.nanmax(cn_lik[1])==cn_lik[1])[0][0]]
     else:
         return 0.0000001
 
@@ -197,6 +199,40 @@ def get_most_likely_cn_states(cn_states, s, d, phi, pi, pval_cutoff, norm):
 
     return most_likely_cn, most_likely_pv
 
+def get_initialisation(nclus_prior, Ndp, purity, sup, dep, norm, cn_states, sens, phi_limit, pval_cutoff):
+
+    mlcn, mlpv = get_most_likely_cn_states(cn_states, sup, dep, np.ones(len(sup)), purity, pval_cutoff, norm)
+    data = (sup / dep) * (1 / np.array(mlpv))
+    data = np.array([d if d < phi_limit else phi_limit for d in data])
+    data = np.array([d if d > sens else sens for d in data])
+
+    kme = KMeans(2)
+    kme.fit(data.reshape(-1,1))
+    z_init = kme.labels_
+
+    phi_init = [c[0] if c[0] < phi_limit else phi_limit for c in kme.cluster_centers_]
+
+    # fill the rest of the phi slots (up to max clusters) randomly
+    phi_fill = np.random.rand(Ndp - len(phi_init)) * phi_limit
+    phi_fill = np.array([sens if x < sens else x for x in phi_fill])
+    phi_init = np.concatenate([phi_init, phi_fill])
+
+#    # for testing initalisation
+#    import colorsys
+#    import matplotlib.pyplot as plt
+#    def gen_new_colours(N):
+#        HSV_tuples = [(x*1.0/N, 0.5, 0.5) for x in range(N)]
+#        RGB_tuples = map(lambda x: colorsys.hsv_to_rgb(*x), HSV_tuples)
+#        return RGB_tuples
+#    RGB_tuples = np.array(gen_new_colours(Ndp))
+#
+#    for lab in np.unique(kme.labels_):
+#        dat = data[np.where(kme.labels_==lab)[0]]
+#        plt.hist(dat,bins=np.array(range(0,200,2))/100.,alpha=0.75,color=RGB_tuples[lab])
+#    plt.savefig('test')
+
+    return z_init, phi_init
+
 def cluster(sup,dep,cn_states,Nvar,sparams,cparams,phi_limit,norm,recluster=False):
     '''
     clustering model using Dirichlet Process
@@ -205,11 +241,13 @@ def cluster(sup,dep,cn_states,Nvar,sparams,cparams,phi_limit,norm,recluster=Fals
     n_iter = cparams['n_iter'] if not recluster else int(cparams['n_iter']/4)
     burn = cparams['burn'] if not recluster else int(cparams['burn']/4)
     thin, use_map = cparams['thin'], cparams['use_map']
+    nclus_prior = cparams['nclus_prior']
 
     purity, ploidy = sparams['pi'], sparams['ploidy']
     fixed_alpha, gamma_a, gamma_b = cparams['fixed_alpha'], cparams['alpha'], cparams['beta']
     sens = 1.0 / ((purity/ float(ploidy)) * np.mean(dep))
     pval_cutoff = cparams['clonal_cnv_pval']
+    print('phi lower limit: %f; phi upper limit: %f' % (sens, phi_limit))
 
     if fixed_alpha.lower() in ("yes", "true", "t"):
         fixed = True
@@ -236,19 +274,17 @@ def cluster(sup,dep,cn_states,Nvar,sparams,cparams,phi_limit,norm,recluster=Fals
         value /= np.sum(value)
         return value
 
-    z = pm.Categorical('z', p = p, size = Nvar, value = np.zeros(Nvar))
-    phi_init = np.random.rand(Ndp) * phi_limit
-    phi_init = np.array([sens if x < sens else x for x in phi_init])
+    z_init, phi_init = get_initialisation(nclus_prior, Ndp, purity, sup, dep, norm, cn_states, sens, phi_limit, pval_cutoff)
+    z = pm.Categorical('z', p = p, size = Nvar, value = z_init)
     phi_k = pm.Uniform('phi_k', lower = sens, upper = phi_limit, size = Ndp, value=phi_init)
-    print('phi lower limit: %f; phi upper limit: %f' % (sens, phi_limit))
 
     @pm.deterministic
     def p_var(z=z, phi_k=phi_k):
-        if np.any(np.isnan(phi_k)):
-            phi_k = phi_init
-        if np.any(z < 0):
-            z = [0 for x in z]
-            # ^ some fmin optimization methods initialise this array with -ve numbers
+#        if np.any(np.isnan(phi_k)):
+#            phi_k = phi_init
+#        if np.any(z < 0):
+#            z = [0 for x in z]
+#            # ^ some fmin optimization methods initialise this array with -ve numbers
         most_lik_cn_states, pvs = \
                 get_most_likely_cn_states(cn_states, sup, dep, phi_k[z], purity, pval_cutoff, norm)
         return pvs
