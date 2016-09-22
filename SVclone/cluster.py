@@ -206,7 +206,7 @@ def get_initialisation(nclus_prior, Ndp, purity, sup, dep, norm, cn_states, sens
     data = np.array([d if d < phi_limit else phi_limit for d in data])
     data = np.array([d if d > sens else sens for d in data])
 
-    kme = KMeans(2)
+    kme = KMeans(nclus_prior)
     kme.fit(data.reshape(-1,1))
     z_init = kme.labels_
 
