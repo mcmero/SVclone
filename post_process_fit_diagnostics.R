@@ -236,7 +236,7 @@ plot_ccf_hist <- function(wd, base_name, snvs, pick_run='best') {
                                 fill=factor(most_likely_assignment),color=factor(most_likely_assignment))) +
         theme_minimal() +
         xlim(0,2) + geom_histogram(alpha=0.3,position='identity',binwidth=0.05)+xlab('CCF') +
-        geom_vline(xintercept=clus_intercepts, colour='blue', size=1) + ylab('') + ylim(0,20) +
+        geom_vline(xintercept=clus_intercepts, colour='blue', size=1) + ylab('') +
         scale_fill_brewer(palette = 'Set1', name = "Cluster") +
         scale_color_brewer(palette = 'Set1', name = "Cluster") +
         theme(plot.title = element_text(size = 16, face = "bold"),

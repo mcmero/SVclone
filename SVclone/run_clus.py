@@ -277,7 +277,6 @@ def post_process_clusters(mcmc,sv_df,snv_df,clus_out_dir,sup,dep,norm,cn_states,
         print('Correcting phi traces...')
         phis = get_adjusted_phis(clus_info, center_trace, cparams)
 
-
     hpd_lo = '_'.join([str(int(100-(100*hpd_alpha))), 'HPD', 'lo'])
     hpd_hi = '_'.join([str(int(100-(100*hpd_alpha))), 'HPD', 'hi'])
     clus_info['phi'] = phis[:,0]
