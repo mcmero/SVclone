@@ -199,14 +199,14 @@ def get_most_likely_cn_states(cn_states, s, d, phi, pi, pval_cutoff, norm):
 
     return most_likely_cn, most_likely_pv
 
-def get_initialisation(nclus_prior, Ndp, purity, sup, dep, norm, cn_states, sens, phi_limit, pval_cutoff):
+def get_initialisation(nclus_init, Ndp, purity, sup, dep, norm, cn_states, sens, phi_limit, pval_cutoff):
 
     mlcn, mlpv = get_most_likely_cn_states(cn_states, sup, dep, np.ones(len(sup)), purity, pval_cutoff, norm)
     data = (sup / dep) * (1 / np.array(mlpv))
     data = np.array([d if d < phi_limit else phi_limit for d in data])
     data = np.array([d if d > sens else sens for d in data])
 
-    kme = KMeans(nclus_prior)
+    kme = KMeans(nclus_init)
     kme.fit(data.reshape(-1,1))
     z_init = kme.labels_
 
@@ -241,7 +241,7 @@ def cluster(sup,dep,cn_states,Nvar,sparams,cparams,phi_limit,norm,recluster=Fals
     n_iter = cparams['n_iter'] if not recluster else int(cparams['n_iter']/4)
     burn = cparams['burn'] if not recluster else int(cparams['burn']/4)
     thin, use_map = cparams['thin'], cparams['use_map']
-    nclus_prior = cparams['nclus_prior']
+    nclus_init = cparams['nclus_init']
 
     purity, ploidy = sparams['pi'], sparams['ploidy']
     fixed_alpha, gamma_a, gamma_b = cparams['fixed_alpha'], cparams['alpha'], cparams['beta']
@@ -274,17 +274,18 @@ def cluster(sup,dep,cn_states,Nvar,sparams,cparams,phi_limit,norm,recluster=Fals
         value /= np.sum(value)
         return value
 
-    z_init, phi_init = get_initialisation(nclus_prior, Ndp, purity, sup, dep, norm, cn_states, sens, phi_limit, pval_cutoff)
+    z_init, phi_init = get_initialisation(nclus_init, Ndp, purity, sup, dep, norm,
+                                          cn_states, sens, phi_limit, pval_cutoff)
     z = pm.Categorical('z', p = p, size = Nvar, value = z_init)
     phi_k = pm.Uniform('phi_k', lower = sens, upper = phi_limit, size = Ndp, value=phi_init)
 
     @pm.deterministic
-    def p_var(z=z, phi_k=phi_k):
+    def p_var(z=z, phi_k=phi_k, z_init=z_init):
 #        if np.any(np.isnan(phi_k)):
 #            phi_k = phi_init
-#        if np.any(z < 0):
-#            z = [0 for x in z]
-#            # ^ some fmin optimization methods initialise this array with -ve numbers
+        if np.any(z < 0):
+            z = z_init
+            # ^ some fmin optimization methods initialise this array with -ve numbers
         most_lik_cn_states, pvs = \
                 get_most_likely_cn_states(cn_states, sup, dep, phi_k[z], purity, pval_cutoff, norm)
         return pvs

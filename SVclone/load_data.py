@@ -273,7 +273,7 @@ def get_params_cluster_step(sample, cfg, out, pp_file, param_file, XX, XY):
     burn            = int(Config.get('ClusterParameters', 'burn'))
     thin            = int(Config.get('ClusterParameters', 'thin'))
     threads         = int(Config.get('ClusterParameters', 'threads'))
-    nclus_prior     = int(Config.get('ClusterParameters', 'nclus_prior'))
+    nclus_init     = int(Config.get('ClusterParameters', 'nclus_init'))
 
     use_map         = string_to_bool(Config.get('ClusterParameters', 'map'))
     merge_clusts    = string_to_bool(Config.get('ClusterParameters', 'merge'))
@@ -308,7 +308,7 @@ def get_params_cluster_step(sample, cfg, out, pp_file, param_file, XX, XY):
                        'male': male, 'merge_clusts': merge_clusts, 'adjusted': adjusted, 'phi_limit': phi_limit,
                        'clus_limit': clus_limit, 'subclone_diff': subclone_diff, 'cocluster': cocluster ,
                        'clonal_cnv_pval': cnv_pval, 'adjust_phis': adjust_phis, 'sv_to_sim': sv_to_sim,
-                       'threads': threads, 'ccf_reject': ccf_reject, 'nclus_prior': nclus_prior }
+                       'threads': threads, 'ccf_reject': ccf_reject, 'nclus_init': nclus_init }
     output_params  = { 'plot': plot, 'smc_het': smc_het, 'cluster_penalty': cluster_penalty, 'fit_metric': fit_metric }
 
     return sample_params, cluster_params, output_params
