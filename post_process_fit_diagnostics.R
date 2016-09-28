@@ -11,11 +11,13 @@ id <- args[2]
 map <- FALSE
 clus_stab <- FALSE
 snvs <- FALSE
+coclus <- FALSE
 allowed_ics <- c( 'AICc', 'AIC', 'BIC', 'svc_IC')
 
 if(length(args) > 2) {
     map <- '--map' %in% args
     snvs <- '--snvs' %in% args
+    coclus <- '--coclus' %in% args
 }
 
 snv_dir <- ''
@@ -27,6 +29,7 @@ require(combinat)
 require(RColorBrewer)
 require(gplots)
 require(ggplot2)
+library(grid)
 require(gridExtra)
 require(reshape)
 require(gtools)
@@ -408,6 +411,8 @@ for (run in runs) {
                            header=T, sep='\t', stringsAsFactors=F)
     tabout <- sv_clust[order(as.numeric(sv_clust[,3]),decreasing=TRUE),]
     sc_tab <- tableGrob(tabout, rows=c())
+
+    ic_tab <- NULL
     if (map) {
         ic <- ic_table[ic_table$run==run,]
         rownames(ic) <- ic$V1
@@ -415,15 +420,49 @@ for (run in runs) {
         colnames(ic)[1] <- 'value'
         ic$value <- round(ic$value, 4)
         ic_tab <- tableGrob(ic)
-        height <- 5+round(nrow(tabout)*0.2)
-        pdf(paste(id, run, 'fit.pdf',sep='_'), height=height, width=9)
-        grid.arrange(sc_tab, plot1, ic_tab, plot2, ncol=2)
-        dev.off()
+    }
+
+    if (coclus) {
+        plot3 <- plot_ccf_hist('../', id, snvs = TRUE, pick_run = run)
+        dat <- get_run_info('../', id, run, snvs = TRUE)[[1]]
+        plot4 <- ggplot(dat, aes(x=CCF, y=adjusted_vaf,
+                                 fill=factor(most_likely_assignment),
+                                 colour=factor(most_likely_assignment))) +
+            scale_fill_brewer(palette = 'Set1', name = "Cluster") +
+            scale_color_brewer(palette = 'Set1', name = "Cluster") +
+            theme(plot.title = element_text(size = 16, face = "bold"),
+                  axis.title = element_text(size = 16),
+                  axis.text.x = element_text(size = 14),
+                  axis.text.y = element_text(size = 14)) +
+            geom_point(size=1) + xlim(0,2) + ylim(0,1) + ylab('VAF')
+
+        if (map) {
+            height <- 8+round(nrow(tabout)*0.2)
+            pdf(paste(id, run, 'fit.pdf',sep='_'), height=height, width=9)
+            grid.arrange(sc_tab, ic_tab,
+                         plot1 + ggtitle(paste(run, 'SVs')), plot2 + ggtitle('SVs'),
+                         plot3 + ggtitle(paste(run, 'SNVs')), plot4 + ggtitle('SNVs'), nrow=3)
+            dev.off()
+        } else {
+            blank <- grid.rect(gp=gpar(col="white"))
+            height <- 8+round(nrow(tabout)*0.2)
+            pdf(paste(id, run, 'fit.pdf',sep='_'), height=height, width=9)
+            grid.arrange(sc_tab, blank, plot1 + ggtitle(paste(run, 'SVs')), plot2 + ggtitle('SVs'),
+                         plot3 + ggtitle(paste(run, 'SNVs')), plot4 + ggtitle('SNVs'), nrow=3)
+            dev.off()
+        }
     } else {
-        height <- 7+round(nrow(tabout)*0.2)
-        pdf(paste(id, run, 'fit.pdf',sep='_'), height=height, width=5)
-        grid.arrange(sc_tab, plot1, plot2, ncol=1)
-        dev.off()
+        if (map) {
+            height <- 5+round(nrow(tabout)*0.2)
+            pdf(paste(id, run, 'fit.pdf',sep='_'), height=height, width=9)
+            grid.arrange(sc_tab, plot1, ic_tab, plot2, ncol=2)
+            dev.off()
+        } else {
+            height <- 7+round(nrow(tabout)*0.2)
+            pdf(paste(id, run, 'fit.pdf',sep='_'), height=height, width=5)
+            grid.arrange(sc_tab, plot1, plot2, ncol=1)
+            dev.off()
+        }
     }
 }
 
