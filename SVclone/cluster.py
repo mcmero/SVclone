@@ -213,9 +213,10 @@ def get_initialisation(nclus_init, Ndp, purity, sup, dep, norm, cn_states, sens,
     phi_init = [c[0] if c[0] < phi_limit else phi_limit for c in kme.cluster_centers_]
 
     # fill the rest of the phi slots (up to max clusters) randomly
-    phi_fill = np.random.rand(Ndp - len(phi_init)) * phi_limit
-    phi_fill = np.array([sens if x < sens else x for x in phi_fill])
-    phi_init = np.concatenate([phi_init, phi_fill])
+    if (Ndp - len(phi_init)) > 0:
+        phi_fill = np.random.rand(Ndp - len(phi_init)) * phi_limit
+        phi_fill = np.array([sens if x < sens else x for x in phi_fill])
+        phi_init = np.concatenate([phi_init, phi_fill])
 
 #    # for testing initalisation
 #    import colorsys
@@ -241,7 +242,8 @@ def cluster(sup,dep,cn_states,Nvar,sparams,cparams,phi_limit,norm,recluster=Fals
     n_iter = cparams['n_iter'] if not recluster else int(cparams['n_iter']/4)
     burn = cparams['burn'] if not recluster else int(cparams['burn']/4)
     thin, use_map = cparams['thin'], cparams['use_map']
-    nclus_init = cparams['nclus_init']
+    nclus_init = cparams['nclus_init'] if not recluster else 1
+    nclus_init = Ndp if nclus_init > Ndp else nclus_init
 
     purity, ploidy = sparams['pi'], sparams['ploidy']
     fixed_alpha, gamma_a, gamma_b = cparams['fixed_alpha'], cparams['alpha'], cparams['beta']
