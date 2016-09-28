@@ -36,50 +36,57 @@ def gen_new_colours(N):
     return RGB_tuples
 
 def plot_clusters(trace, clusters, assignments, sup, dep, clus_out_dir, cparams):
-    # burn, thin = cparams['burn'], cparams['thin']
-    phi_limit = cparams['phi_limit']
 
     center_trace = trace("phi_k")[:]
+    z_trace = trace('z')[:]
+    phi_limit = cparams['phi_limit']
+    maxclus = max([max(z) for z in z_trace])
+
     alpha_trace = []
     try:
         alpha_trace = trace('alpha')[:]
     except KeyError:
         pass
 
-    fig, axes = plt.subplots(3, 1, sharex=False, sharey=False, figsize=(12.5,9))
+    fig, axes = plt.subplots(4, 1, sharex=False, sharey=False, figsize=(12.5,12))
     if len(alpha_trace) > 0:
-        fig, axes = plt.subplots(4, 1, sharex=False, sharey=False, figsize=(12.5,12))
-        axes[3].set_title("Alpha trace")
-        axes[3].plot(np.arange(len(alpha_trace)), alpha_trace, lw=1)
+        fig, axes = plt.subplots(5, 1, sharex=False, sharey=False, figsize=(12.5,15))
+        axes[4].set_title("Alpha trace")
+        axes[4].plot(np.arange(len(alpha_trace)), alpha_trace, lw=1)
+
     RGB_tuples = gen_new_colours(len(clusters))
 
     axes[0].set_ylim([0, phi_limit + 0.1])
     axes[0].set_xlim([0, len(center_trace)])
     axes[0].set_title("Trace of $\phi_k$")
+
     axes[1].set_ylim([0, phi_limit + 0.1])
     axes[1].set_xlim([0, len(center_trace)])
     axes[1].set_title("Adjusted trace of $\phi_k$")
-    axes[2].set_title("Raw VAFs")
+
+    axes[2].set_ylim([-1, maxclus+1])
+    axes[2].set_xlim([0, len(z_trace)])
+    axes[2].set_title("Trace of z categorical")
+
+    axes[3].set_title("Raw VAFs")
 
     center_trace_adj = get_adjusted_phi_trace(center_trace, clusters)
-    # burn = burn/thin
-    # x_burn = np.arange(burn+1)
-    # x = np.arange(burn, len(center_trace))
-    # x = np.arange(len(center_trace[:,0]))
     for idx,clus in enumerate(clusters):
-        # axes[0].plot(x_burn, center_trace[:burn+1, clus], c=RGB_tuples[idx], lw=1, alpha=0.4)
         axes[0].plot(center_trace[:, clus], label="trace of center %d" % clus, c=RGB_tuples[idx], lw=1)
-        # axes[1].plot(x_burn, center_trace_adj[:burn+1, clus], c=RGB_tuples[idx], lw=1, alpha=0.4)
         axes[1].plot(center_trace_adj[:, clus], label="adjusted trace of center %d" % clus, c=RGB_tuples[idx], lw=1)
 
     leg = axes[0].legend(loc="upper right")
     leg.get_frame().set_alpha(0.7)
 
+    for i in range(len(z_trace[0])):
+        idx = assignments[i]
+        axes[2].plot(z_trace[:, i], label="", c=RGB_tuples[idx], lw=1, alpha=0.2)
+
     for idx,clus in enumerate(clusters):
         clus_idx = np.array(assignments)==clus
         sup_clus = sup[clus_idx]
         dep_clus = dep[clus_idx]
-        axes[2].hist(sup_clus/dep_clus,bins=np.array(range(0,100,2))/100.,alpha=0.75,color=RGB_tuples[idx])
+        axes[3].hist(sup_clus/dep_clus,bins=np.array(range(0,100,2))/100.,alpha=0.75,color=RGB_tuples[idx])
 
     plt.savefig('%s/cluster_trace_hist'%clus_out_dir)
 
@@ -234,8 +241,6 @@ def post_process_clusters(mcmc,sv_df,snv_df,clus_out_dir,sup,dep,norm,cn_states,
     subclone_diff = cparams['subclone_diff']
     phi_limit     = cparams['phi_limit']
     merge_clusts  = cparams['merge_clusts']
-    # thin          = cparams['thin']
-    # burn          = cparams['burn']
     cnv_pval      = cparams['clonal_cnv_pval']
     hpd_alpha     = cparams['hpd_alpha']
     adjust_phis   = cparams['adjust_phis']
@@ -251,7 +256,6 @@ def post_process_clusters(mcmc,sv_df,snv_df,clus_out_dir,sup,dep,norm,cn_states,
     sup, dep, norm, cn_states = sup[:npoints], dep[:npoints], norm[:npoints], cn_states[:npoints]
 
     z_trace = mcmc.trace('z')[:]
-    # z_trace_burn = z_trace[burn:]
 
     # assign points to highest probability cluster
     clus_counts = [np.bincount(z_trace[:,i]) for i in range(npoints)]
@@ -269,8 +273,6 @@ def post_process_clusters(mcmc,sv_df,snv_df,clus_out_dir,sup,dep,norm,cn_states,
         return None
 
     center_trace = mcmc.trace("phi_k")[:]
-    # center_trace_burn = center_trace[burn:]
-
     phis = np.array([mean_confidence_interval(center_trace[:,cid], hpd_alpha) for cid in clus_idx])
     if adjust_phis:
         # fix potential label switching problems
