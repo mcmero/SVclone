@@ -88,6 +88,7 @@ def plot_clusters(trace, clusters, assignments, sup, dep, clus_out_dir, cparams)
         dep_clus = dep[clus_idx]
         axes[3].hist(sup_clus/dep_clus,bins=np.array(range(0,100,2))/100.,alpha=0.75,color=RGB_tuples[idx])
 
+    fig.tight_layout()
     plt.savefig('%s/cluster_trace_hist'%clus_out_dir)
 
 def index_max(values):
@@ -478,18 +479,22 @@ def pick_best_run(n_runs, out, sample, ccf_reject, cocluster, fit_metric, cluste
     if min_ic == -1:
         print('No optimal run found! Consider more runs and/or more iterations.')
     else:
-        if are_snvs:
+        if cocluster:
+            print('Selecting run %d as best run for SVs & SNVs' % min_ic)
+            best_run = '%s/run%d' % (out, min_ic)
+            best_run_dest = '%s/best_run_coclus' % out
+            copy_tree(best_run, best_run_dest)
+
+            f = open('%s/run%s.txt' % (best_run_dest, min_ic), 'w')
+            f.close()
+        elif are_snvs:
             print('Selecting run %d as best run for SNVs' % min_ic)
             best_run = '%s/run%d/snvs' % (out, min_ic)
             best_run_dest = '%s/best_run_snvs' % out
             copy_tree(best_run, best_run_dest)
-            if cocluster:
-                shutil.copyfile('%s/run%d/phi_trace.txt.gz' % (out, min_ic), '%s/phi_trace.txt.gz' % best_run_dest)
-                shutil.copyfile('%s/run%d/z_trace.txt.gz' % (out, min_ic), '%s/z_trace.txt.gz' % best_run_dest)
-            else:
-                shutil.copyfile('%s/run%d/snvs/phi_trace.txt.gz' % (out, min_ic), '%s/phi_trace.txt.gz' % best_run_dest)
-                shutil.copyfile('%s/run%d/snvs/z_trace.txt.gz' % (out, min_ic), '%s/z_trace.txt.gz' % best_run_dest)
 
+            shutil.copyfile('%s/run%d/snvs/phi_trace.txt.gz' % (out, min_ic), '%s/phi_trace.txt.gz' % best_run_dest)
+            shutil.copyfile('%s/run%d/snvs/z_trace.txt.gz' % (out, min_ic), '%s/z_trace.txt.gz' % best_run_dest)
             shutil.copyfile('%s/run%d/cluster_trace_hist.png' % (out, min_ic),
                             '%s/cluster_trace_hist.png' % best_run_dest)
 
@@ -500,9 +505,11 @@ def pick_best_run(n_runs, out, sample, ccf_reject, cocluster, fit_metric, cluste
             best_run = '%s/run%d' % (out, min_ic)
             best_run_dest = '%s/best_run_svs' % out
             copy_tree(best_run, best_run_dest)
+
             snv_folder = '%s/best_run_svs/snvs' % out
             if os.path.exists(snv_folder):
                 shutil.rmtree(snv_folder)
+
             f = open('%s/run%s.txt' % (best_run_dest, min_ic), 'w')
             f.close()
 
@@ -560,7 +567,7 @@ def run_clustering(args):
         snv_df = pd.read_csv(snv_file,delimiter='\t',dtype=None,header=0,low_memory=False)
         snv_df = pd.DataFrame(snv_df).fillna('')
 
-    if len(sv_df) == 0 and cluster_params['cocluster']:
+    if (len(sv_df) == 0 or len(snv_df) ==0) and cluster_params['cocluster']:
         cluster_params['cocluster'] = False
 
     clus_info, center_trace, ztrace, clus_members = None, None, None, None
@@ -587,7 +594,7 @@ def run_clustering(args):
         if use_map and n_runs > 1:
             if len(sv_df) > 0:
                 pick_best_run(n_runs, out, sample, ccf_reject, cocluster, fit_metric, cluster_penalty)
-            if len(snv_df) > 0:
+            if len(snv_df) > 0 and not cocluster:
                 pick_best_run(n_runs, out, sample, ccf_reject, cocluster, fit_metric, cluster_penalty, are_snvs=True)
     else:
         conc_runs = max(1, n_runs / threads) if n_runs % threads == 0 else (n_runs / threads) + 1
@@ -611,6 +618,6 @@ def run_clustering(args):
             if np.all(np.array([not j.is_alive() for j in jobs])):
                 if len(sv_df) > 0:
                     pick_best_run(n_runs, out, sample, ccf_reject, cocluster, fit_metric, cluster_penalty)
-                if len(snv_df) > 0:
+                if len(snv_df) > 0 and not cocluster:
                     pick_best_run(n_runs, out, sample, ccf_reject, cocluster, fit_metric, cluster_penalty, are_snvs=True)
                 break
