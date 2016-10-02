@@ -79,7 +79,7 @@ def plot_clusters(trace, clusters, assignments, sup, dep, clus_out_dir, cparams)
     leg.get_frame().set_alpha(0.7)
 
     for i in range(len(z_trace[0])):
-        idx = assignments[i]
+        idx = int(np.where(assignments[i]==clusters)[0])
         axes[2].plot(z_trace[:, i], label="", c=RGB_tuples[idx], lw=1, alpha=0.2)
 
     for idx,clus in enumerate(clusters):
