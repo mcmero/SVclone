@@ -6,7 +6,7 @@ import os
 import pandas as pd
 from unittest import TestCase
 from SVprocess import bamtools
-from SVprocess import identify
+from SVprocess import annotate
 from SVprocess import load_data
 from SVprocess import count
 from SVclone import load_data as svc_load
@@ -31,6 +31,7 @@ pi, ploidy = load_data.get_purity_ploidy(pp_file, sample, outdir)
 rlen, insert, insert_std = load_data.get_read_params('', sample, outdir)
 svs = load_data.load_input_simple('example_data/tumour_p80_DEL_svs_simple.txt', use_dir=False, class_field='')
 sv_types = ['INV', 'DEL', 'DUP', 'INTDUP', 'TRX', 'INTRX']
+threshold = 6
 
 # cluster outputs
 ass_prob_tbl = '%s/run0/%s_assignment_probability_table.txt' % (outdir, sample)
@@ -61,20 +62,20 @@ inserts = (max(rlen*2,inserts[0]),inserts[1])
 max_ins = inserts[0]+(3*inserts[1]) #max fragment size = mean fragment len + (fragment std * 3)
 max_dep = ((mean_cov*(max_ins*2))/rlen)*max_cn
 
-class test_identify(unittest.TestCase):
+class test(unittest.TestCase):
 
     def test_01_annotate_count(self):
         self.assertTrue(len(svs)==100)
         ca = np.zeros(len(svs), dtype=consens_dtype)
-        sv_wdir, ca = identify.infer_sv_dirs(svs, ca, bam, max_dep, sc_len, threshold, blist)
+        sv_wdir, ca = annotate.infer_sv_dirs(svs, ca, bam, max_dep, sc_len, threshold, blist)
         self.assertTrue(np.all(sv_wdir['dir1'] == '+'))
         self.assertTrue(np.all(sv_wdir['dir2'] == '-'))
 
-        sv_wdir = identify.classify_svs(svs)
+        sv_wdir = annotate.classify_svs(svs, threshold)
         self.assertTrue(np.all([svc in sv_types for svc in sv_wdir['classification']]))
 
         # write output for count steps
-        identify.write_svs(sv_wdir, svin_out)
+        annotate.write_svs(sv_wdir, svin_out)
 
     def test_02_count(self):
         rparams = count.get_params(cfg, bam, sample, outdir)

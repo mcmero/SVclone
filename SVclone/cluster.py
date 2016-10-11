@@ -9,27 +9,6 @@ from sklearn.cluster import KMeans
 from scipy import stats
 from operator import methodcaller
 
-#def get_cn_mu_v(cn):
-#    cn_v = [0.,0.]
-#    mu_v = [0.,0.]
-#
-#    c = cn.split(',')
-#    if len(c)<2:
-#        return tuple(cn_v),tuple(mu_v)
-#    if c[0]>1 or c[1]>1:
-#        ipdb.set_trace()
-#
-#    c = map(float,c)
-#    cn_t = float(c[0]+c[1])
-#    cn_v[0] = float(cn_t)
-#    mu_v[0] = c[0]/cn_t if cn_t!=0 else 0.
-#
-#    if c[0]!=c[1] and c[1]>0:
-#        cn_v[1] = cn_t
-#        mu_v[1] = c[1]/cn_t if cn_t!=0 else 0.
-#
-#    return tuple(cn_v),tuple(mu_v)
-
 def add_copynumber_combos(combos, var_maj, var_min, ref_cn, frac):
     '''
     ref_cn = total reference (non-variant) copy-number
@@ -199,17 +178,25 @@ def get_most_likely_cn_states(cn_states, s, d, phi, pi, pval_cutoff, norm):
 
     return most_likely_cn, most_likely_pv
 
-def get_initialisation(nclus_init, Ndp, purity, sup, dep, norm, cn_states, sens, phi_limit, pval_cutoff):
+def get_initialisation(nclus_init, Ndp, sparams, sup, dep, norm, cn_states, sens, phi_limit, pval_cutoff):
+
+    purity, ploidy, cov = sparams['pi'], sparams['ploidy'], sparams['mean_cov']
 
     mlcn, mlpv = get_most_likely_cn_states(cn_states, sup, dep, np.ones(len(sup)), purity, pval_cutoff, norm)
     data = (sup / dep) * (1 / np.array(mlpv))
     data = np.array([d if d < phi_limit else phi_limit for d in data])
     data = np.array([d if d > sens else sens for d in data])
 
+    # derive sensible N cluster initialisation, based on mean chromosomal copy depth
+    nrpcc = cov * (purity / (purity * ploidy + (1 - purity) * 2))
+    if nclus_init < 1:
+        nclus_init = int(round(nrpcc / 5)) # min resolution is about 5 reads between cluster means
+
     kme = KMeans(nclus_init)
     kme.fit(data.reshape(-1,1))
-    z_init = kme.labels_
 
+    print('Cluster initialisation set to %d' % nclus_init)
+    z_init = kme.labels_
     phi_init = [c[0] if c[0] < phi_limit else phi_limit for c in kme.cluster_centers_]
 
     # fill the rest of the phi slots (up to max clusters) randomly
@@ -276,7 +263,7 @@ def cluster(sup,dep,cn_states,Nvar,sparams,cparams,phi_limit,norm,recluster=Fals
         value /= np.sum(value)
         return value
 
-    z_init, phi_init = get_initialisation(nclus_init, Ndp, purity, sup, dep, norm,
+    z_init, phi_init = get_initialisation(nclus_init, Ndp, sparams, sup, dep, norm,
                                           cn_states, sens, phi_limit, pval_cutoff)
     z = pm.Categorical('z', p = p, size = Nvar, value = z_init)
     phi_k = pm.Uniform('phi_k', lower = sens, upper = phi_limit, size = Ndp, value=phi_init)

@@ -260,6 +260,7 @@ def get_params_cluster_step(sample, cfg, out, pp_file, param_file, XX, XY):
     if len(cfg_file)==0:
         raise ValueError('No configuration file found')
 
+    mean_cov        = int(Config.get('BamParameters', 'mean_cov'))
     shape           = float(Config.get('BetaParameters', 'alpha'))
     scale           = float(Config.get('BetaParameters', 'beta'))
     fixed_alpha     = Config.get('BetaParameters', 'fixed_alpha')
@@ -302,7 +303,8 @@ def get_params_cluster_step(sample, cfg, out, pp_file, param_file, XX, XY):
     pi, pl = svp_load.get_purity_ploidy(pp_file, sample, out)
     rlen, insert, std = svp_load.get_read_params(param_file, sample, out)
 
-    sample_params  = { 'sample': sample, 'ploidy': pl, 'pi': pi, 'rlen': rlen, 'insert': insert }
+    sample_params  = { 'sample': sample, 'ploidy': pl, 'pi': pi, 'rlen': rlen,
+                       'insert': insert , 'mean_cov': mean_cov }
     cluster_params = { 'n_runs': n_runs, 'n_iter': n_iter, 'burn': burn, 'thin': thin, 'alpha': shape,
                        'beta': scale, 'use_map': use_map, 'hpd_alpha': hpd_alpha, 'fixed_alpha': fixed_alpha,
                        'male': male, 'merge_clusts': merge_clusts, 'adjusted': adjusted, 'phi_limit': phi_limit,
