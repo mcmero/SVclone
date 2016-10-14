@@ -178,9 +178,10 @@ def get_most_likely_cn_states(cn_states, s, d, phi, pi, pval_cutoff, norm):
 
     return most_likely_cn, most_likely_pv
 
+
 def get_initialisation(nclus_init, Ndp, sparams, sup, dep, norm, cn_states, sens, phi_limit, pval_cutoff):
 
-    purity, ploidy, cov = sparams['pi'], sparams['ploidy'], sparams['mean_cov']
+    purity, ploidy = sparams['pi'], sparams['ploidy']
 
     mlcn, mlpv = get_most_likely_cn_states(cn_states, sup, dep, np.ones(len(sup)), purity, pval_cutoff, norm)
     data = (sup / dep) * (1 / np.array(mlpv))
@@ -188,7 +189,7 @@ def get_initialisation(nclus_init, Ndp, sparams, sup, dep, norm, cn_states, sens
     data = np.array([d if d > sens else sens for d in data])
 
     # derive sensible N cluster initialisation, based on mean chromosomal copy depth
-    nrpcc = cov * (purity / (purity * ploidy + (1 - purity) * 2))
+    nrpcc = np.mean(dep) * (purity / (purity * ploidy + (1 - purity) * 2))
     if nclus_init < 1:
         nclus_init = int(round(nrpcc / 5)) # min resolution is about 5 reads between cluster means
 
