@@ -155,6 +155,12 @@ def load_snvs_mutect(snvs,sample):
         if record.FILTER is not None:
             if len(record.FILTER)>0:
                 continue
+        try:
+            if record.genotype('normal')['AD'][1]>0:
+                print('Removing variant %s:%d as it contains reads in the germline.' % (record.CHROM, record.POS)) 
+                continue
+        except KeyError:
+            pass
         ad = record.genotype(sample)['AD']
         ref_reads, variant_reads = float(ad[0]), float(ad[1])
         total_reads = ref_reads + variant_reads
