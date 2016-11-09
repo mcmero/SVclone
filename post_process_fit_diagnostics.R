@@ -106,7 +106,8 @@ get_runs <- function(wd) {
 
 get_ic_table <- function(wd, base_name, runs, allowed_ics = c('BIC', 'AIC', 'AICc', 'svc_IC'), clus_penalty = 4, snvs = FALSE) {
     snv_pref <- ''
-    samp_dir <- paste(wd, base_name, sep='/')
+    #samp_dir <- paste(wd, base_name, sep='/')
+    samp_dir <- wd
 
     if (snvs) {snv_pref <- 'snvs/'}
     ic_table <- NULL
@@ -134,7 +135,7 @@ get_best_run <- function(wd, base_name, ic_metric, clus_penalty = 4) {
     return(best_run)
 }
 get_purity <- function(wd, base_name) {
-    pur <- read.table(paste(wd, base_name, '/purity_ploidy.txt', sep=''),
+    pur <- read.table(paste(wd, '/purity_ploidy.txt', sep=''),
                       header=T, sep='\t', stringsAsFactors=F)$purity
     return(pur)
 }
@@ -155,7 +156,7 @@ get_gtype <- function(x) {
 get_run_info <- function(wd, base_name, run, snvs = FALSE) {
     snv_pref <- ''
     if (snvs) {snv_pref <- 'snvs/'}
-    scs_file <-  paste(wd, base_name, '/', run, '/', snv_pref, base_name, '_subclonal_structure.txt', sep = '')
+    scs_file <-  paste(wd, '/', run, '/', snv_pref, base_name, '_subclonal_structure.txt', sep = '')
     scs <- read.table(scs_file, sep = '\t', header = T)
     #     scs <- scs[scs$n_ssms>3,]
     scs <- scs[order(scs$CCF, decreasing=T), ]
@@ -163,17 +164,16 @@ get_run_info <- function(wd, base_name, run, snvs = FALSE) {
 
     sv_df <- ''
     if (snvs) {
-        sv_df <- read.table(paste(wd, base_name, '/', base_name, '_filtered_snvs.tsv', sep=''), header=T, sep='\t', stringsAsFactors=F)
+        sv_df <- read.table(paste(wd, '/', base_name, '_filtered_snvs.tsv', sep=''), header=T, sep='\t', stringsAsFactors=F)
     } else {
-        sv_df <- read.table(paste(wd, base_name, '/', base_name, '_filtered_svs.tsv', sep=''), header=T, sep='\t', stringsAsFactors=F)
+        sv_df <- read.table(paste(wd, '/', base_name, '_filtered_svs.tsv', sep=''), header=T, sep='\t', stringsAsFactors=F)
     }
-    pur <- read.table(paste(wd, base_name, '/purity_ploidy.txt', sep=''),
-                      header=T, sep='\t', stringsAsFactors=F)$purity
+    pur <- get_purity(wd, base_name)
 
-    cc_file <-  paste(wd, base_name, '/', run, '/', snv_pref, base_name, '_cluster_certainty.txt', sep = '')
+    cc_file <-  paste(wd, '/', run, '/', snv_pref, base_name, '_cluster_certainty.txt', sep = '')
     cc <- read.table(cc_file, sep = '\t', stringsAsFactors = F, header = T)
 
-    mlcn_file <- paste(wd, base_name, '/', run, '/', snv_pref, base_name, '_most_likely_copynumbers.txt', sep='')
+    mlcn_file <- paste(wd, '/', run, '/', snv_pref, base_name, '_most_likely_copynumbers.txt', sep='')
     mlcn <- read.table(mlcn_file, header = T, sep = '\t', stringsAsFactors = F)
 
     merge_cols <- c('chr1', 'pos1', 'dir1', 'chr2', 'pos2', 'dir2')
@@ -220,8 +220,7 @@ plot_ccf_hist <- function(wd, base_name, snvs, pick_run='best') {
         dat[dat$most_likely_assignment==sc$cluster[i], 'clus_renum'] <- sc[i,'clus_renum']
     }
 
-    pp <- read.delim(paste(wd, base_name, '/purity_ploidy.txt', sep=''))
-    pur <- pp$purity
+    pur <- get_purity(wd, base_name)
 
     above_ssm_th <- sc$n_ssms / (sum(sc$n_ssms)) >= 0.04
     below_ssm_th <- sc$n_ssms / (sum(sc$n_ssms)) < 0.04
@@ -258,7 +257,7 @@ plot_ccf_hist <- function(wd, base_name, snvs, pick_run='best') {
 
 
 # Get number of runs
-runs <- get_runs('.')
+runs <- get_runs('./')
 # cluster proportions plot
 clusts <- NULL
 for (run in runs) {
@@ -391,9 +390,9 @@ if (map) {
 }
 
 for (run in runs) {
-    plot1 <- plot_ccf_hist('../', id, snvs, run)
+    plot1 <- plot_ccf_hist('./', id, snvs, run)
 
-    x <- get_run_info('../', id, run, snvs = snvs)
+    x <- get_run_info('./', id, run, snvs = snvs)
     dat <- x[[1]]
     plot2 <- ggplot(dat, aes(x=CCF, y=adjusted_vaf,
                              fill=factor(most_likely_assignment),
@@ -423,8 +422,8 @@ for (run in runs) {
     }
 
     if (coclus) {
-        plot3 <- plot_ccf_hist('../', id, snvs = TRUE, pick_run = run)
-        dat <- get_run_info('../', id, run, snvs = TRUE)[[1]]
+        plot3 <- plot_ccf_hist('./', id, snvs = TRUE, pick_run = run)
+        dat <- get_run_info('./', id, run, snvs = TRUE)[[1]]
         plot4 <- ggplot(dat, aes(x=CCF, y=adjusted_vaf,
                                  fill=factor(most_likely_assignment),
                                  colour=factor(most_likely_assignment))) +
@@ -472,7 +471,7 @@ if (snvs) {var_id <- c('chr', 'pos')}
 all_runs_ccfs <- NULL
 all_runs_scs <- NULL
 for(run in runs) {
-    runinf <- get_run_info('../', id, run, snvs)
+    runinf <- get_run_info('./', id, run, snvs)
     dat <- runinf[[1]]
     scs <- runinf[[2]]
 

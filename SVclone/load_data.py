@@ -157,7 +157,7 @@ def load_snvs_mutect(snvs,sample):
                 continue
         try:
             if record.genotype('normal')['AD'][1]>0:
-                print('Removing variant %s:%d as it contains reads in the germline.' % (record.CHROM, record.POS)) 
+                print('Removing variant %s:%d as it contains reads in the germline.' % (record.CHROM, record.POS))
                 continue
         except KeyError:
             pass
