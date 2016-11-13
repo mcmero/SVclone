@@ -97,6 +97,16 @@ def load_cnvs(cnv_file):
             cnv_df = cnv_df[select_cols]
             return cnv_df
 
+        elif 'star' in cnv_df.columns.values:
+            # pcawg star copy-number calls format
+            cnv_df['chromosome'] = cnv_df.chromosome.map(str)
+            cnv_df = cnv_df.rename(columns={'chromosome': 'chr', 'start': 'startpos', 'end': 'endpos'})
+            gtypes = cnv_df.major_cn.map(str) + ',' + cnv_df.minor_cn.map(str) + ',1.0' 
+            cnv_df['gtype'] = gtypes
+            select_cols = ['chr','startpos','endpos','gtype']
+            cnv_df = cnv_df[select_cols]
+            return cnv_df
+
         else:
             # caveman input
             major = cnv_df.tumour_total.map(int) - cnv_df.tumour_minor.map(int)
