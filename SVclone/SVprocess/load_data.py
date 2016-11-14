@@ -173,7 +173,7 @@ def get_purity_ploidy(pp_file, sample, out):
     pp_file = default_loc if pp_file == '' else pp_file
 
     if os.path.exists(pp_file):
-        pur_pl  = np.genfromtxt(pp_file, delimiter='\t', names=True, dtype=None, invalid_raise=False)
+        pur_pl  = np.genfromtxt(pp_file, delimiter='\t', names=True, dtype=None)
         pi      = float(pur_pl['purity'])
         pl      = float(pur_pl['ploidy'])
     else:

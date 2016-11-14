@@ -3,7 +3,7 @@
 args <- commandArgs(trailingOnly = TRUE)
 
 if(length(args)==0 | args[1]=='-h') {
-    print('Usage: Rscript <workingdir> <sample id> --map --snvs')
+    print('Usage: Rscript <workingdir> <sample id> --map --snvs --coclus')
 }
 
 setwd(args[1])
