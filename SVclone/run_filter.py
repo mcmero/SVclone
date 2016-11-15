@@ -257,7 +257,7 @@ def run_cnv_filter(df_flt, cnv, ploidy, neutral, filter_outliers, strict_cnv_fil
 
     return df_flt
 
-def match_snv_copy_numbers(snv_df, cnv_df, sv_offset):
+def match_snv_copy_numbers(snv_df, cnv_df, strict_cnv_filt):
     bp_chroms = np.unique(snv_df['chrom'].values)
     bp_chroms = sorted(bp_chroms, key=lambda item: (int(item) if item.isdigit() else str(item)))
 
@@ -270,14 +270,15 @@ def match_snv_copy_numbers(snv_df, cnv_df, sv_offset):
         if len(cnv_tmp)==0:
             continue
 
-        sv_offset = sv_offset
         for pos in var_tmp['pos']:
             cnv_start_list = cnv_tmp.startpos.values
             cnv_end_list   = cnv_tmp.endpos.values
             overlaps = np.logical_and(pos >= cnv_start_list, pos <= cnv_end_list)
             match = cnv_tmp[overlaps]
 
-            if len(match)==0:
+            if len(match)==0 and strict_cnv_filt:
+                gtyped.append('')
+            elif lem(match)==0:
                 # assign closest CNV state with closest boundary to SNV
                 closest_start = min(abs(cnv_start_list-pos))
                 closest_end   = min(abs(cnv_end_list-pos))
@@ -297,7 +298,7 @@ def match_snv_copy_numbers(snv_df, cnv_df, sv_offset):
         snv_df.loc[snv_indexes,'gtype'] = gtypes
     return snv_df
 
-def match_copy_numbers(var_df, cnv_df, sv_offset, bp_fields=['chr1','pos1','dir1','classification','pos2'], gtype_field='gtype1'):
+def match_copy_numbers(var_df, cnv_df, strict_cnv_filt, sv_offset, bp_fields=['chr1','pos1','dir1','classification','pos2'], gtype_field='gtype1'):
 
     chrom_field, pos_field, dir_field, class_field, other_pos_field = bp_fields
 
@@ -352,7 +353,17 @@ def match_copy_numbers(var_df, cnv_df, sv_offset, bp_fields=['chr1','pos1','dir1
 
             #print(overlaps)
             match = cnv_tmp[overlaps]
-            if len(match)==0:
+            if len(match)==0 and strict_cnv_filt:
+                gtypes.append('')
+                # add closest CNV to adjacent
+                if closest_start < closest_end:
+                    start_match = closest_start==abs(cnv_start_list-pos)
+                    cnv_gtype   = cnv_tmp[start_match].gtype.values[0]
+                else:
+                    end_match   = closest_end==abs(cnv_end_list-pos)
+                    cnv_gtype   = cnv_tmp[end_match].gtype.values[0]
+                adj_cnvs.append(cnv_gtype)
+            elif len(match)==0:
                 # assign closest CNV state with closest boundary to SNV
                 if closest_start < closest_end:
                     start_match = closest_start==abs(cnv_start_list-pos)
@@ -622,14 +633,14 @@ def run(args):
 
         if len(sv_df)>0:
             print('Matching copy-numbers for SVs...')
-            sv_df = match_copy_numbers(sv_df,cnv_df,sv_offset)
-            sv_df = match_copy_numbers(sv_df,cnv_df,sv_offset,\
+            sv_df = match_copy_numbers(sv_df,cnv_df,strict_cnv_filt,sv_offset)
+            sv_df = match_copy_numbers(sv_df,cnv_df,strict_cnv_filt,sv_offset,\
                     ['chr2','pos2','dir2','classification','pos1'],'gtype2')
             sv_df = run_cnv_filter(sv_df,cnvs,ploidy,neutral,filter_otl,strict_cnv_filt,filter_subclonal_cnvs)
 
         if len(snv_df)>0:
             print('Matching copy-numbers for SNVs...')
-            snv_df = match_snv_copy_numbers(snv_df,cnv_df,sv_offset)
+            snv_df = match_snv_copy_numbers(snv_df,cnv_df,strict_cnv_filt)
             snv_df = run_cnv_filter(snv_df,cnvs,ploidy,neutral,filter_otl,strict_cnv_filt,
                                     filter_subclonal_cnvs,are_snvs=True)
             print('Keeping %d SNVs' % len(snv_df))
