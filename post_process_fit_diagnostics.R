@@ -25,16 +25,16 @@ if (snvs) {
     snv_dir <- 'snvs/'
 }
 
-require(combinat)
-require(RColorBrewer)
-require(gplots)
-require(ggplot2)
-library(grid)
-require(gridExtra)
-require(reshape)
-require(gtools)
-library(plyr)
-library(gtools)
+suppressMessages(library(combinat))
+suppressMessages(library(RColorBrewer))
+suppressMessages(library(gplots))
+suppressMessages(library(ggplot2))
+suppressMessages(library(grid))
+suppressMessages(library(gridExtra))
+suppressMessages(library(reshape))
+suppressMessages(library(gtools))
+suppressMessages(library(plyr))
+suppressMessages(library(gtools))
 
 ############################################################################################################################
 # Helper functions
@@ -204,9 +204,9 @@ get_run_info <- function(wd, base_name, run, snvs = FALSE) {
     return(list(dat,scs))
 }
 
-plot_ccf_hist <- function(wd, base_name, snvs, pick_run='best') {
+plot_ccf_hist <- function(wd, base_name, snvs, pick_run='best', varclass=FALSE) {
     if (pick_run=='best') {
-        pick_run <- get_best_run(wd, base_name, 'svc_IC')
+        pick_run <- best_run
     }
 
     x <- get_run_info(wd, base_name, pick_run, snvs)
@@ -234,13 +234,25 @@ plot_ccf_hist <- function(wd, base_name, snvs, pick_run='best') {
         dat <- dat[!dat$most_likely_assignment%in%minor_clusts,]
     }
 
-    ccf_hist <- ggplot(dat, aes(x=as.numeric(dat$CCF),
-                                fill=factor(most_likely_assignment),color=factor(most_likely_assignment))) +
-        theme_minimal() +
-        xlim(0,2) + geom_histogram(alpha=0.3,position='identity',binwidth=0.05)+xlab('CCF') +
-        geom_vline(xintercept=clus_intercepts, colour='blue', size=1) + ylab('') +
+    dat$most_likely_assignment <- factor(dat$most_likely_assignment)
+    ccf_hist <- ggplot(dat, aes(x=as.numeric(dat$CCF),fill=most_likely_assignment,color=most_likely_assignment)) +
+        geom_histogram(alpha=0.3,position='identity',binwidth=0.05) + xlab('CCF') +
         scale_fill_brewer(palette = 'Set1', name = "Cluster") +
-        scale_color_brewer(palette = 'Set1', name = "Cluster") +
+        scale_color_brewer(palette = 'Set1', name = "Cluster")
+
+    if (varclass) {
+        if (!'classification'%in%colnames(dat)) {
+            dat$classification <- rep('SNV', nrow(dat))
+        }
+        ccf_hist <- ggplot(dat, aes(x=as.numeric(dat$CCF),fill=classification,color=classification)) +
+            geom_histogram(alpha=0.3,binwidth=0.05) + xlab('CCF') +
+            scale_fill_brewer(palette = 'Set1', name = "Classification") +
+            scale_color_brewer(palette = 'Set1', name = "Classification")
+    }
+
+    ccf_hist <- ccf_hist + theme_minimal() + xlim(0,2) +
+        geom_vline(xintercept=clus_intercepts, colour='blue', size=1) + ylab('') +
+
         theme(plot.title = element_text(size = 16, face = "bold"),
               axis.title = element_text(size = 16),
               axis.text.x = element_text(size = 14),
@@ -253,11 +265,10 @@ plot_ccf_hist <- function(wd, base_name, snvs, pick_run='best') {
     return(ccf_hist)
 }
 
-
-
-
 # Get number of runs
 runs <- get_runs('./')
+if(map){best_run <- get_best_run('./', id, 'svc_IC')}
+
 # cluster proportions plot
 clusts <- NULL
 for (run in runs) {
@@ -284,22 +295,22 @@ if (length(args)>2 & map) {
         ic_table <- rbind(ic_table, ic)
     }
 
-    ic_tmp <- ic_table[ic_table$V1!='svc_IC',]
-    ic_tmp$run <- factor(ic_tmp$run, levels=mixedsort(unique(as.character(ic_tmp$run))))
-    ic_plot <- ggplot(ic_tmp, aes(y=V2, x=run, group=V1, color=factor(V1))) + ylab('value') + geom_line()
-    pdf(paste(id, 'aic_bic_plot.pdf',sep='_'), height=4)
-    print(ic_plot)
+    colnames(ic_table)[2:3] <- c('IC', 'value')
+    ic_table$run <- factor(ic_table$run, levels=mixedsort(unique(as.character(ic_table$run))))
+    ic_table$IC <- factor(ic_table$IC, levels=allowed_ics)
+    g1 <- ggplot(ic_table[ic_table$IC=='BIC',],
+                 aes(y=value, x=run, group=IC)) + ylab('value') + geom_line() + ggtitle('BIC')
+    g2 <- ggplot(ic_table[ic_table$IC=='AIC',],
+                 aes(y=value, x=run, group=IC)) + ylab('value') + geom_line() + ggtitle('AIC')
+    g3 <- ggplot(ic_table[ic_table$IC=='AICc',],
+                 aes(y=value, x=run, group=IC)) + ylab('value') + geom_line() + ggtitle('AICc')
+    g4 <- ggplot(ic_table[ic_table$IC=='svc_IC',],
+                 aes(y=value, x=run, group=IC)) + ylab('value') + geom_line() + ggtitle('svc_IC')
+    pdf(paste(id, 'aic_bic_plot.pdf',sep='_'), height=6)
+    grid.arrange(g1,g2,g3,g4)
     dev.off()
 
-    # plot SVclone's metric
-    ic_tmp <- ic_table[ic_table$V1=='svc_IC',]
-    ic_tmp$run <- factor(ic_tmp$run, levels=mixedsort(unique(as.character(ic_tmp$run))))
-    svic_plot <- ggplot(ic_tmp, aes(y=V2, x=run, group=V1, color=factor(V1))) + ylab('value') + geom_line()
-    pdf(paste(id, 'svc_ic_plot.pdf',sep='_'), height=4)
-    print(svic_plot)
-    dev.off()
-
-    ic_table <- cast(ic_table, run~V1, value='V2')
+    ic_table <- cast(ic_table, run~IC)
     min_bic <- ic_table[min(ic_table$BIC)==ic_table$BIC,]
     min_bic$AIC <- min_bic$run
     min_bic$run <- 'min_BIC'
@@ -377,7 +388,8 @@ if (length(args)>2 & map) {
 if (map) {
     ic_table <- NULL
     for (run in runs) {
-        ic <- read.table(paste(run, '/', snv_dir, id, '_fit.txt', sep=''), sep='\t', header=F, stringsAsFactors = F)
+        ic <- read.table(paste(run, '/', snv_dir, id, '_fit.txt', sep=''),
+                         sep='\t', header=F, stringsAsFactors = F)
         ic <- ic[ic$V1%in%allowed_ics,]
         ic <- cbind(run=run, ic)
         ic_table <- rbind(ic_table, ic)
@@ -387,11 +399,18 @@ if (map) {
         ic_table[ic_table$V1 == aic, 'rank'] <-
             rank(ic_table[ic_table$V1 == aic, 'V2'])
     }
+    colnames(ic_table)[2:3] <- c('IC', 'value')
+    ic_table$run <- factor(ic_table$run, levels=mixedsort(unique(as.character(ic_table$run))))
+    ic_table$IC <- factor(ic_table$IC, levels=allowed_ics)
 }
 
 for (run in runs) {
-    plot1 <- plot_ccf_hist('./', id, snvs, run)
+    outname <- paste(id, run, 'fit.pdf',sep='_')
+    if (run==best_run) {
+        outname <- paste(id, run, 'best_fit.pdf',sep='_')
+    }
 
+    plot1 <- plot_ccf_hist('./', id, snvs, run)
     x <- get_run_info('./', id, run, snvs = snvs)
     dat <- x[[1]]
     plot2 <- ggplot(dat, aes(x=CCF, y=adjusted_vaf,
@@ -408,13 +427,11 @@ for (run in runs) {
     # attach table for convenience, also add BIC/AIC
     sv_clust <- read.table(paste(run, '/', snv_dir, id, '_subclonal_structure.txt', sep=''),
                            header=T, sep='\t', stringsAsFactors=F)
-    tabout <- sv_clust[order(as.numeric(sv_clust[,3]),decreasing=TRUE),]
-    sc_tab <- tableGrob(tabout, rows=c())
 
     ic_tab <- NULL
     if (map) {
         ic <- ic_table[ic_table$run==run,]
-        rownames(ic) <- ic$V1
+        rownames(ic) <- ic$IC
         ic <- ic[,-c(1:2)]
         colnames(ic)[1] <- 'value'
         ic$value <- round(ic$value, 4)
@@ -422,9 +439,18 @@ for (run in runs) {
     }
 
     if (coclus) {
+        snv <- get_run_info('./', id, run, snvs = TRUE)[[1]]
+        svs <- get_run_info('./', id, run, snvs = FALSE)[[1]]
+        svs <- data.frame(table(svs$most_likely_assignment))
+        colnames(svs) <- c('cluster', 'SVs')
+        sv_clust <- merge(sv_clust, svs, by='cluster')
+        sv_clust$SNVs <- sv_clust$n_ssms-sv_clust$SVs
+        colnames(sv_clust)[2] <- 'variants'
+        tabout <- sv_clust[order(as.numeric(sv_clust[,3]),decreasing=TRUE),]
+        sc_tab <- tableGrob(tabout, rows=c())
+
         plot3 <- plot_ccf_hist('./', id, snvs = TRUE, pick_run = run)
-        dat <- get_run_info('./', id, run, snvs = TRUE)[[1]]
-        plot4 <- ggplot(dat, aes(x=CCF, y=adjusted_vaf,
+        plot4 <- ggplot(snv, aes(x=CCF, y=adjusted_vaf,
                                  fill=factor(most_likely_assignment),
                                  colour=factor(most_likely_assignment))) +
             scale_fill_brewer(palette = 'Set1', name = "Cluster") +
@@ -434,32 +460,43 @@ for (run in runs) {
                   axis.text.x = element_text(size = 14),
                   axis.text.y = element_text(size = 14)) +
             geom_point(size=1) + xlim(0,2) + ylim(0,1) + ylab('VAF')
+        plot5 <- plot_ccf_hist('./', id, snvs = TRUE, pick_run = run, varclass = TRUE)
+        plot6 <- plot_ccf_hist('./', id, snvs = FALSE, pick_run = run, varclass = TRUE)
 
         if (map) {
-            height <- 8+round(nrow(tabout)*0.2)
-            pdf(paste(id, run, 'fit.pdf',sep='_'), height=height, width=9)
+            height <- 10+round(nrow(tabout)*0.2)
+            pdf(outname, height=height, width=9)
             grid.arrange(sc_tab, ic_tab,
                          plot1 + ggtitle(paste(run, 'SVs')), plot2 + ggtitle('SVs'),
-                         plot3 + ggtitle(paste(run, 'SNVs')), plot4 + ggtitle('SNVs'), nrow=3)
+                         plot3 + ggtitle(paste(run, 'SNVs')), plot4 + ggtitle('SNVs'),
+                         plot5 + ggtitle(paste(run, 'SNVs')), plot6 + ggtitle(paste(run, 'SVs')), ncol=2)
             dev.off()
         } else {
             blank <- grid.rect(gp=gpar(col="white"))
-            height <- 8+round(nrow(tabout)*0.2)
-            pdf(paste(id, run, 'fit.pdf',sep='_'), height=height, width=9)
+            height <- 10+round(nrow(tabout)*0.2)
+            pdf(outname, height=height, width=9)
             grid.arrange(sc_tab, blank, plot1 + ggtitle(paste(run, 'SVs')), plot2 + ggtitle('SVs'),
-                         plot3 + ggtitle(paste(run, 'SNVs')), plot4 + ggtitle('SNVs'), nrow=3)
+                         plot3 + ggtitle(paste(run, 'SNVs')), plot4 + ggtitle('SNVs'),
+                         plot5 + ggtitle(paste(run, 'SNVs')), plot6 + ggtitle(paste(run, 'SVs')), ncol=2)
             dev.off()
         }
     } else {
+        varname <- 'SVs'
+        if(snvs){varname<-'SNVs'}
+        colnames(sv_clust)[2] <- varname
+        tabout <- sv_clust[order(as.numeric(sv_clust[,3]),decreasing=TRUE),]
+        sc_tab <- tableGrob(tabout, rows=c())
+        plot3 <- plot_ccf_hist('./', id, snvs, run, varclass = TRUE)
+        blank <- grid.rect(gp=gpar(col="white"))
         if (map) {
-            height <- 5+round(nrow(tabout)*0.2)
-            pdf(paste(id, run, 'fit.pdf',sep='_'), height=height, width=9)
-            grid.arrange(sc_tab, plot1, ic_tab, plot2, ncol=2)
+            height <- 7+round(nrow(tabout)*0.2)
+            pdf(outname, height=height, width=9)
+            grid.arrange(sc_tab, ic_tab, plot1, plot2, plot3, ncol=2)
             dev.off()
         } else {
-            height <- 7+round(nrow(tabout)*0.2)
-            pdf(paste(id, run, 'fit.pdf',sep='_'), height=height, width=5)
-            grid.arrange(sc_tab, plot1, plot2, ncol=1)
+            height <- 9+round(nrow(tabout)*0.2)
+            pdf(outname, height=height, width=5)
+            grid.arrange(sc_tab, plot1, plot2, plot3, ncol=1)
             dev.off()
         }
     }
@@ -490,17 +527,19 @@ rp <- ggplot(data = all_runs_scs) +
                                         colour = factor(cluster)), alpha=0.2) +
     geom_jitter(data = all_runs_ccfs, aes(x = run, y = CCF, colour = factor(cluster)),
                 position=position_jitter(width=0.4), alpha = 0.5, size = 2) +
-    scale_size(range = c(4,25), guide = FALSE) +
+    scale_size(range = c(4,25), guide = FALSE) + ggtitle('Clustering summary') +
     geom_point(aes(x = run, y = CCF, size=variant_proportion), colour = '#4d4d4d', alpha=0.8)
 
 if (map) {
+    svic_plot <- ggplot(ic_table[ic_table$IC=='svc_IC',], aes(y=value, x=run, group=1)) +
+        ylab('value') + geom_line() + ggtitle('SVclone IC')
     pdf_name <- paste(id, '_run_summary.pdf', sep='')
     pdf(pdf_name, height = 6, width = 18 + (length(runs)/2))
-    grid.arrange(rp, ic_plot, svic_plot, nrow = 1)
+    suppressWarnings(grid.arrange(rp, svic_plot, nrow = 1))
     dev.off()
 } else {
     pdf_name <- paste(id, '_run_summary.pdf', sep='')
     pdf(pdf_name, height = 6, width = 8 + (length(runs)/6))
-    print(rp)
+    suppressWarnings(print(rp))
     dev.off()
 }
