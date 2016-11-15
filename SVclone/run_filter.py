@@ -277,8 +277,8 @@ def match_snv_copy_numbers(snv_df, cnv_df, strict_cnv_filt):
             match = cnv_tmp[overlaps]
 
             if len(match)==0 and strict_cnv_filt:
-                gtyped.append('')
-            elif lem(match)==0:
+                gtypes.append('')
+            elif len(match)==0:
                 # assign closest CNV state with closest boundary to SNV
                 closest_start = min(abs(cnv_start_list-pos))
                 closest_end   = min(abs(cnv_end_list-pos))
