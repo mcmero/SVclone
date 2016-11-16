@@ -182,7 +182,6 @@ def get_most_likely_cn_states(cn_states, s, d, phi, pi, pval_cutoff, norm):
 def get_initialisation(nclus_init, Ndp, sparams, sup, dep, norm, cn_states, sens, phi_limit, pval_cutoff):
 
     purity, ploidy, mean_cov = sparams['pi'], sparams['ploidy'], sparams['mean_cov']
-
     mlcn, mlpv = get_most_likely_cn_states(cn_states, sup, dep, np.ones(len(sup)), purity, pval_cutoff, norm)
     data = (sup / dep) * (1 / np.array(mlpv))
     data = np.array([d if d < phi_limit else phi_limit for d in data])
@@ -230,8 +229,7 @@ def cluster(sup,dep,cn_states,Nvar,sparams,cparams,phi_limit,norm,recluster=Fals
     n_iter = cparams['n_iter'] if not recluster else int(cparams['n_iter']/4)
     burn = cparams['burn'] if not recluster else int(cparams['burn']/4)
     thin, use_map = cparams['thin'], cparams['use_map']
-    nclus_init = cparams['nclus_init'] if not recluster else 1
-    nclus_init = Ndp if nclus_init > Ndp else nclus_init
+    nclus_init = cparams['nclus_init']
 
     purity, ploidy = sparams['pi'], sparams['ploidy']
     fixed_alpha, gamma_a, gamma_b = cparams['fixed_alpha'], cparams['alpha'], cparams['beta']
@@ -265,9 +263,22 @@ def cluster(sup,dep,cn_states,Nvar,sparams,cparams,phi_limit,norm,recluster=Fals
         value[-1] = 1-sum(value[:-1])
         return value
 
-    z_init, phi_init = get_initialisation(nclus_init, Ndp, sparams, sup, dep, norm,
-                                          cn_states, sens, phi_limit, pval_cutoff)
+    z_init = np.zeros(Nvar)
+    phi_init = np.random.rand(Ndp) * phi_limit
+
+    # use smart initialisation if nclus_init specified
+    if not nclus_init.lower() in ("no", "false", "f"):
+        try:
+            nclus_init = nclus_init if not recluster else 1
+            nclus_init = int(nclus_init)
+            nclus_init = Ndp if nclus_init > Ndp else nclus_init
+            z_init, phi_init = get_initialisation(nclus_init, Ndp, sparams, sup, dep, norm,
+                                                  cn_states, sens, phi_limit, pval_cutoff)
+        except ValueError:
+            pass
+
     z = pm.Categorical('z', p = p, size = Nvar, value = z_init)
+    phi_init = np.array([sens if x < sens else x for x in phi_init])
     phi_k = pm.Uniform('phi_k', lower = sens, upper = phi_limit, size = Ndp, value=phi_init)
 
     @pm.deterministic
