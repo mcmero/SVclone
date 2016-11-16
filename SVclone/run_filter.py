@@ -469,7 +469,6 @@ def adjust_sv_read_counts(sv_df,pi,pl,min_dep,rlen,Config):
         print('Filtered out %d SVs with any subclonal CNV states.' % (len(sv_df) - len(sv_filt)))
         sv_df = sv_filt
 
-    print('Keeping %d SVs' % len(sv_df))
     n = zip(np.array(sv_df.norm1.values),np.array(sv_df.norm2.values))
     s = np.array(sv_df.split1.values+sv_df.split2.values)
     d = np.array(sv_df.spanning.values)
@@ -643,7 +642,6 @@ def run(args):
             snv_df = match_snv_copy_numbers(snv_df,cnv_df,strict_cnv_filt)
             snv_df = run_cnv_filter(snv_df,cnvs,ploidy,neutral,filter_otl,strict_cnv_filt,
                                     filter_subclonal_cnvs,are_snvs=True)
-            print('Keeping %d SNVs' % len(snv_df))
     else:
         print('No CNV input defined, assuming all loci major/minor allele copy-numbers are ploidy/2')
         if len(sv_df)>0:
@@ -661,7 +659,6 @@ def run(args):
             snv_df['gtype'] = default_gtype
             snv_df = run_cnv_filter(snv_df,cnvs,ploidy,neutral,filter_otl,strict_cnv_filt,
                                     filter_subclonal_cnvs,are_snvs=True)
-            print('Keeping %d SNVs' % len(snv_df))
 
     if len(sv_df)==0 and len(snv_df)==0:
         raise ValueError('No variants found to output!')
@@ -670,6 +667,7 @@ def run(args):
         sv_df.index = range(len(sv_df)) #reindex
         sv_df = adjust_sv_read_counts(sv_df,pi,ploidy,min_dep,rlen,Config)
         sv_df.to_csv('%s/%s_filtered_svs.tsv'%(out,sample),sep='\t',index=False,na_rep='')
+        print('Final filtered SV count: %d' % len(sv_df))
 
     if len(snv_df)>0:
         if subsample > 0 and subsample < len(snv_df):
@@ -679,3 +677,4 @@ def run(args):
         snv_df = sort_by_loc(snv_df)
         snv_df.index = range(len(snv_df)) #reindex
         snv_df.to_csv('%s/%s_filtered_snvs.tsv'%(out,sample),sep='\t',index=False,na_rep='')
+        print('Final filtered SNV count: %d' % len(snv_df))
