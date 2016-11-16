@@ -228,9 +228,9 @@ plot_hist <- function(wd, base_name, snvs, pick_run='best', varclass=FALSE, vaf=
     clus_freqs <- table(dat$most_likely_assignment)
     minor_clusts <- names(clus_freqs[clus_freqs/nrow(dat) <= 0.04])
 
-    if (length(minor_clusts) != 0) {
-        dat <- dat[!dat$most_likely_assignment%in%minor_clusts,]
-    }
+    # if (length(minor_clusts) != 0) {
+    #     dat <- dat[!dat$most_likely_assignment%in%minor_clusts,]
+    # }
 
     dat$most_likely_assignment <- factor(dat$most_likely_assignment)
     plotvar <- 'Cluster'
@@ -454,7 +454,8 @@ for (run in runs) {
         svs <- get_run_info('./', id, run, snvs = FALSE)[[1]]
         svs <- data.frame(table(svs$most_likely_assignment))
         colnames(svs) <- c('cluster', 'SVs')
-        sv_clust <- merge(sv_clust, svs, by='cluster')
+        sv_clust <- merge(sv_clust, svs, by='cluster', all.x=T, all.y=T)
+        sv_clust[is.na(sv_clust)] <- 0
         sv_clust$SNVs <- sv_clust$n_ssms-sv_clust$SVs
         colnames(sv_clust)[2] <- 'variants'
         tabout <- sv_clust[order(as.numeric(sv_clust[,3]),decreasing=TRUE),]
@@ -481,7 +482,7 @@ for (run in runs) {
             grid.arrange(sc_tab, ic_tab,
                          plot1 + ggtitle(paste(run, 'SVs')), plot2 + ggtitle('SVs'),
                          plot5 + ggtitle(paste(run, 'SNVs')), plot6 + ggtitle('SNVs'),
-                         plot7 + ggtitle(paste(run, 'SNVs')), plot8 + ggtitle(paste(run, 'SVs')),
+                         plot8 + ggtitle(paste(run, 'SVs')), plot7 + ggtitle(paste(run, 'SNVs')),
                          plot3 + ggtitle(paste(run, 'SVs')), plot4 + ggtitle(paste(run, 'SNVs')), ncol=2)
             dev.off()
         } else {
@@ -490,7 +491,7 @@ for (run in runs) {
             pdf(outname, height=height, width=9)
             grid.arrange(sc_tab, blank, plot1 + ggtitle(paste(run, 'SVs')), plot2 + ggtitle('SVs'),
                          plot5 + ggtitle(paste(run, 'SNVs')), plot6 + ggtitle('SNVs'),
-                         plot7 + ggtitle(paste(run, 'SNVs')), plot8 + ggtitle(paste(run, 'SVs')),
+                         plot8 + ggtitle(paste(run, 'SVs')), plot7 + ggtitle(paste(run, 'SNVs')),
                          plot3 + ggtitle(paste(run, 'SVs')), plot4 + ggtitle(paste(run, 'SNVs')), ncol=2)
             dev.off()
         }
