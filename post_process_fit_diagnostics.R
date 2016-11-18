@@ -3,11 +3,15 @@
 args <- commandArgs(trailingOnly = TRUE)
 
 if(length(args)==0 | args[1]=='-h') {
-    print('Usage: Rscript <workingdir> <sample id> --map --snvs --coclus')
+    print('Usage: Rscript <workingdir> <sample id> <battenberg CNs> (opt) --map --snvs --coclus')
 }
 
-setwd(args[1])
+rundir <- getwd()
+wd <- args[1]
+setwd(wd)
+
 id <- args[2]
+bbf <- args[3]
 map <- FALSE
 clus_stab <- FALSE
 snvs <- FALSE
@@ -259,7 +263,7 @@ plot_hist <- function(wd, base_name, snvs, pick_run='best', varclass=FALSE, vaf=
     var_hist <- var_hist + theme_minimal() + xlim(0,2) + ggtitle(pick_run) + ylab('') +
         scale_fill_brewer(palette = 'Set1', name = plotvar) +
         scale_color_brewer(palette = 'Set1', name = plotvar) +
-        theme(plot.title = element_text(size = 16, face = "bold"),
+        theme(plot.title = element_text(size = 16, face = 'bold'),
               axis.title = element_text(size = 16),
               axis.text.x = element_text(size = 14),
               axis.text.y = element_text(size = 14))
@@ -273,12 +277,39 @@ plot_hist <- function(wd, base_name, snvs, pick_run='best', varclass=FALSE, vaf=
     return(var_hist)
 }
 
-# Get number of runs
-runs <- get_runs('./')
-best_run <- 'none'
-if(map){best_run <- get_best_run('./', id, 'svc_IC')}
+# gg_color_hue <- function(n) {
+#     hues = seq(15, 375, length=n+1)
+#     hcl(h=hues, l=65, c=100)[1:n]
+# }
 
-# cluster proportions plot
+# ggQQ <- function(dat) {
+#     p <- ggplot(dat) +
+#         stat_qq(aes(sample=CCF, colour = factor(most_likely_assignment)), alpha = 0.5)
+#
+#     dat_tmp <- dat[!is.na(dat$CCF),]
+#
+#     clusts <- as.numeric(names(table(dat_tmp$most_likely_assignment)))
+#     cols <- gg_color_hue(length(clusts))
+#
+#     for (i in 1:length(clusts)) {
+#         clus <- clusts[i]
+#         tmp <- dat_tmp[dat_tmp$most_likely_assignment == clus, 'CCF']
+#         y <- quantile(tmp, c(0.25, 0.75))
+#         x <- qnorm(c(0.25, 0.75))
+#         slope <- diff(y)/diff(x)
+#         intercept <- y[1L] - slope * x[1L]
+#
+#         p <- p + geom_abline(slope = slope, intercept = intercept, color=cols[i], alpha=0.5)
+#     }
+#
+#     return(p)
+# }
+
+############################################################################################
+# Cluster proportions
+############################################################################################
+
+runs <- get_runs('./')
 clusts <- NULL
 for (run in runs) {
     sv_clust <- read.table(paste(run, '/', snv_dir, id, '_subclonal_structure.txt', sep=''),
@@ -352,47 +383,8 @@ if (length(args)>2 & map) {
 }
 
 ############################################################################################
-# Plot histogram of clusters + QQ plots
+# Plot histogram of clusters
 ############################################################################################
-
-# get_adjust_factor <- function(dat, pur) {
-#     cn_v <- dat$most_likely_variant_copynumber
-#     cn_r <- dat$most_likely_ref_copynumber
-#     mut_prop <- dat$prop_chrs_bearing_mutation
-#     vaf <- dat$adjusted_vaf
-#     frac <- dat$cn_frac
-#     # prob <- (cn_v * mut_prop * pur) / (2 * (1 - pur) + cn_v * pur)
-#     prob <- (cn_v * mut_prop * pur) / (2 * (1 - pur) + (cn_v * pur * frac) + (cn_r * pur * (1. - frac)))
-#     return((1 / prob))
-# }
-
-# gg_color_hue <- function(n) {
-#     hues = seq(15, 375, length=n+1)
-#     hcl(h=hues, l=65, c=100)[1:n]
-# }
-
-# ggQQ <- function(dat) {
-#     p <- ggplot(dat) +
-#         stat_qq(aes(sample=CCF, colour = factor(most_likely_assignment)), alpha = 0.5)
-#
-#     dat_tmp <- dat[!is.na(dat$CCF),]
-#
-#     clusts <- as.numeric(names(table(dat_tmp$most_likely_assignment)))
-#     cols <- gg_color_hue(length(clusts))
-#
-#     for (i in 1:length(clusts)) {
-#         clus <- clusts[i]
-#         tmp <- dat_tmp[dat_tmp$most_likely_assignment == clus, 'CCF']
-#         y <- quantile(tmp, c(0.25, 0.75))
-#         x <- qnorm(c(0.25, 0.75))
-#         slope <- diff(y)/diff(x)
-#         intercept <- y[1L] - slope * x[1L]
-#
-#         p <- p + geom_abline(slope = slope, intercept = intercept, color=cols[i], alpha=0.5)
-#     }
-#
-#     return(p)
-# }
 
 if (map) {
     ic_table <- NULL
@@ -413,6 +405,9 @@ if (map) {
     ic_table$IC <- factor(ic_table$IC, levels=allowed_ics)
 }
 
+best_run <- 'none'
+if(map){best_run <- get_best_run('./', id, 'svc_IC')}
+
 for (run in runs) {
     outname <- paste(id, run, 'fit.pdf',sep='_')
     if (map & run==best_run) {
@@ -427,9 +422,9 @@ for (run in runs) {
     plot3 <- ggplot(dat, aes(x=CCF, y=adjusted_vaf,
                              fill=factor(most_likely_assignment),
                              colour=factor(most_likely_assignment))) +
-                    scale_fill_brewer(palette = 'Set1', name = "Cluster") +
-                    scale_color_brewer(palette = 'Set1', name = "Cluster") +
-                    theme(plot.title = element_text(size = 16, face = "bold"),
+                    scale_fill_brewer(palette = 'Set1', name = 'Cluster') +
+                    scale_color_brewer(palette = 'Set1', name = 'Cluster') +
+                    theme(plot.title = element_text(size = 16, face = 'bold'),
                           axis.title = element_text(size = 16),
                           axis.text.x = element_text(size = 14),
                           axis.text.y = element_text(size = 14)) +
@@ -464,9 +459,9 @@ for (run in runs) {
         plot4 <- ggplot(snv, aes(x=CCF, y=adjusted_vaf,
                                  fill=factor(most_likely_assignment),
                                  colour=factor(most_likely_assignment))) +
-            scale_fill_brewer(palette = 'Set1', name = "Cluster") +
-            scale_color_brewer(palette = 'Set1', name = "Cluster") +
-            theme(plot.title = element_text(size = 16, face = "bold"),
+            scale_fill_brewer(palette = 'Set1', name = 'Cluster') +
+            scale_color_brewer(palette = 'Set1', name = 'Cluster') +
+            theme(plot.title = element_text(size = 16, face = 'bold'),
                   axis.title = element_text(size = 16),
                   axis.text.x = element_text(size = 14),
                   axis.text.y = element_text(size = 14)) +
@@ -486,7 +481,7 @@ for (run in runs) {
                          plot3 + ggtitle(paste(run, 'SVs')), plot4 + ggtitle(paste(run, 'SNVs')), ncol=2)
             dev.off()
         } else {
-            blank <- grid.rect(gp=gpar(col="white"))
+            blank <- grid.rect(gp=gpar(col='white'))
             height <- 12+round(nrow(tabout)*0.2)
             pdf(outname, height=height, width=9)
             grid.arrange(sc_tab, blank, plot1 + ggtitle(paste(run, 'SVs')), plot2 + ggtitle('SVs'),
@@ -515,6 +510,10 @@ for (run in runs) {
         }
     }
 }
+
+############################################################################################
+# Summary plots
+############################################################################################
 
 var_id <- c('chr1','pos1','chr2','pos2')
 if (snvs) {var_id <- c('chr', 'pos')}
@@ -555,5 +554,65 @@ if (map) {
     pdf_name <- paste(id, '_run_summary.pdf', sep='')
     pdf(pdf_name, height = 6, width = 7 + (length(runs)/6))
     suppressWarnings(print(rp))
+    dev.off()
+}
+
+############################################################################################
+# Circos plots
+############################################################################################
+
+setwd(rundir)
+if (!startsWith(bbf, '--') & file.exists(bbf) & !snvs & !coclus) {
+    bb <- read.delim(bbf, sep='\t', stringsAsFactors = F)
+    clon <- bb[is.na(bb$nMaj2_A),]
+    subclon <- bb[!is.na(bb$nMaj2_A),]
+
+    pdat <- clon[,c('chr','startpos','endpos')]
+    pdat <- cbind(pdat, value=clon$nMaj1_A+clon$nMin1_A)
+    pdat$chr <- paste('chr', pdat$chr,sep='')
+    colnames(pdat) <- c('chr','start','end','value')
+    pdat$value[pdat$value > 6] <- 6
+
+    pdat2 <- subclon[,c('chr','startpos','endpos')]
+    pdat2 <- cbind(pdat2, value=apply(cbind(subclon$nMaj2_A+subclon$nMin2_A,subclon$nMaj1_A+subclon$nMin1_A),1,mean))
+    pdat2$chr <- paste('chr',pdat2$chr,sep='')
+
+    pdat2$value[pdat2$value > 6] <- 6
+    colnames(pdat2)<-c('chr','start','end','value')
+
+    pdat <- list(pdat, pdat2)
+    colours <- c('#0000FF80','#FF000080','darkgreen','#0000FF40','#FF000040','#00FF0040')
+
+    run <- 'run0'; if (map) {run <- best_run}
+    tmp <- get_run_info(wd, id, run)
+    dat <- tmp[[1]]
+    sv_clust <- tmp[[2]]
+
+    suppressMessages(require(circlize))
+    pdf(paste(wd, '/', id, '_', run, '_circos.pdf', sep=''), height=12, width=12)
+    par(mar = c(1, 1, 1, 1))
+    circos.initializeWithIdeogram(plotType = c('axis','labels'))
+    circos.genomicTrackPlotRegion(pdat,ylim=c(0,6),
+                                  panel.fun=function(region,value,...){
+                                      i=getI(...)
+                                      circos.genomicLines(region,value,type='segment',lwd=3,col=colours[i],...)
+                                  })
+
+    for(j in 1:nrow(dat))
+    {
+        x <- dat[j,]
+        ccf <- x$CCF
+        if(ccf>1.2) {
+            lcol=colours[1]
+        } else if(ccf<1.2 & ccf>0.9) {
+            lcol=colours[1]
+        } else {
+            lcol=colours[2]
+        }
+        circos.link(paste('chr',as.character(x[1]),sep=''),
+                    as.numeric(x[2]),
+                    paste('chr',as.character(x[4]),sep=''),
+                    as.numeric(x[5]),col=lcol,lwd=2)
+    }
     dev.off()
 }
