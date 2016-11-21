@@ -87,6 +87,29 @@ def load_cnvs(cnv_file):
             select_cols = ['chr','startpos','endpos','gtype']
             return cnv_df[select_cols]
 
+        elif 'battenberg_nMaj1_A' in cnv_df.columns.values:
+            # also battenberg
+            cnv_df['chr'] = map(str,cnv_df['chr'])
+            cnv_df['battenberg_nMaj1_A'] = map(float,cnv_df['battenberg_nMaj1_A'])
+            cnv_df['battenberg_nMin1_A'] = map(float,cnv_df['battenberg_nMin1_A'])
+
+            gtypes = cnv_df['battenberg_nMaj1_A'].map(str) + ',' + \
+                     cnv_df['battenberg_nMin1_A'].map(str) + ',' + \
+                     cnv_df['battenberg_frac1_A'].map(str)
+
+            # join subclonal genotypes
+            subclonal = cnv_df['battenberg_frac1_A']!=1
+            cnv_sc    = cnv_df[subclonal]
+            gtypes[subclonal] = gtypes[subclonal] + '|' + \
+                                cnv_sc['battenberg_nMaj2_A'].map(str) + ',' + \
+                                cnv_sc['battenberg_nMin2_A'].map(str) + ',' + \
+                                cnv_sc['battenberg_frac2_A'].map(str)
+
+            cnv_df['gtype'] = gtypes
+            cnv_df = cnv_df.rename(columns={'start': 'startpos', 'end': 'endpos'})
+            select_cols = ['chr','startpos','endpos','gtype']
+            return cnv_df[select_cols]
+
         elif 'clonal_frequency' in cnv_df.columns.values:
             # pcawg clonal copy-number calls format
             cnv_df['chromosome'] = cnv_df.chromosome.map(str)
