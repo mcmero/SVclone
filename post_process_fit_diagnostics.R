@@ -562,8 +562,17 @@ if (map) {
 ############################################################################################
 
 setwd(rundir)
-if (!startsWith(bbf, '--') & file.exists(bbf) & !snvs & !coclus) {
+if (!startsWith(bbf, '--') & file.exists(bbf)) {
     bb <- read.delim(bbf, sep='\t', stringsAsFactors = F)
+
+    if (length(grep('battenberg', colnames(bb))) > 0) {
+        colnames(bb)[2:3] <- c('startpos', 'endpos')
+        colnames(bb)[grep('nMaj1_A', colnames(bb))] <- 'nMaj1_A'
+        colnames(bb)[grep('nMin1_A', colnames(bb))] <- 'nMin1_A'
+        colnames(bb)[grep('nMaj2_A', colnames(bb))] <- 'nMaj2_A'
+        colnames(bb)[grep('nMin2_A', colnames(bb))] <- 'nMin2_A'
+    }
+
     clon <- bb[is.na(bb$nMaj2_A),]
     subclon <- bb[!is.na(bb$nMaj2_A),]
 
@@ -587,32 +596,54 @@ if (!startsWith(bbf, '--') & file.exists(bbf) & !snvs & !coclus) {
     tmp <- get_run_info(wd, id, run)
     dat <- tmp[[1]]
     sv_clust <- tmp[[2]]
+    sv_clust$cluster <- sv_clust$cluster-1
 
     suppressMessages(require(circlize))
     pdf(paste(wd, '/', id, '_', run, '_circos.pdf', sep=''), height=12, width=12)
     par(mar = c(1, 1, 1, 1))
     circos.initializeWithIdeogram(plotType = c('axis','labels'))
+
+    if (coclus | snvs) {
+        res_snvs <- read.table(paste(wd, '/', run, '/snvs/', id, '_cluster_certainty.txt', sep=''),
+                               sep='\t', header=T, stringsAsFactors=F)
+        psnvs <- list()
+        count <- 1
+        for(i in 1:nrow(sv_clust)) {
+            curr <- res_snvs[res_snvs$most_likely_assignment==sv_clust[i,1],]
+            if(nrow(curr)>1)
+            {
+                bed <- curr[,c(1,2)]
+                bed[,1] <- paste('chr',bed[,1],sep='')
+                bed <- cbind(bed,bed[,2]+1,as.numeric(sv_clust[i,3]))
+                colnames(bed) <- c('chr','start','end','value')
+                psnvs[[count]] <- bed
+                count <- count + 1
+            }
+        }
+        circos.genomicDensity(psnvs, col=colours, overlap=FALSE)
+    }
     circos.genomicTrackPlotRegion(pdat,ylim=c(0,6),
                                   panel.fun=function(region,value,...){
                                       i=getI(...)
                                       circos.genomicLines(region,value,type='segment',lwd=3,col=colours[i],...)
                                   })
-
-    for(j in 1:nrow(dat))
-    {
-        x <- dat[j,]
-        ccf <- x$CCF
-        if(ccf>1.2) {
-            lcol=colours[1]
-        } else if(ccf<1.2 & ccf>0.9) {
-            lcol=colours[1]
-        } else {
-            lcol=colours[2]
+    if (coclus | !snvs) {
+        for(j in 1:nrow(dat))
+        {
+            x <- dat[j,]
+            ccf <- x$CCF
+            if(ccf>1.2) {
+                lcol=colours[1]
+            } else if(ccf<1.2 & ccf>0.9) {
+                lcol=colours[1]
+            } else {
+                lcol=colours[2]
+            }
+            circos.link(paste('chr',as.character(x[1]),sep=''),
+                        as.numeric(x[2]),
+                        paste('chr',as.character(x[4]),sep=''),
+                        as.numeric(x[5]),col=lcol,lwd=2)
         }
-        circos.link(paste('chr',as.character(x[1]),sep=''),
-                    as.numeric(x[2]),
-                    paste('chr',as.character(x[4]),sep=''),
-                    as.numeric(x[5]),col=lcol,lwd=2)
     }
     dev.off()
 }
