@@ -6,6 +6,7 @@ Commandline input for running SV
 
 from SVclone import run_filter
 from SVclone import run_clus
+from SVclone import post_assign
 from SVclone.SVprocess import annotate
 from SVclone.SVprocess import count
 
@@ -76,14 +77,14 @@ filter_parser.add_argument("-cfg","--config",dest="cfg",default="svclone_config.
 
 filter_parser.add_argument("-s","--sample",dest="sample",required=True,
                     help='''Sample name.
-                    WARNING: if clustering using mutect SNVs, the sample name must match the sample name 
+                    WARNING: if clustering using mutect SNVs, the sample name must match the sample name
                     in the vcf file.''')
 
 filter_parser.add_argument("-i","--input",default="",dest="procd_svs",
                     help="Required: Processed structural variation input (comma separated if multiple).")
 
 filter_parser.add_argument("-g","--germline",dest="germline",default="",
-                    help='''Germline SVs in output format from process step. If not provided, will 
+                    help='''Germline SVs in output format from process step. If not provided, will
                     assume all SVs are somatic.''')
 
 filter_parser.add_argument("-c","--cnvs",dest="cnvs",default="",
@@ -91,7 +92,7 @@ filter_parser.add_argument("-c","--cnvs",dest="cnvs",default="",
 
 filter_parser.add_argument("--params",dest="param_file",default="",
                     help='''Read parameters file containing read length, average insert and insert standard
-                    deviation (see README). If not supplied, the default search path is <outdir>/<sample>_params.txt. 
+                    deviation (see README). If not supplied, the default search path is <outdir>/<sample>_params.txt.
                     If the file does not exist, a read length of 100 and mean insert length of 300 will be allocated.''')
 
 filter_parser.add_argument("--snvs",dest="snvs",default="",type=str,
@@ -109,7 +110,7 @@ filter_parser.add_argument("-o","--out",dest="out",default="",
                     help='''Output directory. Default: sample name.''')
 
 filter_parser.add_argument("-p","--purity_ploidy",dest="pp_file",default="",
-                    help='''Tumour purity ploidy file. See README for format. The default file path is 
+                    help='''Tumour purity ploidy file. See README for format. The default file path is
                     <outdir>/purity_ploidy.txt. If not found, default purity = 1 (100%); default ploidy = 2.''')
 
 filter_parser.add_argument("--blacklist", dest="blist", default="",
@@ -139,11 +140,11 @@ cluster_parser.add_argument("-o","--out",dest="out",default="",
 
 cluster_parser.add_argument("--params",dest="param_file",default="",
                     help='''Read parameters file containing read length, average insert and insert standard
-                    deviation (see README). If not supplied, the default search path is <outdir>/<sample>_params.txt. 
+                    deviation (see README). If not supplied, the default search path is <outdir>/<sample>_params.txt.
                     If the file does not exist, a read length of 100 and mean insert length of 300 will be allocated.''')
 
 cluster_parser.add_argument("-p","--purity_ploidy",dest="pp_file",default="",
-                    help='''Tumour purity ploidy file. See README for format. The default file path is 
+                    help='''Tumour purity ploidy file. See README for format. The default file path is
                     <outdir>/purity_ploidy.txt. If not found, default purity = 1 (100%); default ploidy = 2.''')
 
 cluster_parser.add_argument("--snvs",dest="snv_file",default="",
@@ -159,6 +160,45 @@ cluster_parser.add_argument("--XY",dest="XY",action="store_true",
                     help="Specify XY genotype. (Overwrites config file, sets male to True.)")
 
 cluster_parser.set_defaults(func=run_clus.run_clustering)
+
+##########################################################################################################
+
+post_assign_parser = subparsers.add_parser('post_assign', help='Post-assign any SVs and/or SNVs missing from clustering input into most likely cluster.')
+
+post_assign_parser.add_argument("-cfg","--config",dest="cfg",default="svclone_config.ini",
+                    help="Config file.")
+
+post_assign_parser.add_argument("-s","--sample",dest="sample",required=True,
+                    help='''Sample name.''')
+
+post_assign_parser.add_argument("-o","--out",dest="out",default="",
+                    help="Output directory. Must be output directory in which cluster was run. Default: sample name.")
+
+post_assign_parser.add_argument("--svs",default="",dest="sv_file",
+                    help="svinfo.txt file from count step.")
+
+post_assign_parser.add_argument("--snvs",dest="snv_file",default="",
+                    help="SNVs VCF. Must specify snv_format (default: sanger)")
+
+post_assign_parser.add_argument("--snv_format",dest="snv_format",
+                    choices=['sanger','mutect','mutect_callstats','consensus'],default="sanger",
+                    help='''Supplied SNV VCF is in the following input format: sanger (default), mutect, consensus
+                    (PCAWG) or mutect_callstats (non-VCF).''')
+
+post_assign_parser.add_argument("-c","--cnvs",dest="cnv_file",default="",
+                    help='''Phased copy-number states from Battenberg. If not provided, all SVs assumed copy-neutral.''')
+
+post_assign_parser.add_argument("-g","--germline",dest="germline",default="",
+                    help='''Germline SVs in output format from process step. If not provided, will
+                    assume all SVs are somatic.''')
+
+post_assign_parser.add_argument("--XX",dest="XX",action="store_true",
+                    help="Specify XX genotype. (Overwrites config file, sets male to False.)")
+
+post_assign_parser.add_argument("--XY",dest="XY",action="store_true",
+                    help="Specify XY genotype. (Overwrites config file, sets male to True.)")
+
+post_assign_parser.set_defaults(func=post_assign.run_post_assign)
 
 ##########################################################################################################
 
