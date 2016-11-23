@@ -372,7 +372,7 @@ def post_process_clusters(mcmc,sv_df,snv_df,clus_out_dir,sup,dep,norm,cn_states,
         snv_cn_states = cn_states[:len(snv_df)]
         write_output.write_out_files(snv_df,clus_info.copy(),snv_members,
                 snv_probs,snv_ccert,clus_out_dir,sparams['sample'],sparams['pi'],snv_sup,
-                snv_dep,snv_norm,snv_cn_states,run_fit,z_trace,smc_het,cnv_pval,are_snvs=True)
+                snv_dep,snv_norm,snv_cn_states,run_fit,smc_het,cnv_pval,are_snvs=True)
 
     sv_probs = pd.DataFrame()
     sv_ccert = pd.DataFrame()
@@ -398,7 +398,7 @@ def post_process_clusters(mcmc,sv_df,snv_df,clus_out_dir,sup,dep,norm,cn_states,
         sv_cn_states = cn_states[lb:lb+len(sv_df)]
         write_output.write_out_files(sv_df,clus_info.copy(),sv_members,
                     sv_probs,sv_ccert,clus_out_dir,sparams['sample'],sparams['pi'],sv_sup,
-                    sv_dep,sv_norm,sv_cn_states,run_fit,z_trace,smc_het,cnv_pval)
+                    sv_dep,sv_norm,sv_cn_states,run_fit,smc_het,cnv_pval)
 
 def cluster_and_process(sv_df, snv_df, run, out_dir, sample_params, cluster_params, output_params, seeds):
     male = cluster_params['male']

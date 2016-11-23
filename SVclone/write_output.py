@@ -15,7 +15,7 @@ def dump_trace(center_trace, outf):
         df_traces = pd.DataFrame(center_trace)
         df_traces.to_csv(fout, sep='\t', index=False, header=False)
 
-def write_out_files(df, clus_info, clus_members, df_probs, clus_cert, clus_out_dir, sample, pi, sup, dep, norm, cn_states, run_fit, z_trace, smc_het, cnv_pval, are_snvs=False):
+def write_out_files(df, clus_info, clus_members, df_probs, clus_cert, clus_out_dir, sample, pi, sup, dep, norm, cn_states, run_fit, smc_het, cnv_pval, are_snvs=False):
     if are_snvs:
         clus_out_dir = '%s/snvs'%clus_out_dir
         if not os.path.exists(clus_out_dir):

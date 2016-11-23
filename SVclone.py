@@ -188,6 +188,10 @@ post_assign_parser.add_argument("--snv_format",dest="snv_format",
 post_assign_parser.add_argument("-c","--cnvs",dest="cnv_file",default="",
                     help='''Phased copy-number states from Battenberg. If not provided, all SVs assumed copy-neutral.''')
 
+post_assign_parser.add_argument("-r","--run",dest="run",default="best",
+                    help='''Run for which to perform post-assignment. Use "best" for best run (if using MAP).
+                    Will use the best run by default.''')
+
 post_assign_parser.add_argument("-g","--germline",dest="germline",default="",
                     help='''Germline SVs in output format from process step. If not provided, will
                     assume all SVs are somatic.''')

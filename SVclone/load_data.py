@@ -4,6 +4,7 @@ import pandas as pd
 import numpy as np
 import vcf
 import ConfigParser
+import os
 
 from . import cluster
 from SVprocess import load_data as svp_load
@@ -330,3 +331,48 @@ def get_params_cluster_step(sample, cfg, out, pp_file, param_file, XX, XY):
     output_params  = { 'plot': plot, 'smc_het': smc_het, 'cluster_penalty': cluster_penalty, 'fit_metric': fit_metric }
 
     return sample_params, cluster_params, output_params
+
+def get_run_output(rundir, sample, purity, snvs=False):
+    outdir = rundir if not snvs else '%s/snvs/' % rundir
+
+    fit_file   = '%s/%s_fit.txt' % (outdir, sample)
+    scs_file   = '%s/%s_subclonal_structure.txt' % (outdir, sample)
+    ccert_file = '%s/%s_cluster_certainty.txt' % (outdir, sample)
+    probs_file = '%s/%s_assignment_probability_table.txt' % (outdir, sample)
+
+    fit   = pd.DataFrame()
+    scs   = pd.DataFrame()
+    ccert = pd.DataFrame()
+    probs = pd.DataFrame()
+
+    alt_scs_file = '%s/snvs/%s_subclonal_structure.txt' % (rundir, sample)
+    alt_scs_file = alt_scs_file if not snvs else '%s/%s_subclonal_structure.txt' % (rundir, sample)
+
+    if os.path.exists(scs_file):
+        scs = pd.read_csv(scs_file, delimiter = '\t', dtype = None, low_memory = False)
+    elif os.path.exists(alt_scs_file):
+        scs = pd.read_csv(alt_scs_file, delimiter = '\t', dtype = None, low_memory = False)
+    else:
+        raise ValueError('No subclonal structure file exists!')
+
+    # have to rename columns for function compatibility
+    rename_cols =  {'cluster': 'clus_id', 'n_ssms': 'size', 'CCF': 'phi'}
+    scs = scs.rename(columns = rename_cols)
+    scs = scs.drop('proportion', 1)
+
+    if os.path.exists(ccert_file):
+        ccert = pd.read_csv(ccert_file, delimiter = '\t', dtype = None, low_memory = False)
+
+    if os.path.exists(probs_file):
+        probs = pd.read_csv(probs_file, delimiter = '\t', dtype = None, low_memory = False)
+
+    if os.path.exists(fit_file):
+        fit = pd.read_csv(fit_file, delimiter = '\t', dtype = None, low_memory = False)
+
+    if len(ccert) > 0:
+        # have to rename columns for function compatibility
+        rename_cols =  {'average_proportion': 'average_ccf'}
+        ccert = ccert.rename(columns = rename_cols)
+        ccert['average_ccf'] = ccert.average_ccf.values / purity
+
+    return scs, ccert, probs, fit
