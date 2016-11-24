@@ -15,26 +15,28 @@ from SVprocess import load_data as svp_load
 
 def get_var_to_assign(var_df, var_filt_df, snvs = False):
     vartype = 'SNVs' if snvs else 'SVs'
-    var_to_assign = var_df
+    var_to_assign = var_df.copy()
 
     if len(var_filt_df) > 0:
         ids = np.array([])
         if snvs:
-            ids = zip(snv_df.chrom.values, snv_df.pos.values)
+            ids = zip(var_df.chrom.values, var_df.pos.map(str).values)
+            ids = ['%s:%s' % (x,y) for x,y in ids]
         else:
             ids = zip(var_df.chr1.values, var_df.pos1.values, var_df.dir1,
                       var_df.chr2.values, var_df.pos2.values, var_df.dir2)
-        ids = [':'.join([str(y) for y in x]) for x in ids]
+            ids = ['%s:%s:%s:%s:%s:%s' % (x,y,z,a,b,c) for x,y,z,a,b,c in ids]
 
         filt_ids = np.array([])
         if snvs:
-            filt_ids = zip(snv_filt_df.chrom.values, snv_filt_df.pos.values),
+            filt_ids = zip(var_filt_df.chrom.values, var_filt_df.pos.values)
+            filt_ids = ['%s:%s' % (x,y) for x,y in filt_ids]
         else:
             filt_ids = zip(var_filt_df.chr1.values, var_filt_df.pos1.values, var_filt_df.dir1,
                            var_filt_df.chr2.values, var_filt_df.pos2.values, var_filt_df.dir2)
-        filt_ids = [':'.join([str(y) for y in x]) for x in filt_ids]
+            filt_ids = ['%s:%s:%s:%s:%s:%s' % (x,y,z,a,b,c) for x,y,z,a,b,c in filt_ids]
 
-        var_to_assign = var_df[[id not in filt_ids for id in ids]]
+        var_to_assign = var_to_assign[[fid not in filt_ids for fid in ids]]
 
     n = int(len(var_to_assign))
     if snvs:
@@ -45,13 +47,14 @@ def get_var_to_assign(var_df, var_filt_df, snvs = False):
     return var_to_assign
 
 def post_assign_vars(var_df, var_filt_df, rundir, sample, sparams, cparams, snvs = False):
-    pa_dir = '%s_post_assign' % rundir if not snvs else '%s_post_assign/snvs' % rundir
-    if not os.path.exists(pa_dir):
-        os.makedirs(pa_dir)
-    print('Writing output to %s' % pa_dir)
+    pa_outdir = '%s_post_assign/' % rundir
+    if not os.path.exists(pa_outdir):
+        os.makedirs(pa_outdir)
+    print('Writing output to %s' % pa_outdir)
 
     male     = cparams['male']
     adjusted = cparams['adjusted']
+    cnv_pval = cparams['clonal_cnv_pval']
     purity   = sparams['pi']
     ploidy   = sparams['ploidy']
     mean_cov = sparams['mean_cov']
@@ -69,8 +72,9 @@ def post_assign_vars(var_df, var_filt_df, rundir, sample, sparams, cparams, snvs
         if len(var_filt_df) > 0:
             fsup, fdep, fcn_states, fNvar, fnorm = load_data.get_sv_vals(var_filt_df, adjusted, male)
 
+    cn_states = cn_states.values
     best_clus_list = np.array([])
-    if len(scs) > 0:
+    if len(scs) > 1:
         for i in range(Nvar):
             lls = np.array(np.max(cluster.calc_lik(cn_states[i], sup[i], dep[i], scs.phi.values[0], purity, norm[i])[1]))
             for j in range(1, len(scs)):
@@ -80,7 +84,7 @@ def post_assign_vars(var_df, var_filt_df, rundir, sample, sparams, cparams, snvs
             best_clus = np.where(np.max(lls)==lls)[0][0]
             best_clus_list = np.append(best_clus_list, [best_clus])
     else:
-        best_clust_list = [0] * Nvar
+        best_clus_list = [0] * Nvar
 
     best_clus_list = np.array(map(int, best_clus_list))
     phis = scs.phi.values[best_clus_list]
@@ -108,12 +112,12 @@ def post_assign_vars(var_df, var_filt_df, rundir, sample, sparams, cparams, snvs
     dep = np.append(fdep, dep) if len(var_filt_df) > 0 else dep
     norm = np.append(fnorm, norm) if len(var_filt_df) > 0 else norm
     cn_states = np.append(fcn_states, cn_states) if len(var_filt_df) > 0 else cn_states
-    clus_members = ccert.most_likely_assignment.values
+    clus_members = np.array([np.where(ccert.most_likely_assignment.values==i)[0] for i in scs.clus_id.values])
 
-    # CNV pval cutoff set to 0 (which means always select based on phi, not clonal)
+    ipdb.set_trace()
     write_output.write_out_files(df, scs, clus_members, probs, ccert,
-                                 pa_dir, sample, purity, sup, dep,
-                                 norm, cn_states, fit, False, 0, are_snvs = snvs)
+                                 pa_outdir, sample, purity, sup, dep,
+                                 norm, cn_states, fit, False, cnv_pval, are_snvs = snvs)
 
 def run_post_assign(args):
 
@@ -176,7 +180,7 @@ def run_post_assign(args):
         sv_filt_df = pd.DataFrame(sv_filt_df).fillna('')
 
     if os.path.exists(snv_filt_file):
-        snv_filt_df = pd.read_csnv(snv_filt_file,delimiter='\t',dtype=None,header=0,low_memory=False)
+        snv_filt_df = pd.read_csv(snv_filt_file,delimiter='\t',dtype=None,header=0,low_memory=False)
         snv_filt_df = pd.DataFrame(snv_filt_df).fillna('')
 
     if len(sv_filt_df) == 0 and len(snv_filt_df) == 0:
@@ -248,6 +252,7 @@ def run_post_assign(args):
 
     if len(snv_df) > 0:
         snv_to_assign = get_var_to_assign(snv_df, snv_filt_df, snvs = True)
-        print('Post assigning %d SNVs...' % len(snv_to_assign))
-        post_assign_vars(snv_to_assign, snv_filt_df, rundir, sample, sample_params, cluster_params, snvs = True)
+        if len(snv_to_assign) > 0:
+            print('Post assigning %d SNVs...' % len(snv_to_assign))
+            post_assign_vars(snv_to_assign, snv_filt_df, rundir, sample, sample_params, cluster_params, snvs = True)
 
