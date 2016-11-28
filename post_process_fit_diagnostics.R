@@ -1,4 +1,9 @@
-# get a metric for stability of clusters
+############################################################################################################################
+# SVclone output post processing
+#
+# Draw some helpful plots to interpret SVclone output
+# plots run summary, IC and SNV/SV histograms
+############################################################################################################################
 
 args <- commandArgs(trailingOnly = TRUE)
 
@@ -109,14 +114,13 @@ get_runs <- function(wd) {
 
 get_ic_table <- function(wd, base_name, runs, allowed_ics = c('BIC', 'AIC', 'AICc', 'svc_IC'), clus_penalty = 4, snvs = FALSE) {
     snv_pref <- ''
-    #samp_dir <- paste(wd, base_name, sep='/')
     samp_dir <- wd
 
     if (snvs) {snv_pref <- 'snvs/'}
     ic_table <- NULL
     for (run in runs) {
         ic <- read.table(paste(samp_dir, '/', run, '/', snv_pref, base_name, '_fit.txt', sep=''), sep='\t', header=F, stringsAsFactors = F)
-        sc <- read.table(paste(samp_dir, '/', run, '/', base_name, '_subclonal_structure.txt', sep=''), sep='\t', header=T, stringsAsFactors = F)
+        sc <- read.table(paste(samp_dir, '/', run, '/', snv_pref, base_name, '_subclonal_structure.txt', sep=''), sep='\t', header=T, stringsAsFactors = F)
 
         accept_solution <- !(nrow(sc) == 1 & sc[1,'CCF'] < 0.9)
         ic$V3 <- accept_solution
@@ -129,9 +133,9 @@ get_ic_table <- function(wd, base_name, runs, allowed_ics = c('BIC', 'AIC', 'AIC
     return(ic_table)
 }
 
-get_best_run <- function(wd, base_name, ic_metric, clus_penalty = 4) {
+get_best_run <- function(wd, base_name, ic_metric, clus_penalty = 4, snvs = FALSE) {
     runs <- get_runs(wd)
-    ic <- get_ic_table(wd, base_name, runs, clus_penalty = clus_penalty)
+    ic <- get_ic_table(wd, base_name, runs, clus_penalty = clus_penalty, snvs = snvs)
 
     min_ic <- min(ic[ic$V1==ic_metric,'V2'])
     best_run <- as.character(ic[ic$V2==min_ic & ic$V1==ic_metric,'run'])[1]
@@ -406,7 +410,7 @@ if (map) {
 }
 
 best_run <- 'none'
-if(map){best_run <- get_best_run('./', id, 'svc_IC')}
+if(map){best_run <- get_best_run('./', id, 'svc_IC', snvs = snvs)}
 
 for (run in runs) {
     outname <- paste(id, run, 'fit.pdf',sep='_')
@@ -563,6 +567,7 @@ if (map) {
 
 setwd(rundir)
 if (!startsWith(bbf, '--') & file.exists(bbf)) {
+    print('Potting circos...')
     bb <- read.delim(bbf, sep='\t', stringsAsFactors = F)
 
     if (length(grep('battenberg', colnames(bb))) > 0) {
