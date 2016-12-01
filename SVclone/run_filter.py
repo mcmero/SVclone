@@ -328,7 +328,6 @@ def match_copy_numbers(var_df, cnv_df, strict_cnv_filt, sv_offset, bp_fields=['c
             var_df.loc[var_indexes,cnv_dist_field] = float('nan')
             continue
 
-        sv_offset = sv_offset
         sv_info = zip(var_tmp[pos_field],var_tmp[dir_field],var_tmp[class_field],var_tmp[other_pos_field])
         for pos,direct,classification,otherpos in sv_info:
             cnv_gtype,adj_cnv = '',''
