@@ -185,6 +185,12 @@ post_assign_parser.add_argument("--snv_format",dest="snv_format",
                     help='''Supplied SNV VCF is in the following input format: sanger (default), mutect, consensus
                     (PCAWG) or mutect_callstats (non-VCF).''')
 
+post_assign_parser.add_argument("--filt_svs",default="",dest="sv_filt_file",
+                    help="Filtered SV file that was used to run clustering. Defaults to <out>/<sample>_filtered_svs.tsv")
+
+post_assign_parser.add_argument("--filt_snvs",dest="snv_filt_file",default="",
+                    help="Filtered SNV file that was used to run clustering. Defaults to <out>/<sample>_filtered_snvs.tsv")
+
 post_assign_parser.add_argument("-c","--cnvs",dest="cnv_file",default="",
                     help='''Phased copy-number states from Battenberg. If not provided, all SVs assumed copy-neutral.''')
 

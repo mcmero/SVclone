@@ -4,7 +4,7 @@ import os
 import pandas as pd
 import numpy as np
 import ConfigParser
-import ipdb
+import math
 
 from . import cluster
 from . import load_data
@@ -40,7 +40,7 @@ def get_var_to_assign(var_df, var_filt_df, snvs = False):
 
     n = int(len(var_to_assign))
     if snvs:
-        var_to_assign['support'] = map(int, var_to_assign['var'].values)
+        var_to_assign['support'] = map(float, var_to_assign['var'].values)
     var_to_assign = var_to_assign[var_to_assign.support.values > 0]
     print('Filtered out %d %s with no read support' % (int(n - len(var_to_assign)), vartype))
 
@@ -72,8 +72,9 @@ def post_assign_vars(var_df, var_filt_df, rundir, sample, sparams, cparams, snvs
         if len(var_filt_df) > 0:
             fsup, fdep, fcn_states, fNvar, fnorm = load_data.get_sv_vals(var_filt_df, adjusted, male)
 
-    cn_states = cn_states.values
     best_clus_list = np.array([])
+    clus_probs = np.array([])
+
     if len(scs) > 1:
         for i in range(Nvar):
             lls = np.array(np.max(cluster.calc_lik(cn_states[i], sup[i], dep[i], scs.phi.values[0], purity, norm[i])[1]))
@@ -81,10 +82,14 @@ def post_assign_vars(var_df, var_filt_df, rundir, sample, sparams, cparams, snvs
                 ll = cluster.calc_lik(cn_states[i], sup[i], dep[i], scs.phi.values[j], purity, norm[i])[1]
                 lls = np.append(lls, np.max(ll))
 
+            lls_conv = [math.e ** ll for ll in lls]
+            ll_probs = [float(lc) / sum(lls_conv) for lc in lls_conv]
+            clus_probs = np.concatenate([clus_probs, [ll_probs]], axis=0) if len(clus_probs)>0 else [ll_probs]
             best_clus = np.where(np.max(lls)==lls)[0][0]
             best_clus_list = np.append(best_clus_list, [best_clus])
     else:
         best_clus_list = [0] * Nvar
+        clus_probs     = np.array([[1.]] * Nvar)
 
     best_clus_list = np.array(map(int, best_clus_list))
     phis = scs.phi.values[best_clus_list]
@@ -93,28 +98,41 @@ def post_assign_vars(var_df, var_filt_df, rundir, sample, sparams, cparams, snvs
         idx = scs.index[scs.clus_id.values==clus].values[0]
         scs = scs.set_value(idx, 'size', scs['size'][idx]+1)
 
-    lim = 3 if snvs else 6
-    ccert_add = var_df[var_df.columns.values[:lim]]
+    hpd_lo = 'HPD_lo'
+    hpd_hi = 'HPD_hi'
+    if len(ccert) > 0:
+        hpd_lo = ccert.columns.values[-2]
+        hpd_hi = ccert.columns.values[-1]
+        ccert[hpd_lo] = ccert[hpd_lo]/purity
+        ccert[hpd_hi] = ccert[hpd_hi]/purity
+
+
+    lolim = 0 if snvs else 1
+    uplim = 2 if snvs else 7
+    ccert_add = var_df[var_df.columns.values[lolim:uplim]]
     ccert_add['most_likely_assignment'] = best_clus_list
     ccert_add['average_ccf'] = np.array(phis)
-    ccert_add['95_HPD_lo'] = float('nan')
-    ccert_add['95_HPD_hi'] = float('nan')
-    ccert = pd.concat([ccert, ccert_add])
+    ccert_add[hpd_lo] = float('nan')
+    ccert_add[hpd_hi] = float('nan')
+    ccert = pd.concat([ccert, ccert_add], axis=0)
 
-    probs_add = var_df[var_df.columns.values[:lim]]
-    prob_cols = probs.columns.values[lim:]
-    for i in prob_cols:
-        probs_add[i] = float('nan')
+    # NOTE: clus probabilities are of a different format here
+    # CN likelihoods are converted to probabilities,
+    # rather than probs being based on MCMC traces
+    probs_add = var_df[var_df.columns.values[lolim:uplim]]
+    uplim = uplim if snvs else uplim - 1
+    prob_cols = probs.columns.values[uplim:]
+    for idx,pc in enumerate(prob_cols):
+        probs_add[pc] = [round(cp, 2) for cp in clus_probs[:,idx]]
 
-    probs = pd.concat([probs, probs_add])
-    df = pd.concat([var_filt_df, var_df])
+    probs = pd.concat([probs, probs_add], axis=0)
+    df = pd.concat([var_filt_df, var_df], axis=0)
     sup = np.append(fsup, sup) if len(var_filt_df) > 0 else sup
     dep = np.append(fdep, dep) if len(var_filt_df) > 0 else dep
     norm = np.append(fnorm, norm) if len(var_filt_df) > 0 else norm
     cn_states = np.append(fcn_states, cn_states) if len(var_filt_df) > 0 else cn_states
     clus_members = np.array([np.where(ccert.most_likely_assignment.values==i)[0] for i in scs.clus_id.values])
 
-    ipdb.set_trace()
     write_output.write_out_files(df, scs, clus_members, probs, ccert,
                                  pa_outdir, sample, purity, sup, dep,
                                  norm, cn_states, fit, False, cnv_pval, are_snvs = snvs)
@@ -128,6 +146,8 @@ def run_post_assign(args):
     snv_format      = args.snv_format
     sv_file         = args.sv_file
     cnv_file        = args.cnv_file
+    sv_filt_file    = args.sv_filt_file
+    snv_filt_file   = args.snv_filt_file
     run             = args.run
     gml             = args.germline
     XX              = args.XX
@@ -169,8 +189,8 @@ def run_post_assign(args):
     if sv_file != '' and not os.path.exists(sv_file):
         raise OSError('Specified SV file does not exist!')
 
-    sv_filt_file = '%s/%s_filtered_svs.tsv' % (out, sample)
-    snv_filt_file = '%s/%s_filtered_snvs.tsv' % (out, sample)
+    sv_filt_file = '%s/%s_filtered_svs.tsv' % (out, sample) if sv_filt_file == '' else sv_filt_file
+    snv_filt_file = '%s/%s_filtered_snvs.tsv' % (out, sample) if snv_filt_file == '' else snv_filt_file
 
     sv_filt_df  = pd.DataFrame()
     snv_filt_df = pd.DataFrame()
@@ -182,6 +202,7 @@ def run_post_assign(args):
     if os.path.exists(snv_filt_file):
         snv_filt_df = pd.read_csv(snv_filt_file,delimiter='\t',dtype=None,header=0,low_memory=False)
         snv_filt_df = pd.DataFrame(snv_filt_df).fillna('')
+        snv_filt_df['support'] = map(float, snv_filt_df['var'].values)
 
     if len(sv_filt_df) == 0 and len(snv_filt_df) == 0:
         raise ValueError('Output directory filtered variant files do not exist or are empty!')
