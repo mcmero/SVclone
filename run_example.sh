@@ -13,3 +13,11 @@ sample=tumour_p80_DEL
 ./SVclone.py cluster -s $sample
 
 Rscript post_process_fit_diagnostics.R $sample $sample
+
+# uncomment below to test run with SNVs:
+
+#./SVclone.py filter -s $sample -i ${sample}/${sample}_svinfo.txt -p example_data/purity_ploidy.txt --snvs example_data/tumour_p80_DEL_snvs.vcf --snv_format mutect
+
+#./SVclone.py cluster -s $sample
+
+#Rscript post_process_fit_diagnostics.R $sample $sample --snvs
