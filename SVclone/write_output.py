@@ -3,6 +3,7 @@ import pandas as pd
 import os
 import gzip
 import itertools
+import math
 from operator import methodcaller
 
 from . import dtypes
@@ -74,6 +75,8 @@ def write_out_files(df, clus_info, clus_members, df_probs, clus_cert, clus_out_d
     for idx, var in clus_vars.iterrows():
         gtype1, gtype2 = None, None
         if not are_snvs:
+            if math.isnan(var.ID):
+                continue
             gtype1, gtype2 = var['gtype1'].split('|'), var['gtype2'].split('|')
             gtype1, gtype2 = map(methodcaller('split', ','), gtype1), map(methodcaller('split', ','), gtype2)
 
@@ -118,6 +121,8 @@ def write_out_files(df, clus_info, clus_members, df_probs, clus_cert, clus_out_d
             mlcn_vect = np.append(mlcn_vect, ml_new_row)
             mult_vect = np.append(mult_vect, mult_new_row)
         else:
+            if math.isnan(var.pos):
+                continue
             gtype1 = map(lambda x: x.split(','), var['gtype'].split('|'))
 
             maj_cn1, min_cn1 = map(float, gtype1[0])[:2] if gtype1[0][0]!='' else [0., 0.]
