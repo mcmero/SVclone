@@ -45,7 +45,7 @@ def get_snv_vals(df, male):
     def get_snv_allele_combos(snv):
         return cluster.get_allele_combos(snv.gtype.split('|'))
 
-    cn_states = df.apply(get_snv_allele_combos,axis=1)
+    cn_states = df.apply(get_snv_allele_combos,axis=1).values
     norm = [get_normal_copynumber(c, male) for c in df.chrom.values]
     return b,(n+b),cn_states,len(b),norm
 
