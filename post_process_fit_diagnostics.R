@@ -24,11 +24,9 @@ coclus <- FALSE
 allowed_ics <- c( 'AICc', 'AIC', 'BIC', 'svc_IC')
 snv_dir <- ''
 
-if (length(args) > 2) {
-    map <- '--map' %in% args
-    snvs <- '--snvs' %in% args
-    coclus <- '--coclus' %in% args
-}
+map <- '--map' %in% args
+snvs <- '--snvs' %in% args
+coclus <- '--coclus' %in% args
 
 if (snvs) {snv_dir <- 'snvs/'}
 if (coclus) {snvs<-FALSE}
@@ -98,9 +96,13 @@ get_frac <- function(x, snvs) {
     return(sc1[2])
 }
 
-get_runs <- function(wd) {
+get_runs <- function(wd, filter_out_post=TRUE) {
     runs <- c()
-    for (dir in list.dirs(wd)) {
+    dirlist <- list.dirs(wd)
+    pa <- dirlist[grep('post_assign', dirlist)]
+    if (length(pa)>0) {dirlist <- dirlist[!dirlist%in%pa]}
+
+    for (dir in dirlist) {
         cur_dir <- strsplit(dir,'/')[[1]]
         if (length(cur_dir) <= 1)
             next
@@ -108,6 +110,11 @@ get_runs <- function(wd) {
         if (substring(cur_dir,1,3) == 'run') {
             runs <- c(runs,cur_dir)
         }
+    }
+    if (!filter_out_post & length(pa) > 0) {
+        pa <- pa[sapply(pa, function(x){length(strsplit(x, './')[[1]])<3})]
+        pa <- as.character(sapply(pa, function(x){x<-strsplit(x,'/')[[1]];x<-x[length(x)]}))
+        runs <- c(runs, pa)
     }
     return(unique(runs))
 }
@@ -410,8 +417,13 @@ if (map) {
 }
 
 best_run <- 'none'
-if(map){best_run <- get_best_run('./', id, 'svc_IC', snvs = snvs)}
+if(map) {
+    best_run <- get_best_run('./', id, 'svc_IC', snvs = snvs)
+    post_assign <- paste(best_run, 'post_assign', sep='_')
+    if (file.exists(post_assign)) {best_run <- post_assign}
+}
 
+runs <- get_runs('./', filter_out_post=F)
 for (run in runs) {
     outname <- paste(id, run, 'fit.pdf',sep='_')
     if (map & run==best_run) {
@@ -439,7 +451,7 @@ for (run in runs) {
                            header=T, sep='\t', stringsAsFactors=F)
 
     ic_tab <- NULL
-    if (map) {
+    if (map & length(grep('post', run))==0) {
         ic <- ic_table[ic_table$run==run,]
         rownames(ic) <- ic$IC
         ic <- ic[,-c(1:2)]
@@ -475,7 +487,7 @@ for (run in runs) {
         plot7 <- plot_hist('./', id, snvs = TRUE, pick_run = run, varclass = TRUE)
         plot8 <- plot_hist('./', id, snvs = FALSE, pick_run = run, varclass = TRUE)
 
-        if (map) {
+        if (map & length(grep('post', run))==0) {
             height <- 12+round(nrow(tabout)*0.2)
             pdf(outname, height=height, width=9)
             grid.arrange(sc_tab, ic_tab,
@@ -485,10 +497,9 @@ for (run in runs) {
                          plot3 + ggtitle(paste(run, 'SVs')), plot4 + ggtitle(paste(run, 'SNVs')), ncol=2)
             dev.off()
         } else {
-            blank <- grid.rect(gp=gpar(col='white'))
             height <- 12+round(nrow(tabout)*0.2)
             pdf(outname, height=height, width=9)
-            grid.arrange(sc_tab, blank, plot1 + ggtitle(paste(run, 'SVs')), plot2 + ggtitle('SVs'),
+            grid.arrange(sc_tab, grid.rect(gp=gpar(col='white')), plot1 + ggtitle(paste(run, 'SVs')), plot2 + ggtitle('SVs'),
                          plot5 + ggtitle(paste(run, 'SNVs')), plot6 + ggtitle('SNVs'),
                          plot8 + ggtitle(paste(run, 'SVs')), plot7 + ggtitle(paste(run, 'SNVs')),
                          plot3 + ggtitle(paste(run, 'SVs')), plot4 + ggtitle(paste(run, 'SNVs')), ncol=2)
@@ -501,7 +512,7 @@ for (run in runs) {
         tabout <- sv_clust[order(as.numeric(sv_clust[,3]),decreasing=TRUE),]
         sc_tab <- tableGrob(tabout, rows=c())
         plot4 <- plot_hist('./', id, snvs, run, varclass = TRUE)
-        if (map) {
+        if (map & length(grep('post', run))==0) {
             height <- 7+round(nrow(tabout)*0.2)
             pdf(outname, height=height, width=9)
             grid.arrange(sc_tab, ic_tab, plot1, plot2, plot4, plot3, ncol=2)
@@ -524,6 +535,7 @@ if (snvs) {var_id <- c('chr', 'pos')}
 
 all_runs_ccfs <- NULL
 all_runs_scs <- NULL
+runs <- get_runs('./')
 for(run in runs) {
     runinf <- get_run_info('./', id, run, snvs)
     dat <- runinf[[1]]
