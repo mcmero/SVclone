@@ -23,8 +23,11 @@ def get_var_to_assign(var_df, var_filt_df, snvs = False):
     print('Filtered out %d %s with no read support' % (int(n - len(var_df)), vartype))
 
     if not snvs:
+        var_df['gtype1'] = np.array(map(filt.remove_zero_copynumbers, var_df.gtype1.values))
+        var_df['gtype2'] = np.array(map(filt.remove_zero_copynumbers, var_df.gtype2.values))
+
         n = int(len(var_df))
-        var_df = var_df[np.logical_and(var_df.gtype1.values!='', var_df.gtype2.values!='')]
+        var_df = var_df[np.logical_or(var_df.gtype1.values!='', var_df.gtype2.values!='')]
         print('Filtered out %d %s with no read support' % (int(n - len(var_df)), vartype))
 
     var_to_assign = var_df.copy()
@@ -48,7 +51,6 @@ def get_var_to_assign(var_df, var_filt_df, snvs = False):
             filt_ids = ['%s:%s:%s:%s:%s:%s' % (x,y,z,a,b,c) for x,y,z,a,b,c in filt_ids]
 
         var_to_assign = var_to_assign[[fid not in filt_ids for fid in ids]]
-
 
     return var_to_assign
 
@@ -254,6 +256,7 @@ def run_post_assign(args):
             print('Matching copy-numbers for SNVs...')
             snv_df = filt.match_snv_copy_numbers(snv_df,cnv_df,strict_cnv_filt)
             n = len(snv_df)
+            snv_df['gtype'] = np.array(map(filt.remove_zero_copynumbers, snv_df.gtype.values))
             snv_df = snv_df[snv_df.gtype != '']
             print('Filtered out %d SNVs with no copy-numbers' % (n-len(snv_df)))
     else:
