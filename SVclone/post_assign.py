@@ -15,8 +15,19 @@ from SVprocess import load_data as svp_load
 
 def get_var_to_assign(var_df, var_filt_df, snvs = False):
     vartype = 'SNVs' if snvs else 'SVs'
-    var_to_assign = var_df.copy()
 
+    n = int(len(var_df))
+    if snvs:
+        var_df['support'] = map(float, var_df['var'].values)
+    var_df = var_df[var_df.support.values > 0]
+    print('Filtered out %d %s with no read support' % (int(n - len(var_df)), vartype))
+
+    if not snvs:
+        n = int(len(var_df))
+        var_df = var_df[np.logical_and(var_df.gtype1.values!='', var_df.gtype2.values!='')]
+        print('Filtered out %d %s with no read support' % (int(n - len(var_df)), vartype))
+
+    var_to_assign = var_df.copy()
     if len(var_filt_df) > 0:
         ids = np.array([])
         if snvs:
@@ -38,11 +49,6 @@ def get_var_to_assign(var_df, var_filt_df, snvs = False):
 
         var_to_assign = var_to_assign[[fid not in filt_ids for fid in ids]]
 
-    n = int(len(var_to_assign))
-    if snvs:
-        var_to_assign['support'] = map(float, var_to_assign['var'].values)
-    var_to_assign = var_to_assign[var_to_assign.support.values > 0]
-    print('Filtered out %d %s with no read support' % (int(n - len(var_to_assign)), vartype))
 
     return var_to_assign
 
@@ -50,7 +56,6 @@ def post_assign_vars(var_df, var_filt_df, rundir, sample, sparams, cparams, snvs
     pa_outdir = '%s_post_assign/' % rundir
     if not os.path.exists(pa_outdir):
         os.makedirs(pa_outdir)
-    print('Writing output to %s' % pa_outdir)
 
     male     = cparams['male']
     adjusted = cparams['adjusted']
@@ -133,6 +138,7 @@ def post_assign_vars(var_df, var_filt_df, rundir, sample, sparams, cparams, snvs
     cn_states = np.append(fcn_states, cn_states) if len(var_filt_df) > 0 else cn_states
     clus_members = np.array([np.where(ccert.most_likely_assignment.values==i)[0] for i in scs.clus_id.values])
 
+    print('Writing output to %s' % pa_outdir)
     write_output.write_out_files(df, scs, clus_members, probs, ccert,
                                  pa_outdir, sample, purity, sup, dep,
                                  norm, cn_states, fit, False, cnv_pval, are_snvs = snvs)
