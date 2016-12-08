@@ -356,7 +356,7 @@ def get_params_cluster_step(sample, cfg, out, pp_file, param_file, XX, XY):
     return sample_params, cluster_params, output_params
 
 def get_run_output(rundir, sample, purity, snvs=False):
-    outdir = rundir if not snvs else '%s/snvs/' % rundir
+    outdir = rundir if not snvs or os.path.basename(rundir) == 'best_run_snvs' else '%s/snvs/' % rundir
 
     fit_file   = '%s/%s_fit.txt' % (outdir, sample)
     scs_file   = '%s/%s_subclonal_structure.txt' % (outdir, sample)
