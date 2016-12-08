@@ -467,11 +467,14 @@ def pick_best_run(n_runs, out, sample, ccf_reject, cocluster, fit_metric, cluste
         min_ic = ic_sort[idx]
         struct_file = '%s/run%d/%s%s_subclonal_structure.txt' % (out, min_ic, snv_dir, sample)
         clus_struct = pd.read_csv(struct_file, delimiter='\t', dtype=None, header=0)
-        clus_struct = clus_struct[clus_struct.n_ssms > 3] #filter out small clusters
 
         if len(clus_struct) > 1:
-            break
-        elif clus_struct.CCF[0] > ccf_reject:
+            var_props = clus_struct.n_ssms.map(float).values/sum(clus_struct.n_ssms)
+            clus_struct = clus_struct[var_props > 0.01] #filter out very small clusters
+            if len(clus_struct) > 1:
+                break
+
+        if clus_struct.CCF[0] > ccf_reject:
             break
         else:
             min_ic = -1
