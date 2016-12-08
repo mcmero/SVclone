@@ -101,7 +101,9 @@ def post_assign_vars(var_df, var_filt_df, rundir, sample, sparams, cparams, snvs
     best_clus_list = np.array(map(int, best_clus_list))
     phis = scs.phi.values[best_clus_list]
 
-    for clus in best_clus_list:
+    clusts = scs.clus_id.values
+    for clus_idx in best_clus_list:
+        clus = clusts[clus_idx]
         idx = scs.index[scs.clus_id.values==clus].values[0]
         scs = scs.set_value(idx, 'size', scs['size'][idx]+1)
 
