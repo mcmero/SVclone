@@ -119,7 +119,7 @@ def remove_zero_copynumbers(gtype):
     gtype_tmp = map(methodcaller('split',','),gtype.split('|'))
     if len(gtype_tmp)==1:
         gt = map(float, gtype_tmp[0])
-        if (gt[0]==0 and gt[1]==0):
+        if (gt[0]==0 and gt[1]==0) or gt[0] < 0 or gt[1] < 0:
             gtype = ''
 #    else:
 #        new_gtype = []
