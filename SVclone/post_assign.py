@@ -91,7 +91,7 @@ def post_assign_vars(var_df, var_filt_df, rundir, sample, sparams, cparams, snvs
 
             lls_conv = [math.e ** ll for ll in lls]
             ll_probs = [float(lc) / sum(lls_conv) for lc in lls_conv]
-            clus_probs = np.concatenate([clus_probs, [ll_probs]], axis=0) if len(clus_probs)>0 else [ll_probs]
+            clus_probs = np.concatenate([clus_probs, [ll_probs]], axis=0) if len(clus_probs)>0 else np.array([ll_probs])
             best_clus = np.where(np.max(lls)==lls)[0][0]
             best_clus_list = np.append(best_clus_list, [best_clus])
     else:
