@@ -255,18 +255,18 @@ plot_hist <- function(wd, base_name, snvs, pick_run='best', varclass=FALSE, vaf=
             dat$classification <- rep('SNV', nrow(dat))
         }
         if (vaf) {
-            var_hist <- ggplot(dat, aes(x=as.numeric(dat$adjusted_vaf),fill=classification,color=classification)) +
+            var_hist <- ggplot(dat, aes(x=adjusted_vaf,fill=classification,color=classification)) +
                 geom_histogram(alpha=0.3,binwidth=0.05) + xlab('VAF')
         } else {
-            var_hist <- ggplot(dat, aes(x=as.numeric(dat$CCF),fill=classification,color=classification)) +
+            var_hist <- ggplot(dat, aes(x=CCF,fill=classification,color=classification)) +
                 geom_histogram(alpha=0.3,binwidth=0.05) + xlab('CCF')
         }
     } else {
         if (vaf) {
-            var_hist <- ggplot(dat, aes(x=as.numeric(dat$adjusted_vaf),fill=most_likely_assignment,color=most_likely_assignment)) +
+            var_hist <- ggplot(dat, aes(x=adjusted_vaf,fill=most_likely_assignment,color=most_likely_assignment)) +
                 geom_histogram(alpha=0.3,position='identity',binwidth=0.05) + xlab('VAF')
         } else {
-            var_hist <- ggplot(dat, aes(x=as.numeric(dat$CCF),fill=most_likely_assignment,color=most_likely_assignment)) +
+            var_hist <- ggplot(dat, aes(x=CCF,fill=most_likely_assignment,color=most_likely_assignment)) +
                 geom_histogram(alpha=0.3,position='identity',binwidth=0.05) + xlab('CCF')
         }
     }
@@ -578,7 +578,7 @@ if (map) {
 ############################################################################################
 
 setwd(rundir)
-if (!startsWith(bbf, '--') & file.exists(bbf)) {
+if (!grepl('^--', bbf) & file.exists(bbf)) {
     print('Potting circos...')
     bb <- read.delim(bbf, sep='\t', stringsAsFactors = F)
 
