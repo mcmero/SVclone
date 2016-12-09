@@ -167,20 +167,22 @@ get_gtype <- function(x) {
 # Plotting functions
 ############################################################################################################################
 
-get_run_info <- function(wd, base_name, run, snvs = FALSE) {
+get_run_info <- function(wd, base_name, run, snvs = FALSE, post = FALSE) {
     snv_pref <- ''
     if (snvs) {snv_pref <- 'snvs/'}
     scs_file <-  paste(wd, '/', run, '/', snv_pref, base_name, '_subclonal_structure.txt', sep = '')
     scs <- read.table(scs_file, sep = '\t', header = T)
-    #     scs <- scs[scs$n_ssms>3,]
+    # scs <- scs[scs$n_ssms>3,]
     scs <- scs[order(scs$CCF, decreasing=T), ]
     scs$new_cluster <- 1:nrow(scs)
 
     sv_df <- ''
     if (snvs) {
-        sv_df <- read.table(paste(wd, '/', base_name, '_filtered_snvs.tsv', sep=''), header=T, sep='\t', stringsAsFactors=F)
+        postfix <- if(!post){c('_filtered_snvs.tsv')} else {c('_filtered_snvs_post_assign.tsv')}
+        sv_df <- read.table(paste(wd, '/', base_name, postfix, sep=''), header=T, sep='\t', stringsAsFactors=F)
     } else {
-        sv_df <- read.table(paste(wd, '/', base_name, '_filtered_svs.tsv', sep=''), header=T, sep='\t', stringsAsFactors=F)
+        postfix <- if(!post){c('_filtered_svs.tsv')} else {c('_filtered_svs_post_assign.tsv')}
+        sv_df <- read.table(paste(wd, '/', base_name, postfix, sep=''), header=T, sep='\t', stringsAsFactors=F)
     }
     pur <- get_purity(wd, base_name)
 
@@ -218,12 +220,12 @@ get_run_info <- function(wd, base_name, run, snvs = FALSE) {
     return(list(dat,scs))
 }
 
-plot_hist <- function(wd, base_name, snvs, pick_run='best', varclass=FALSE, vaf=FALSE) {
+plot_hist <- function(wd, base_name, snvs, pick_run='best', varclass=FALSE, vaf=FALSE, post=FALSE) {
     if (pick_run=='best' & map) {
         pick_run <- best_run
     }
 
-    x <- get_run_info(wd, base_name, pick_run, snvs)
+    x <- get_run_info(wd, base_name, pick_run, snvs, post)
     dat <- x[[1]]
     sc <- x[[2]]
     sc$cluster <- sc$cluster-1
@@ -430,9 +432,10 @@ for (run in runs) {
         outname <- paste(id, run, 'best_fit.pdf',sep='_')
     }
 
-    plot1 <- plot_hist('./', id, snvs, run)
-    plot2 <- plot_hist('./', id, snvs = snvs, pick_run = run, vaf = TRUE)
-    x <- get_run_info('./', id, run, snvs = snvs)
+    post <- grepl('post_assign', run)
+    plot1 <- plot_hist('./', id, snvs, run, post = post)
+    plot2 <- plot_hist('./', id, snvs = snvs, pick_run = run, vaf = TRUE, post = post)
+    x <- get_run_info('./', id, run, snvs = snvs, post = post)
     dat <- x[[1]]
 
     plot3 <- ggplot(dat, aes(x=CCF, y=adjusted_vaf,
@@ -461,8 +464,8 @@ for (run in runs) {
     }
 
     if (coclus) {
-        snv <- get_run_info('./', id, run, snvs = TRUE)[[1]]
-        svs <- get_run_info('./', id, run, snvs = FALSE)[[1]]
+        snv <- get_run_info('./', id, run, snvs = TRUE, post = post)[[1]]
+        svs <- get_run_info('./', id, run, snvs = FALSE, post = post)[[1]]
         svs <- data.frame(table(svs$most_likely_assignment))
         colnames(svs) <- c('cluster', 'SVs')
         sv_clust <- merge(sv_clust, svs, by='cluster', all.x=T, all.y=T)
@@ -482,10 +485,10 @@ for (run in runs) {
                   axis.text.x = element_text(size = 14),
                   axis.text.y = element_text(size = 14)) +
             geom_point(size=1) + xlim(0,2) + ylim(0,1) + ylab('VAF')
-        plot5 <- plot_hist('./', id, snvs = TRUE, pick_run = run)
-        plot6 <- plot_hist('./', id, snvs = FALSE, pick_run = run, vaf = TRUE)
-        plot7 <- plot_hist('./', id, snvs = TRUE, pick_run = run, varclass = TRUE)
-        plot8 <- plot_hist('./', id, snvs = FALSE, pick_run = run, varclass = TRUE)
+        plot5 <- plot_hist('./', id, snvs = TRUE, pick_run = run, post = post)
+        plot6 <- plot_hist('./', id, snvs = FALSE, pick_run = run, vaf = TRUE, post = post)
+        plot7 <- plot_hist('./', id, snvs = TRUE, pick_run = run, varclass = TRUE, post = post)
+        plot8 <- plot_hist('./', id, snvs = FALSE, pick_run = run, varclass = TRUE, post = post)
 
         if (map & length(grep('post', run))==0) {
             height <- 12+round(nrow(tabout)*0.2)

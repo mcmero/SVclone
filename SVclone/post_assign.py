@@ -142,10 +142,36 @@ def post_assign_vars(var_df, var_filt_df, rundir, sample, sparams, cparams, snvs
     cn_states = np.append(fcn_states, cn_states) if len(var_filt_df) > 0 else cn_states
     clus_members = np.array([np.where(ccert.most_likely_assignment.values==i)[0] for i in scs.clus_id.values])
 
+    vartype = 'snvs' if snvs else 'svs'
+    df.to_csv('%s/../%s_filtered_%s_post_assign.tsv' % (rundir, sample, vartype), sep='\t', index=False, na_rep='')
     print('Writing output to %s' % pa_outdir)
     write_output.write_out_files(df, scs, clus_members, probs, ccert,
                                  pa_outdir, sample, purity, sup, dep,
                                  norm, cn_states, fit, False, cnv_pval, are_snvs = snvs)
+
+def amend_coclus_results(rundir, sample, sparams):
+    '''
+    correct variant numbers in subclones output file by
+    adding post assigned variants SVs and SNVs together
+    '''
+    purity   = sparams['pi']
+    scs, ccert, probs, fit = load_data.get_run_output(rundir, sample, purity)
+
+    pa_outdir = '%s_post_assign/' % rundir
+    sv_scs, ccert, probs, fit = load_data.get_run_output(pa_outdir, sample, purity, snvs = False)
+    snv_scs, ccert, probs, fit = load_data.get_run_output(pa_outdir, sample, purity, snvs = True)
+
+    correct_sizes = (sv_scs['size'].values - scs['size'].values) + snv_scs['size'].values
+    scs['size'] = correct_sizes
+
+    scs['CCF'] = scs.phi.values
+    scs['phi'] = scs.phi.values * purity
+    scs = scs[['clus_id','size','phi','CCF']]
+    rename_cols =  {'clus_id': 'cluster', 'size': 'n_ssms', 'phi': 'proportion'}
+    scs = scs.rename(columns = rename_cols)
+
+    scs.to_csv('%s/%s_subclonal_structure.txt' % (pa_outdir, sample), sep='\t', index=False)
+    scs.to_csv('%s/snvs/%s_subclonal_structure.txt' % (pa_outdir, sample), sep='\t', index=False)
 
 def run_post_assign(args):
 
@@ -287,4 +313,7 @@ def run_post_assign(args):
         if len(snv_to_assign) > 0:
             print('Post assigning %d SNVs...' % len(snv_to_assign))
             post_assign_vars(snv_to_assign, snv_filt_df, rundir, sample, sample_params, cluster_params, snvs = True)
+
+    if len(sv_df) > 0 and len(snv_df) > 0:
+        amend_coclus_results(rundir, sample, sample_params)
 
