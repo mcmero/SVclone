@@ -236,6 +236,16 @@ def get_adjusted_phis(clus_info, center_trace, cparams):
     else:
         return(phis)
 
+def get_per_variant_phi(z_trace, phi_trace):
+
+    z_phi = np.array(z_trace.copy(), dtype=float)
+    for i in range(len(z_trace)):
+        for j in range(len(z_trace[0])):
+            clus = int(z_trace[i,j])
+            z_phi[i,j] = phi_trace[i, clus]
+
+    return z_phi.mean(axis=0)
+
 def post_process_clusters(mcmc,sv_df,snv_df,clus_out_dir,sup,dep,norm,cn_states,sparams,cparams,output_params,map_):
 
     merge_clusts  = cparams['merge_clusts']
@@ -339,6 +349,8 @@ def post_process_clusters(mcmc,sv_df,snv_df,clus_out_dir,sup,dep,norm,cn_states,
     snv_ccert = pd.DataFrame()
     snv_members = np.empty(0)
 
+    z_phi = get_per_variant_phi(z_trace, center_trace)
+
     # compile run fit statistics
     run_fit = pd.DataFrame()
     if map_ is not None:
@@ -366,13 +378,14 @@ def post_process_clusters(mcmc,sv_df,snv_df,clus_out_dir,sup,dep,norm,cn_states,
         snv_max_probs = np.array(clus_max_prob)[:len(snv_df)]
         snv_members = np.array([np.where(np.array(snv_max_probs)==i)[0] for i in clus_ids])
 
-        snv_sup  = sup[:len(snv_df)]
-        snv_dep  = dep[:len(snv_df)]
-        snv_norm  = norm[:len(snv_df)]
+        snv_sup       = sup[:len(snv_df)]
+        snv_dep       = dep[:len(snv_df)]
+        snv_norm      = norm[:len(snv_df)]
         snv_cn_states = cn_states[:len(snv_df)]
+        snv_z_phi     = z_phi[:len(snv_df)]
         write_output.write_out_files(snv_df,clus_info.copy(),snv_members,
                 snv_probs,snv_ccert,clus_out_dir,sparams['sample'],sparams['pi'],snv_sup,
-                snv_dep,snv_norm,snv_cn_states,run_fit,smc_het,cnv_pval,are_snvs=True)
+                snv_dep,snv_norm,snv_cn_states,run_fit,smc_het,cnv_pval,snv_z_phi,are_snvs=True)
 
     sv_probs = pd.DataFrame()
     sv_ccert = pd.DataFrame()
@@ -392,13 +405,14 @@ def post_process_clusters(mcmc,sv_df,snv_df,clus_out_dir,sup,dep,norm,cn_states,
         sv_max_probs = np.array(clus_max_prob)[:len(sv_df)]
         sv_members = np.array([np.where(np.array(sv_max_probs)==i)[0] for i in clus_ids])
 
-        sv_sup  = sup[lb:lb+len(sv_df)]
-        sv_dep  = dep[lb:lb+len(sv_df)]
-        sv_norm = norm[lb:lb+len(sv_df)]
+        sv_sup       = sup[lb:lb+len(sv_df)]
+        sv_dep       = dep[lb:lb+len(sv_df)]
+        sv_norm      = norm[lb:lb+len(sv_df)]
         sv_cn_states = cn_states[lb:lb+len(sv_df)]
+        sv_z_phi     = z_phi[lb:lb+len(sv_df)]
         write_output.write_out_files(sv_df,clus_info.copy(),sv_members,
                     sv_probs,sv_ccert,clus_out_dir,sparams['sample'],sparams['pi'],sv_sup,
-                    sv_dep,sv_norm,sv_cn_states,run_fit,smc_het,cnv_pval)
+                    sv_dep,sv_norm,sv_cn_states,run_fit,smc_het,cnv_pval,sv_z_phi)
 
 def cluster_and_process(sv_df, snv_df, run, out_dir, sample_params, cluster_params, output_params, seeds):
     male = cluster_params['male']

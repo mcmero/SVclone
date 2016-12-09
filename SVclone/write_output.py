@@ -10,13 +10,26 @@ from . import dtypes
 from . import cluster
 from . import load_data
 
+def adjust_vafs(mlcn_vect, ccert, vafs, pi):
+    '''
+    adjust VAFs to CCFs using pv per variant
+    '''
+    mlcn  = pd.DataFrame(mlcn_vect)
+    phis  = ccert.average_proportion.values / pi
+    probs = mlcn.pv.values / phis
+
+    adj_vafs = (1 / probs) * vafs
+    adj_vafs = np.array([av if av < 2 else 2 for av in adj_vafs])
+
+    return(adj_vafs)
+
 def dump_trace(center_trace, outf):
     outf = '%s.gz' % outf
     with gzip.open(outf, 'wt') as fout:
         df_traces = pd.DataFrame(center_trace)
         df_traces.to_csv(fout, sep='\t', index=False, header=False)
 
-def write_out_files(df, clus_info, clus_members, df_probs, clus_cert, clus_out_dir, sample, pi, sup, dep, norm, cn_states, run_fit, smc_het, cnv_pval, are_snvs=False):
+def write_out_files(df, clus_info, clus_members, df_probs, clus_cert, clus_out_dir, sample, pi, sup, dep, norm, cn_states, run_fit, smc_het, cnv_pval, z_phi, are_snvs=False):
     if are_snvs:
         clus_out_dir = '%s/snvs'%clus_out_dir
         if not os.path.exists(clus_out_dir):
@@ -162,8 +175,27 @@ def write_out_files(df, clus_info, clus_members, df_probs, clus_cert, clus_out_d
     clus_cert = clus_cert.rename(columns = rename_cols)
     df_probs = df_probs.rename(columns = rename_cols)
 
+    ccf_out = pd.DataFrame()
+    if are_snvs:
+        ccf_out = df[df.columns.values[:2]]
+        vafs = df['var'].values / (df['var'].values + df['ref'].values)
+        ccf_out['raw_VAF'] = vafs
+        ccf_out['variant_CCF'] = adjust_vafs(mlcn_vect, clus_cert, vafs, pi)
+        ccf_out['variant_CCF_trace'] = z_phi
+        ccf_out['cluster_proportion'] = clus_cert.average_proportion.values
+        ccf_out['cluster_CCF'] = clus_cert.average_proportion.values / pi
+    else:
+        ccf_out = df[df.columns.values[:7]]
+        ccf_out['raw_mean_VAF'] = df['raw_mean_vaf'].values
+        ccf_out['adjusted_VAF'] = df['adjusted_vaf'].values
+        ccf_out['variant_CCF'] = adjust_vafs(mlcn_vect, clus_cert, df['adjusted_vaf'].values, pi)
+        ccf_out['variant_CCF_trace'] = z_phi
+        ccf_out['cluster_proportion'] = clus_cert.average_proportion.values
+        ccf_out['cluster_CCF'] = clus_cert.average_proportion.values / pi
+
     pd.DataFrame(mlcn_vect).to_csv('%s/%s_most_likely_copynumbers.txt'%(clus_out_dir, sample), sep='\t', index=False)
     pd.DataFrame(mult_vect).to_csv('%s/%s_multiplicity.txt'%(clus_out_dir, sample), sep='\t', index=False)
     pd.DataFrame(cn_vect).to_csv('%s/%s_copynumber.txt'%(clus_out_dir, sample), sep='\t', index=False)
     df_probs.to_csv('%s/%s_assignment_probability_table.txt'%(clus_out_dir, sample), sep='\t', index=False)
     clus_cert.to_csv('%s/%s_cluster_certainty.txt'%(clus_out_dir, sample), sep='\t', index=False)
+    ccf_out.to_csv('%s/%s_vaf_ccf.txt' % (clus_out_dir, sample), sep='\t', index=False)

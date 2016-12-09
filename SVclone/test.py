@@ -48,6 +48,7 @@ ml_cn        = '%s_most_likely_copynumbers.txt' % sample
 mult         = '%s_multiplicity.txt' % sample
 sc_str       = '%s_subclonal_structure.txt' % sample
 n_clus       = 'number_of_clusters.txt'
+ccfs         - '%s_vaf_ccf.txt'
 
 Config = ConfigParser.ConfigParser()
 Config.read(cfg)
@@ -167,6 +168,7 @@ class test(unittest.TestCase):
         sv6 = pd.read_csv('%s/run0/%s' % (outdir, mult), delimiter='\t', dtype=None, header=0, low_memory=False)
         sv7 = pd.read_csv('%s/run0/%s' % (outdir, sc_str), delimiter='\t', dtype=None, header=0, low_memory=False)
         sv8 = pd.read_csv('%s/run0/%s' % (outdir, n_clus), delimiter='\t', dtype=None, header=0, low_memory=False)
+        snv9 = pd.read_csv('%s/run0/snvs/%s' % (outdir, ccfs), delimiter='\t', dtype=None, header=0, low_memory=False)
         snv1 = pd.read_csv('%s/run0/snvs/%s' % (outdir, ass_prob_tbl),
                            delimiter='\t', dtype=None, header=0, low_memory=False)
         snv2 = pd.read_csv('%s/run0/snvs/%s' % (outdir, ccert), delimiter='\t', dtype=None, header=0, low_memory=False)
@@ -175,6 +177,7 @@ class test(unittest.TestCase):
         snv6 = pd.read_csv('%s/run0/snvs/%s' % (outdir, mult), delimiter='\t', dtype=None, header=0, low_memory=False)
         snv7 = pd.read_csv('%s/run0/snvs/%s' % (outdir, sc_str), delimiter='\t', dtype=None, header=0, low_memory=False)
         snv8 = pd.read_csv('%s/run0/snvs/%s' % (outdir, n_clus), delimiter='\t', dtype=None, header=0, low_memory=False)
+        snv9 = pd.read_csv('%s/run0/snvs/%s' % (outdir, ccfs), delimiter='\t', dtype=None, header=0, low_memory=False)
 
         self.assertTrue(len(sv1) == len(sv_df))
         self.assertTrue(len(sv2) == len(sv_df))
@@ -184,6 +187,7 @@ class test(unittest.TestCase):
         self.assertTrue(len(sv6) == len(sv_df))
         self.assertTrue(len(sv7.columns) == 4)
         self.assertTrue(len(sv8) == 1)
+        self.assertTrue(len(sv9) == len(sv_df))
         self.assertTrue(len(snv1) == len(snv_df))
         self.assertTrue(len(snv2) == len(snv_df))
         self.assertTrue(len(snv3) == len(snv_df))
@@ -191,6 +195,7 @@ class test(unittest.TestCase):
         self.assertTrue(len(snv6) == len(snv_df))
         self.assertTrue(len(snv7.columns) == 4)
         self.assertTrue(len(snv8) == 1)
+        self.assertTrue(len(snv9) == len(snv_df))
 
         # coclustering test
         subprocess.call(['rm', '-rf', '%s/run0' % outdir])
@@ -207,6 +212,7 @@ class test(unittest.TestCase):
         snv6 = pd.read_csv('%s/run0/snvs/%s' % (outdir, mult), delimiter='\t', dtype=None, header=0, low_memory=False)
         snv7 = pd.read_csv('%s/run0/snvs/%s' % (outdir, sc_str), delimiter='\t', dtype=None, header=0, low_memory=False)
         snv8 = pd.read_csv('%s/run0/snvs/%s' % (outdir, n_clus), delimiter='\t', dtype=None, header=0, low_memory=False)
+        snv9 = pd.read_csv('%s/run0/snvs/%s' % (outdir, ccfs), delimiter='\t', dtype=None, header=0, low_memory=False)
         sv1 = pd.read_csv('%s/run0/%s' % (outdir, ass_prob_tbl), delimiter='\t', dtype=None, header=0, low_memory=False)
         sv2 = pd.read_csv('%s/run0/%s' % (outdir, ccert), delimiter='\t', dtype=None, header=0, low_memory=False)
         sv3 = pd.read_csv('%s/run0/%s' % (outdir, cn_out), delimiter='\t', dtype=None, header=0, low_memory=False)
@@ -214,6 +220,7 @@ class test(unittest.TestCase):
         sv6 = pd.read_csv('%s/run0/%s' % (outdir, mult), delimiter='\t', dtype=None, header=0, low_memory=False)
         sv7 = pd.read_csv('%s/run0/%s' % (outdir, sc_str), delimiter='\t', dtype=None, header=0, low_memory=False)
         sv8 = pd.read_csv('%s/run0/%s' % (outdir, n_clus), delimiter='\t', dtype=None, header=0, low_memory=False)
+        sv9 = pd.read_csv('%s/run0/%s' % (outdir, ccfs), delimiter='\t', dtype=None, header=0, low_memory=False)
 
         self.assertTrue(len(sv1) == len(sv_df))
         self.assertTrue(len(sv2) == len(sv_df))
@@ -221,12 +228,14 @@ class test(unittest.TestCase):
         self.assertTrue(len(sv5) == len(sv_df))
         self.assertTrue(len(sv6) == len(sv_df))
         self.assertTrue(len(sv8) == 1)
+        self.assertTrue(len(sv9) == len(sv_df))
         self.assertTrue(len(snv1) == len(snv_df))
         self.assertTrue(len(snv2) == len(snv_df))
         self.assertTrue(len(snv3) == len(snv_df))
         self.assertTrue(len(snv5) == len(snv_df))
         self.assertTrue(len(snv6) == len(snv_df))
         self.assertTrue(len(snv8) == 1)
+        self.assertTrue(len(snv9) == len(snv_df))
 
         # TODO - add tests for run selection
 
@@ -275,6 +284,8 @@ class test(unittest.TestCase):
                           delimiter='\t', dtype=None, header=0, low_memory=False)
         sv8 = pd.read_csv('%s/run0_post_assign/%s' % (outdir, n_clus),
                           delimiter='\t', dtype=None, header=0, low_memory=False)
+        sv9 = pd.read_csv('%s/run0_post_assign/%s' % (outdir, ccfs),
+                          delimiter='\t', dtype=None, header=0, low_memory=False)
 
         self.assertTrue(len(sv1) == len(sv_df))
         self.assertTrue(len(sv2) == len(sv_df))
@@ -282,6 +293,7 @@ class test(unittest.TestCase):
         self.assertTrue(len(sv5) == len(sv_df))
         self.assertTrue(len(sv6) == len(sv_df))
         self.assertTrue(len(sv8) == 1)
+        self.assertTrue(len(sv9) == len(sv_df))
 
         snv_to_assign = post_assign.get_var_to_assign(snv_df, snv_filt_df, snvs = True)
         post_assign.post_assign_vars(snv_to_assign, snv_filt_df, rundir, sample, sample_params, cluster_params, snvs = True)
@@ -300,6 +312,8 @@ class test(unittest.TestCase):
                            delimiter='\t', dtype=None, header=0, low_memory=False)
         snv8 = pd.read_csv('%s/run0_post_assign/snvs/%s' % (outdir, n_clus),
                            delimiter='\t', dtype=None, header=0, low_memory=False)
+        snv9 = pd.read_csv('%s/run0_post_assign/snvs/%s' % (outdir, ccfs),
+                           delimiter='\t', dtype=None, header=0, low_memory=False)
 
         self.assertTrue(len(snv1) == len(snv_df))
         self.assertTrue(len(snv2) == len(snv_df))
@@ -307,6 +321,7 @@ class test(unittest.TestCase):
         self.assertTrue(len(snv5) == len(snv_df))
         self.assertTrue(len(snv6) == len(snv_df))
         self.assertTrue(len(snv8) == 1)
+        self.assertTrue(len(snv9) == len(snv_df))
 
     # TODO: more thorough tests checking output
     # TODO: add tests for cluster merging
