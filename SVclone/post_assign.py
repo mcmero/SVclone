@@ -7,6 +7,7 @@ import ConfigParser
 import math
 
 from . import cluster
+from . import run_clus
 from . import load_data
 from . import run_filter as filt
 from . import dtypes
@@ -115,7 +116,6 @@ def post_assign_vars(var_df, var_filt_df, rundir, sample, sparams, cparams, snvs
         ccert[hpd_lo] = ccert[hpd_lo]/purity
         ccert[hpd_hi] = ccert[hpd_hi]/purity
 
-
     lolim = 0 if snvs else 1
     uplim = 2 if snvs else 7
     ccert_add = var_df[var_df.columns.values[lolim:uplim]]
@@ -124,6 +124,17 @@ def post_assign_vars(var_df, var_filt_df, rundir, sample, sparams, cparams, snvs
     ccert_add[hpd_lo] = float('nan')
     ccert_add[hpd_hi] = float('nan')
     ccert = pd.concat([ccert, ccert_add], axis=0)
+
+    z_trace = np.loadtxt('%s/z_trace.txt.gz' % rundir)
+    phi_trace = np.loadtxt('%s/phi_trace.txt.gz' % rundir)
+    z_phi = run_clus.get_per_variant_phi(z_trace, phi_trace)
+    if len(var_filt_df) < len(z_phi):
+        # indicates coclustering, adjust z_phi length
+        z_phi = z_phi[:len(var_filt_df)] if snvs else z_phi[len(z_phi)-len(var_filt_df):]
+
+    z_phi_add = np.empty(len(var_df))
+    z_phi_add[:] = np.NAN
+    z_phi = np.concatenate([z_phi, z_phi_add])
 
     # NOTE: clus probabilities are of a different format here
     # CN likelihoods are converted to probabilities,
@@ -147,7 +158,7 @@ def post_assign_vars(var_df, var_filt_df, rundir, sample, sparams, cparams, snvs
     print('Writing output to %s' % pa_outdir)
     write_output.write_out_files(df, scs, clus_members, probs, ccert,
                                  pa_outdir, sample, purity, sup, dep,
-                                 norm, cn_states, fit, False, cnv_pval, are_snvs = snvs)
+                                 norm, cn_states, fit, False, cnv_pval, z_phi, are_snvs = snvs)
 
 def amend_coclus_results(rundir, sample, sparams):
     '''

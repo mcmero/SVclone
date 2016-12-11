@@ -48,7 +48,7 @@ ml_cn        = '%s_most_likely_copynumbers.txt' % sample
 mult         = '%s_multiplicity.txt' % sample
 sc_str       = '%s_subclonal_structure.txt' % sample
 n_clus       = 'number_of_clusters.txt'
-ccfs         - '%s_vaf_ccf.txt'
+ccfs         = '%s_vaf_ccf.txt' % sample
 
 Config = ConfigParser.ConfigParser()
 Config.read(cfg)
@@ -168,6 +168,9 @@ class test(unittest.TestCase):
         sv6 = pd.read_csv('%s/run0/%s' % (outdir, mult), delimiter='\t', dtype=None, header=0, low_memory=False)
         sv7 = pd.read_csv('%s/run0/%s' % (outdir, sc_str), delimiter='\t', dtype=None, header=0, low_memory=False)
         sv8 = pd.read_csv('%s/run0/%s' % (outdir, n_clus), delimiter='\t', dtype=None, header=0, low_memory=False)
+        sv9 = pd.read_csv('%s/run0/%s' % (outdir, ccfs),
+                          delimiter='\t', dtype=None, header=0, low_memory=False)
+
         snv9 = pd.read_csv('%s/run0/snvs/%s' % (outdir, ccfs), delimiter='\t', dtype=None, header=0, low_memory=False)
         snv1 = pd.read_csv('%s/run0/snvs/%s' % (outdir, ass_prob_tbl),
                            delimiter='\t', dtype=None, header=0, low_memory=False)
@@ -323,7 +326,7 @@ class test(unittest.TestCase):
         self.assertTrue(len(snv8) == 1)
         self.assertTrue(len(snv9) == len(snv_df))
 
-    # TODO: more thorough tests checking output
+    # TODO: add test for map/picking best run
     # TODO: add tests for cluster merging
 
 if __name__ == '__main__':
