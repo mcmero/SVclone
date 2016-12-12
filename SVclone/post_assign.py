@@ -118,6 +118,8 @@ def post_assign_vars(var_df, var_filt_df, rundir, sample, sparams, cparams, snvs
 
     lolim = 0 if snvs else 1
     uplim = 2 if snvs else 7
+    nvar, nvar_filt = len(var_df), len(var_filt_df)
+    var_df.index = range(nvar_filt, nvar_filt + nvar)
     ccert_add = var_df[var_df.columns.values[lolim:uplim]]
     ccert_add['most_likely_assignment'] = best_clus_list
     ccert_add['average_ccf'] = np.array(phis)
