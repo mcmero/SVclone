@@ -108,6 +108,9 @@ def post_assign_vars(var_df, var_filt_df, rundir, sample, sparams, cparams, snvs
         idx = scs.index[scs.clus_id.values==clus].values[0]
         scs = scs.set_value(idx, 'size', scs['size'][idx]+1)
 
+    # convert from position index to cluster index (may differ)
+    best_clus_list = [clusts[clus_idx] for clus_idx in best_clus_list]
+
     hpd_lo = 'HPD_lo'
     hpd_hi = 'HPD_hi'
     if len(ccert) > 0:
