@@ -239,7 +239,7 @@ def cluster(sup,dep,cn_states,Nvar,sparams,cparams,phi_limit,norm,recluster=Fals
 
     if fixed_alpha.lower() in ("yes", "true", "t"):
         fixed = True
-        fixed_alpha = 0.75 / math.log10(Nvar)
+        fixed_alpha = 0.75 / math.log10(Nvar) if Nvar > 10 else 1
     else:
         try:
             fixed_alpha = float(fixed_alpha)
