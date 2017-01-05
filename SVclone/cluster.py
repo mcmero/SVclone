@@ -187,9 +187,9 @@ def get_initialisation(nclus_init, Ndp, sparams, sup, dep, norm, cn_states, sens
     data = np.array([d if d < phi_limit else phi_limit for d in data])
     data = np.array([d if d > sens else sens for d in data])
 
-    # derive sensible N cluster initialisation, based on mean chromosomal copy depth
-    nrpcc = mean_cov * (purity / (purity * ploidy + (1 - purity) * 2))
     if nclus_init < 1:
+        # derive sensible N cluster initialisation, based on mean chromosomal copy depth
+        nrpcc = mean_cov * (purity / (purity * ploidy + (1 - purity) * 2))
         nclus_init = int(round(nrpcc / 5)) # min resolution is about 5 reads between cluster means
 
     kme = KMeans(nclus_init)
@@ -272,8 +272,11 @@ def cluster(sup,dep,cn_states,Nvar,sparams,cparams,phi_limit,norm,recluster=Fals
             nclus_init = nclus_init if not recluster else 1
             nclus_init = int(nclus_init)
             nclus_init = Ndp if nclus_init > Ndp else nclus_init
-            z_init, phi_init = get_initialisation(nclus_init, Ndp, sparams, sup, dep, norm,
-                                                  cn_states, sens, phi_limit, pval_cutoff)
+            if nclus_init == 1:
+                phi_init[0] = 1.
+            else:
+                z_init, phi_init = get_initialisation(nclus_init, Ndp, sparams, sup, dep, norm,
+                                                      cn_states, sens, phi_limit, pval_cutoff)
         except ValueError:
             pass
 
