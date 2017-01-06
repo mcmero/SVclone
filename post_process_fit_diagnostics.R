@@ -421,8 +421,12 @@ if (map) {
 best_run <- 'none'
 if(map) {
     best_run <- get_best_run('./', id, 'svc_IC', snvs = snvs)
-    post_assign <- paste(best_run, 'post_assign', sep='_')
-    if (file.exists(post_assign)) {best_run <- post_assign}
+    post_assign1 <- 'best_run_snvs_post_assign'
+    post_assign2 <- 'best_run_svs_post_assign'
+    post_assign3 <- 'best_run_coclus_post_assign'
+    if (file.exists(post_assign1)){best_run <- post_assign1}
+    if (file.exists(post_assign2)){best_run <- post_assign2}
+    if (file.exists(post_assign3)){best_run <- post_assign3}
 }
 
 runs <- get_runs('./', filter_out_post=F)
