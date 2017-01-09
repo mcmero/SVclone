@@ -80,6 +80,13 @@ def post_assign_vars(var_df, var_filt_df, rundir, sample, sparams, cparams, snvs
         if len(var_filt_df) > 0:
             fsup, fdep, fcn_states, fNvar, fnorm = load_data.get_sv_vals(var_filt_df, adjusted, male)
 
+    no_cn_state = np.array([len(cn)==0 for cn in cn_states])
+    if np.any(no_cn_state):
+        keep = np.invert(no_cn_state)
+        sup, dep, norm, cn_states = sup[keep], dep[keep], np.array(norm)[keep], cn_states[keep]
+        var_df = var_df[keep]
+        Nvar = Nvar - sum(no_cn_state)
+
     best_clus_list = np.array([])
     clus_probs = np.array([])
 
