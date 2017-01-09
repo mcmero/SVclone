@@ -80,6 +80,7 @@ get_frac <- function(x, snvs) {
             gtype <- x['gtype2']
         }
     }
+    if (gtype==''){return(1)}
     sc <- strsplit(gtype, '\\|')[[1]]
     sc <- strsplit(sc,',')
     sc1 <- as.numeric(sc[[1]])
