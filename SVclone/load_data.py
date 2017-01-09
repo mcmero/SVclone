@@ -85,6 +85,7 @@ def load_cnvs(cnv_file):
 
             cnv_df['gtype'] = gtypes
             select_cols = ['chr','startpos','endpos','gtype']
+            cnv_df = cnv_df[np.invert(np.isnan(cnv_df.nMaj1_A.values))]
             return cnv_df[select_cols]
 
         elif 'battenberg_nMaj1_A' in cnv_df.columns.values:
