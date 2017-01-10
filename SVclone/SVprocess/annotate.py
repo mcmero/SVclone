@@ -189,22 +189,12 @@ def is_same_sv(sv1, sv2, threshold):
             return True
     return False
 
-def remove_duplicates(svs, threshold):
-    to_delete = []
-    for idx1, sv1 in enumerate(svs):
-        if idx1+1 == len(svs):
-            break
-        for idx2, sv2 in enumerate(svs[idx1+1:]):
-            if idx1 != idx2:
-                sv1_tmp = (sv1['chr1'], sv1['pos1'], sv1['dir1'],\
-                           sv1['chr2'], sv1['pos2'], sv1['dir2'])
-                sv2_tmp = (sv2['chr1'], sv2['pos1'], sv2['dir1'],\
-                           sv2['chr2'], sv2['pos2'], sv1['dir2'])
-                if is_same_sv(sv1_tmp, sv2_tmp, threshold):
-                    to_delete.append(idx1)
-    svs = np.delete(svs, np.array(to_delete))
-    svs['ID'] = range(0,len(svs)) #re-index
-    return svs
+def remove_duplicates(svs):
+    sv_ids = zip(svs['chr1'], svs['pos1'], svs['dir1'], svs['chr2'], svs['pos2'], svs['dir2'])
+    sv_ids = ['%s:%d:%s:%s:%d:%s:' % (c1, p1, d1, c2, p2, d2) for c1, p1, d1, c2, p2, d2 in sv_ids]
+    sv_ids, idxs = np.unique(sv_ids, return_index=True)
+    #svs['ID'] = range(0,len(svs)) #re-index
+    return svs[idxs]
 
 def get_sv_pos_ranks(sv_list, threshold):
     '''
@@ -454,11 +444,11 @@ def classify_svs(svs, threshold):
     if len(intra_svs) > 0:
         intra_svs = sort_svs(intra_svs)
 
+        sv_id = 0
+        svd_prev_result, prev_sv = None, None
         trx_label = svd.getResultType([svd.SVtypes.translocation])
         intins_label = svd.getResultType([svd.SVtypes.interspersedDuplication])
 
-        sv_id = 0
-        svd_prev_result, prev_sv = None, None
         for idx in range(len(intra_svs)):
             sv = intra_svs[idx]
             if sv['classification'] == '':
@@ -488,6 +478,7 @@ def classify_svs(svs, threshold):
     elif len(inter_svs) > 0:
         svs = inter_svs
 
+    svs = remove_duplicates(svs)
     svs = sort_svs(svs)
     return svs
 
@@ -610,9 +601,8 @@ def preproc_svs(args):
             if new_align != 0:
                 svs[idx]['pos2'] = new_align
 
+
     print('Classifying SVs...')
     svs = classify_svs(svs, threshold)
-    #print('Removing duplicate SVs...')
-    #svs = remove_duplicates(svs, threshold)
     print('Writing SV output...')
     write_svs(svs, outname)
