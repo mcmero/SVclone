@@ -69,6 +69,8 @@ inserts = (max(rlen*2,inserts[0]),inserts[1])
 max_ins = inserts[0]+(3*inserts[1]) #max fragment size = mean fragment len + (fragment std * 3)
 max_dep = ((mean_cov*(max_ins*2))/rlen)*max_cn
 
+clus_th   = {'percent': 0.01, 'absolute': 10}
+
 class test(unittest.TestCase):
 
     def test_01_annotate_count(self):
@@ -271,7 +273,7 @@ class test(unittest.TestCase):
         self.assertTrue(len(sv_to_assign) == (len(sv_df) - len(sv_filt_df)))
 
         sv_to_assign = run_filter.adjust_sv_read_counts(sv_to_assign, pi, ploidy, 0, rlen, Config)
-        post_assign.post_assign_vars(sv_to_assign, sv_filt_df, rundir, sample, sample_params, cluster_params)
+        post_assign.post_assign_vars(sv_to_assign, sv_filt_df, rundir, sample, sample_params, cluster_params, clus_th)
 
         sv1 = pd.read_csv('%s/run0_post_assign/%s' % (outdir, ass_prob_tbl),
                           delimiter='\t', dtype=None, header=0, low_memory=False)
@@ -299,7 +301,8 @@ class test(unittest.TestCase):
         self.assertTrue(len(sv9) == len(sv_df))
 
         snv_to_assign = post_assign.get_var_to_assign(snv_df, snv_filt_df, snvs = True)
-        post_assign.post_assign_vars(snv_to_assign, snv_filt_df, rundir, sample, sample_params, cluster_params, snvs = True)
+        post_assign.post_assign_vars(snv_to_assign, snv_filt_df, rundir, sample, sample_params, cluster_params,
+                                     clus_th, snvs = True)
 
         snv1 = pd.read_csv('%s/run0_post_assign/snvs/%s' % (outdir, ass_prob_tbl),
                            delimiter='\t', dtype=None, header=0, low_memory=False)

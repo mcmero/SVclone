@@ -29,7 +29,7 @@ def get_var_to_assign(var_df, var_filt_df, snvs = False):
 
         n = int(len(var_df))
         var_df = var_df[np.logical_or(var_df.gtype1.values!='', var_df.gtype2.values!='')]
-        print('Filtered out %d %s with no read support' % (int(n - len(var_df)), vartype))
+        print('Filtered out %d %s with missing copy-number states' % (int(n - len(var_df)), vartype))
 
     var_to_assign = var_df.copy()
     if len(var_filt_df) > 0:
@@ -55,7 +55,17 @@ def get_var_to_assign(var_df, var_filt_df, snvs = False):
 
     return var_to_assign
 
-def post_assign_vars(var_df, var_filt_df, rundir, sample, sparams, cparams, snvs = False):
+def get_ll_probs(s, d, n, cn, purity, scs):
+    lls = np.array(np.max(cluster.calc_lik(cn, s, d, scs.phi.values[0], purity, n)[1]))
+    for j in range(1, len(scs)):
+        ll = cluster.calc_lik(cn, s, d, scs.phi.values[j], purity, n)[1]
+        lls = np.append(lls, np.max(ll))
+    lls_conv = [math.e ** ll for ll in lls]
+    ll_probs = [float(lc) / sum(lls_conv) for lc in lls_conv]
+
+    return lls, ll_probs
+
+def post_assign_vars(var_df, var_filt_df, rundir, sample, sparams, cparams, clus_th, snvs = False):
     pa_outdir = '%s_post_assign/' % rundir
     if not os.path.exists(pa_outdir):
         os.makedirs(pa_outdir)
@@ -90,15 +100,15 @@ def post_assign_vars(var_df, var_filt_df, rundir, sample, sparams, cparams, snvs
     best_clus_list = np.array([])
     clus_probs = np.array([])
 
+    # filter out low proportion clusters
+    percent_filt = (scs['size']/sum(scs['size'])).values > clus_th['percent']
+    abs_filt     = scs['size'].values > clus_th['absolute']
+    orig_scs     = scs.copy()
+    scs          = scs[np.logical_and(percent_filt, abs_filt)]
+
     if len(scs) > 1:
         for i in range(Nvar):
-            lls = np.array(np.max(cluster.calc_lik(cn_states[i], sup[i], dep[i], scs.phi.values[0], purity, norm[i])[1]))
-            for j in range(1, len(scs)):
-                ll = cluster.calc_lik(cn_states[i], sup[i], dep[i], scs.phi.values[j], purity, norm[i])[1]
-                lls = np.append(lls, np.max(ll))
-
-            lls_conv = [math.e ** ll for ll in lls]
-            ll_probs = [float(lc) / sum(lls_conv) for lc in lls_conv]
+            lls, ll_probs = get_ll_probs(sup[i], dep[i], norm[i], cn_states[i], purity, scs)
             clus_probs = np.concatenate([clus_probs, [ll_probs]], axis=0) if len(clus_probs)>0 else np.array([ll_probs])
             best_clus = np.where(np.max(lls)==lls)[0][0]
             best_clus_list = np.append(best_clus_list, [best_clus])
@@ -108,6 +118,28 @@ def post_assign_vars(var_df, var_filt_df, rundir, sample, sparams, cparams, snvs
 
     best_clus_list = np.array(map(int, best_clus_list))
     phis = scs.phi.values[best_clus_list]
+
+    # reclassify minor cluster variants if filtered out
+    if len(scs) != len(orig_scs) and len(var_filt_df) > 0:
+        scs_fo = orig_scs[np.invert(np.logical_and(percent_filt, abs_filt))]
+        # drops cols from probabilities dataframe
+        for i in scs_fo.clus_id.values:
+            probs = probs.drop('cluster%d' % i, 1)
+
+        which_reclass = np.where(np.array([cv in scs_fo.clus_id.values for cv in ccert.most_likely_assignment.values]))[0]
+        print('Reassigning %d variants from filtered out clusters' % len(which_reclass))
+        for i in which_reclass:
+            # find most likely cluster for variant
+            lls, ll_probs = get_ll_probs(fsup[i], fdep[i], fnorm[i], fcn_states[i], purity, scs)
+            best_clus = np.where(np.max(lls)==lls)[0][0]
+            best_clus_id = scs.index[scs.clus_id.values==scs.clus_id.values[best_clus]].values[0]
+
+            # change variant's most likely assignment to new membership
+            ccert = ccert.set_value(i, 'most_likely_assignment', best_clus_id)
+
+            # increment subclonal cluster counts with newly assignment variant
+            idx = scs.index[scs.clus_id.values==best_clus_id].values[0]
+            scs = scs.set_value(idx, 'size', scs['size'][idx]+1)
 
     clusts = scs.clus_id.values
     for clus_idx in best_clus_list:
@@ -153,9 +185,14 @@ def post_assign_vars(var_df, var_filt_df, rundir, sample, sparams, cparams, snvs
     # rather than probs being based on MCMC traces
     probs_add = var_df[var_df.columns.values[lolim:uplim]]
     uplim = uplim if snvs else uplim - 1
+
     prob_cols = probs.columns.values[uplim:]
     for idx,pc in enumerate(prob_cols):
-        probs_add[pc] = [round(cp, 2) for cp in clus_probs[:,idx]]
+        probs_add[pc] = 0.
+
+    pa_clus_cols = ['cluster%d' % cid for cid in scs.clus_id.values]
+    for idx,pac in enumerate(pa_clus_cols):
+        probs_add[pac] = [round(cp, 2) for cp in clus_probs[:,idx]]
 
     probs = pd.concat([probs, probs_add], axis=0)
     df = pd.concat([var_filt_df, var_df], axis=0)
@@ -178,14 +215,16 @@ def amend_coclus_results(rundir, sample, sparams):
     adding post assigned variants SVs and SNVs together
     '''
     purity   = sparams['pi']
-    scs, ccert, probs, fit = load_data.get_run_output(rundir, sample, purity)
 
     pa_outdir = '%s_post_assign/' % rundir
-    sv_scs, ccert, probs, fit = load_data.get_run_output(pa_outdir, sample, purity, snvs = False)
-    snv_scs, ccert, probs, fit = load_data.get_run_output(pa_outdir, sample, purity, snvs = True)
+    sv_scs, sv_ccert, sv_probs, fit = load_data.get_run_output(pa_outdir, sample, purity, snvs = False)
+    snv_scs, snv_ccert, snv_probs, fit = load_data.get_run_output(pa_outdir, sample, purity, snvs = True)
 
-    correct_sizes = (sv_scs['size'].values - scs['size'].values) + snv_scs['size'].values
-    scs['size'] = correct_sizes
+    scs = sv_scs.copy()
+    for idx,sc in sv_scs.iterrows():
+        sv_total = sum(sv_ccert.most_likely_assignment.values == int(sc.clus_id))
+        snv_total = sum(snv_ccert.most_likely_assignment.values == int(sc.clus_id))
+        scs = scs.set_value(idx, 'size', snv_total + sv_total)
 
     scs['CCF'] = scs.phi.values
     scs['phi'] = scs.phi.values * purity
@@ -222,6 +261,9 @@ def run_post_assign(args):
 
     sv_offset = int(Config.get('FilterParameters', 'sv_offset'))
     gl_th     = int(Config.get('FilterParameters', 'germline_threshold'))
+    cp_th     = float(Config.get('PostAssignParameters', 'clus_percent_threshold'))
+    ca_th     = int(Config.get('PostAssignParameters', 'clus_absolute_threshold'))
+    clus_th   = {'percent': cp_th, 'absolute': ca_th}
 
     if out != '' and not os.path.exists(out):
         raise ValueError('Specified output directory does not exist!')
@@ -329,13 +371,15 @@ def run_post_assign(args):
         if len(sv_to_assign) > 0:
             sv_to_assign = filt.adjust_sv_read_counts(sv_to_assign, purity, ploidy, 0, rlen, Config)
             print('Post assigning %d SVs...' % len(sv_to_assign))
-            post_assign_vars(sv_to_assign, sv_filt_df, rundir, sample, sample_params, cluster_params)
+            post_assign_vars(sv_to_assign, sv_filt_df, rundir, sample, sample_params,
+                             cluster_params, clus_th)
 
     if len(snv_df) > 0:
         snv_to_assign = get_var_to_assign(snv_df, snv_filt_df, snvs = True)
         if len(snv_to_assign) > 0:
             print('Post assigning %d SNVs...' % len(snv_to_assign))
-            post_assign_vars(snv_to_assign, snv_filt_df, rundir, sample, sample_params, cluster_params, snvs = True)
+            post_assign_vars(snv_to_assign, snv_filt_df, rundir, sample, sample_params,
+                             cluster_params, clus_th, snvs = True)
 
     if len(sv_df) > 0 and len(snv_df) > 0:
         amend_coclus_results(rundir, sample, sample_params)
