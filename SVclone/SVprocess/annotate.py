@@ -5,6 +5,7 @@ import numpy as np
 import vcf
 import pysam
 import os
+import re
 
 from . import load_data
 from . import count
@@ -406,30 +407,88 @@ def infer_sv_dirs(svs, ca, bam, max_dep, sc_len, threshold, blist):
 
     return svs, ca
 
-def classify_svs(svs, threshold):
-    sv_id = 0
-    svd_prev_result, prev_sv = None, None
-    for idx, sv in enumerate(svs):
-        if sv['classification'] == '':
-            sv_class, sv_id, svd_prev_result, prev_sv = \
-                classify_event(sv, sv_id, svd_prev_result, prev_sv)
-            svs[idx]['classification'] = sv_class
-        else:
-            sv_id += 1
-        svs[idx]['ID'] = sv_id
+def nice_sort(ids):
+    # takes into account characters and numbers to sort data intuitively
+    convert = lambda text: int(text) if text.isdigit() else text
+    alphanum_key = lambda key: [ convert(c) for c in re.split('([0-9]+)', key) ]
+    return sorted(ids, key = alphanum_key)
 
-    # reclassify once all have been processed
-    for idx, sv in enumerate(svs):
+def sort_breakend_order(svs):
+    '''
+    per sv, ensure chrom1, chrom2 and pos1, pos2 are ordered
+    '''
+    svs = svs.copy()
+    for sv in np.nditer(svs, op_flags=['readwrite']):
+        if sv['chr1'] == sv['chr2']:
+            if sv['pos1'] > sv['pos2']:
+                ts = sv.copy()
+                sv['pos1'], sv['dir1'] = ts['pos2'], ts['dir2']
+                sv['pos2'], sv['dir2'] = ts['pos1'], ts['dir1']
+        else:
+            chrs = [str(sv['chr1']), str(sv['chr2'])]
+            if not np.all(np.array(chrs) == np.array(nice_sort(chrs))):
+                ts = sv.copy()
+                sv['chr1'], sv['pos1'], sv['dir1'] = ts['chr2'], ts['pos2'], ts['dir2']
+                sv['chr2'], sv['pos2'], sv['dir2'] = ts['chr1'], ts['pos1'], ts['dir1']
+    return svs
+
+def sort_svs(svs):
+    sv_ids = zip(svs['chr1'], svs['pos1'], svs['dir1'], svs['chr2'], svs['pos2'], svs['dir2'])
+    sv_ids = ['%s:%d:%s:%s:%d:%s:' % (c1, p1, d1, c2, p2, d2) for c1, p1, d1, c2, p2, d2 in sv_ids]
+    sv_ids_sorted = nice_sort(sv_ids)
+    sv_idx = [np.where(sid == np.array(sv_ids))[0][0] for sid in sv_ids_sorted]
+    svs = np.array(svs)[sv_idx]
+    return svs
+
+def classify_svs(svs, threshold):
+    svs = sort_breakend_order(svs)
+
+    # classify inter-chromosomal translocations in chroms don't match
+    inter_svs = np.array(filter(lambda sv: sv['chr1'] != sv['chr2'], svs))
+    if len(inter_svs) > 0:
+        for sv in np.nditer(inter_svs, op_flags=['readwrite']):
+            sv['classification'] = 'INTRX'
+
+    # extract only rearrangements from same chromosomes for classifying
+    intra_svs = np.array(filter(lambda sv: sv['chr1'] == sv['chr2'], svs))
+    if len(intra_svs) > 0:
+        intra_svs = sort_svs(intra_svs)
+
         trx_label = svd.getResultType([svd.SVtypes.translocation])
         intins_label = svd.getResultType([svd.SVtypes.interspersedDuplication])
-        if sv['classification'] == intins_label:
-            svs[idx-1]['classification'] = intins_label
-            translocs = svd.detectTransloc(idx, svs, threshold)
-            if len(translocs) > 0:
-                new_idx = idx-1
-                for i in translocs:
-                    svs[i]['classification'] = trx_label
-                    svs[i]['ID'] = new_idx
+
+        sv_id = 0
+        svd_prev_result, prev_sv = None, None
+        for idx in range(len(intra_svs)):
+            sv = intra_svs[idx]
+            if sv['classification'] == '':
+                sv_class, sv_id, svd_prev_result, prev_sv = \
+                    classify_event(sv, sv_id, svd_prev_result, prev_sv)
+                sv['classification'] = sv_class
+            else:
+                sv_id += 1
+            sv['ID'] = sv_id
+
+        # reclassify once all have been processed
+        for idx in range(len(intra_svs)):
+            sv = intra_svs[idx]
+            if sv['classification'] == intins_label:
+                intra_svs[idx-1]['classification'] = intins_label
+                translocs = svd.detectTransloc(idx, intra_svs, threshold)
+                if len(translocs) > 0:
+                    new_idx = idx-1
+                    for i in translocs:
+                        intra_svs[i]['classification'] = trx_label
+                        intra_svs[i]['ID'] = new_idx
+
+    if len(intra_svs) > 0 and len(inter_svs) > 0:
+        svs = np.concatenate([intra_svs, inter_svs])
+    elif len(intra_svs) > 0:
+        svs = intra_svs
+    elif len(inter_svs) > 0:
+        svs = inter_svs
+
+    svs = sort_svs(svs)
     return svs
 
 def write_svs(svs, outname):
@@ -551,9 +610,9 @@ def preproc_svs(args):
             if new_align != 0:
                 svs[idx]['pos2'] = new_align
 
-    print('Removing duplicate SVs...')
-    svs = remove_duplicates(svs, threshold)
     print('Classifying SVs...')
     svs = classify_svs(svs, threshold)
+    #print('Removing duplicate SVs...')
+    #svs = remove_duplicates(svs, threshold)
     print('Writing SV output...')
     write_svs(svs, outname)

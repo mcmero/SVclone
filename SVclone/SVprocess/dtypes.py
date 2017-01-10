@@ -13,16 +13,16 @@ sv_dtype = [('ID', 'int64'),
             ('chr2', 'S20'),
             ('pos2', 'int64'),
             ('dir2', 'S1'),
-            ('classification', 'S100')] 
+            ('classification', 'S100')]
 
-read_dtype = [('query_name', 'S150'), 
-            ('chrom', 'S50'), 
-            ('ref_start', 'int64'), 
-            ('ref_end', 'int64'), 
-            ('align_start', 'int64'), 
-            ('align_end', 'int64'), 
-            ('len', 'int64'), 
-            ('ins_len', 'int64'), 
+read_dtype = [('query_name', 'S150'),
+            ('chrom', 'S50'),
+            ('ref_start', 'int64'),
+            ('ref_end', 'int64'),
+            ('align_start', 'int64'),
+            ('align_end', 'int64'),
+            ('len', 'int64'),
+            ('ins_len', 'int64'),
             ('is_reverse', np.bool)]
 
 #####################################################################
@@ -55,7 +55,7 @@ sv_out_dtype = [('ID', 'int64'),
             ('anomalous', 'int64'),
             ('spanning', 'int64'),
             ('norm1', 'int64'),
-            ('norm2', 'int64'), 
+            ('norm2', 'int64'),
             ('support', 'int64'),
             ('vaf1', float),
             ('vaf2', float)]
