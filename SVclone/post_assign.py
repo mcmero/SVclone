@@ -60,8 +60,11 @@ def get_ll_probs(s, d, n, cn, purity, scs):
     for j in range(1, len(scs)):
         ll = cluster.calc_lik(cn, s, d, scs.phi.values[j], purity, n)[1]
         lls = np.append(lls, np.max(ll))
-    lls_conv = [math.e ** ll for ll in lls]
-    ll_probs = [float(lc) / sum(lls_conv) for lc in lls_conv]
+    try:
+        lls_conv = [math.e ** ll for ll in lls]
+        ll_probs = [float(lc) / sum(lls_conv) for lc in lls_conv]
+    except TypeError:
+        ll_probs = (math.e ** lls) / lls
 
     return lls, ll_probs
 
