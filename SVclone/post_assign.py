@@ -21,7 +21,9 @@ def get_var_to_assign(var_df, var_filt_df, snvs = False):
     if snvs:
         var_df['support'] = map(float, var_df['var'].values)
     var_df = var_df[var_df.support.values > 0]
-    print('Filtered out %d %s with no read support' % (int(n - len(var_df)), vartype))
+    n_filt_out = int(n - len(var_df))
+    if n_filt_out > 0:
+        print('Filtered out %d %s with no read support' % (n_filt_out, vartype))
 
     if not snvs:
         var_df['gtype1'] = np.array(map(filt.remove_zero_copynumbers, var_df.gtype1.values))
@@ -29,7 +31,9 @@ def get_var_to_assign(var_df, var_filt_df, snvs = False):
 
         n = int(len(var_df))
         var_df = var_df[np.logical_or(var_df.gtype1.values!='', var_df.gtype2.values!='')]
-        print('Filtered out %d %s with missing copy-number states' % (int(n - len(var_df)), vartype))
+        n_filt_out = int(n - len(var_df))
+        if n_filt_out > 0:
+            print('Filtered out %d %s with missing copy-number states' % (int(n - len(var_df)), vartype))
 
     var_to_assign = var_df.copy()
     if len(var_filt_df) > 0:
@@ -129,20 +133,22 @@ def post_assign_vars(var_df, var_filt_df, rundir, sample, sparams, cparams, clus
         for i in scs_fo.clus_id.values:
             probs = probs.drop('cluster%d' % i, 1)
 
-        which_reclass = np.where(np.array([cv in scs_fo.clus_id.values for cv in ccert.most_likely_assignment.values]))[0]
-        print('Reassigning %d variants from filtered out clusters' % len(which_reclass))
-        for i in which_reclass:
-            # find most likely cluster for variant
-            lls, ll_probs = get_ll_probs(fsup[i], fdep[i], fnorm[i], fcn_states[i], purity, scs)
-            best_clus = np.where(np.max(lls)==lls)[0][0]
-            best_clus_id = scs.index[scs.clus_id.values==scs.clus_id.values[best_clus]].values[0]
+        mla = ccert.most_likely_assignment.values
+        which_reclass = np.where(np.array([cv in scs_fo.clus_id.values for cv in mla]))[0]
+        if len(which_reclass) > 0:
+            print('Reassigning %d variants from filtered out clusters' % len(which_reclass))
+            for i in which_reclass:
+                # find most likely cluster for variant
+                lls, ll_probs = get_ll_probs(fsup[i], fdep[i], fnorm[i], fcn_states[i], purity, scs)
+                best_clus = np.where(np.max(lls)==lls)[0][0]
+                best_clus_id = scs.index[scs.clus_id.values==scs.clus_id.values[best_clus]].values[0]
 
-            # change variant's most likely assignment to new membership
-            ccert = ccert.set_value(i, 'most_likely_assignment', best_clus_id)
+                # change variant's most likely assignment to new membership
+                ccert = ccert.set_value(i, 'most_likely_assignment', best_clus_id)
 
-            # increment subclonal cluster counts with newly assignment variant
-            idx = scs.index[scs.clus_id.values==best_clus_id].values[0]
-            scs = scs.set_value(idx, 'size', scs['size'][idx]+1)
+                # increment subclonal cluster counts with newly assignment variant
+                idx = scs.index[scs.clus_id.values==best_clus_id].values[0]
+                scs = scs.set_value(idx, 'size', scs['size'][idx]+1)
 
     clusts = scs.clus_id.values
     for clus_idx in best_clus_list:
