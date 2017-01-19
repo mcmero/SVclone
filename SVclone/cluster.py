@@ -97,7 +97,7 @@ def calc_lik_with_clonal(combo, si, di, phi_i, pi, ni):
 
     # calculate with clonal phi
     pvs_cl = np.array([get_pv(np.array(1), c, pi, ni) for c in combo])
-    lls_cl = np.array([pm.binomial_like(si, di, pvs[i]) for i,c in enumerate(combo)])-0.00000001
+    lls_cl = np.array([pm.binomial_like(si, di, pvs_cl[i]) for i,c in enumerate(combo)])-0.00000001
 
     return np.array([[pvs, lls], [pvs_cl, lls_cl]])
 
@@ -151,7 +151,7 @@ def get_most_likely_cn(combo, cn_lik, pval_cutoff):
         return empty_result
     elif np.all(np.isnan(ll_phi)):
         return combo[index_of_max(ll_clonal)]
-    elif np.all(ll_phi == ll_clonal):
+    elif np.all(ll_phi == ll_clonal) or pval_cutoff == 0:
         return combo[index_of_max(ll_phi)]
 
     # log likelihood ratio test; null hypothesis = likelihood under phi
