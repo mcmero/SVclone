@@ -12,7 +12,7 @@ Annotate/count steps:
 * [PySam](http://pysam.readthedocs.org/en/latest/)
 * [PyVCF](https://pyvcf.readthedocs.org/en/latest/)
 
-Cluster module
+Cluster/post-assign steps:
 
 * [Numpy](http://www.numpy.org/) - install for python 2
 * [Pandas](http://pandas.pydata.org/)
@@ -59,7 +59,7 @@ chr1	pos1	dir1	chr2	pos2	dir2	classification
 22	21395573		+	22	21395746	+	INV
 ```
 
-Input MUST BE SORTED for Socrates and simple input methods. (bp1 < bp2 position and bp1s should be in chromosome/position order.)
+The above input example also corresponds with the output of this step (output to <out>/<sample>_svin.txt).
 
 Optionally a classification field may be specified in the 'sv_class_field' parameter in the configuration file, additionally, to specify directionality set the parameter 'use_dir' to True. A blacklist can also be supplied at this step to not process areas to remove SVs where any of its breakpoints fall into one of these areas. 
 
@@ -72,7 +72,7 @@ Optionally a classification field may be specified in the 'sv_class_field' param
 #### Optional Parameters ####
 
 * -o or --out <directory> : output directory to create files. Default: the sample name.
-* -cgf or --config <config.ini> : SVClone configuration file with additional parameters (svclone_config.ini is the default).
+* -cgf or --config <config.ini> : SVclone configuration file with additional parameters (svclone_config.ini is the default).
 * --sv_format <vcf, simple, socrates> : input format of SV calls, VCF by default, but may also be simple (see above) or from the SV caller Socrates. 
 * --blacklist <file.bed> : Takes a list of intervals in BED format. Skip processing of any break-pairs where either SV break-end overlaps an interval specified in the supplied bed file. Using something like the [DAC blacklist](https://www.encodeproject.org/annotations/ENCSR636HFF/) is recommended.
 
@@ -80,9 +80,32 @@ Optionally a classification field may be specified in the 'sv_class_field' param
 
 Run SV processing submodule to obtain read counts around breakpoints on each sample BAM file like so:
 
-    ./SVClone.py count -i <svs> -b <indexed_bamfile> -s <sample_name>
+    ./SVclone.py count -i <svs> -b <indexed_bamfile> -s <sample_name>
 
 The classification strings are not used by the program, except for DNA-gain events (such as duplications). The classification names for these types of SVs should be specified in the svclone_config.ini file (see configuration file section).
+
+The count step will create a tab-separated <out>/<sample>_svinfo.txt file containing count information. For example:
+
+```
+ID	chr1	pos1	dir1	chr2	pos2	dir2	classification	split_norm1	norm_olap_bp1	span_norm1	win_norm1	split1	sc_bases1	total_reads1	split_norm2	norm_olap_bp2	span_norm2	win_norm2	split2	sc_bases2	total_reads2	anomalous	spanning	norm1	norm2	support	vaf1	vaf2
+1	12	227543	+	12	228250	-	DEL	12	405	13	96	4	215	189	15	473	8	94	4	149	190	32	4	25	23	12	0.32432432432432434	0.34285714285714286
+2	12	333589	+	12	338298	-	DEL	19	585	23	132	1	69	222	19	492	13	100	8	385	213	18	12	42	32	21	0.33333333333333331	0.39622641509433965
+3	12	461142	+	12	465988	-	DEL	14	490	12	120	6	247	202	12	374	16	104	6	149	214	20	6	26	28	18	0.40909090909090912	0.39130434782608697
+4	12	526623	+	12	554937	-	DEL	11	322	18	112	8	312	220	17	567	15	106	8	232	205	12	9	29	32	25	0.46296296296296297	0.43859649122807015
+5	12	693710	+	12	696907	-	DEL	13	433	15	104	9	329	212	16	446	21	138	5	245	229	20	9	28	37	23	0.45098039215686275	0.38333333333333336
+```
+
+The output fields are briefly described:
+* split: split read count at each locus
+* split_norm/span_norm: number of normal split and spanning reads crossing the boundary at locus 1 and 2 respectively.
+* norm_olap_bp: count of normal read base-pairs overlapping the break (for normal reads that cross the break boundary).
+* win_norm: normal read count (no soft-clips, normal insert size) for all normal reads extracted from the locus window (+/- insert size from locus).
+* sc_bases: count of soft-clipped bases corresponding to split reads crossing the break.
+* norm: normal read count at each locus.
+* spanning: number of spanning reads supporting the break.
+* support: split1 + split2 + spanning.
+* anomalous: reads not counted in any other category.
+* vaf: support / (norm + support).
 
 #### Required Parameters ####
 
@@ -93,15 +116,41 @@ The classification strings are not used by the program, except for DNA-gain even
 #### Optional Parameters ####
 
 * -o or --out <directory> : output directory to create files. Default: the sample name.
-* -cgf or --config <config.ini>: SVClone configuration file with additional parameters (svclone_config.ini is the default).
+* -cgf or --config <config.ini>: SVclone configuration file with additional parameters (svclone_config.ini is the default).
 
 ### Filter step (Filter SVs and/or SNVs and attach CNV states) ###
 
 To filter the data obtained from the SV counting program and/or filter SNV data, can be done like so:
 
-    ./SVClone.py filter -i <sv_info.txt> -s <sample_name>
+    ./SVclone.py filter -i <sv_info.txt> -s <sample_name>
 
 Note that read length and insert sizes used by the filter step are provided as outputs from the count step (<out>/read_params.txt), based on the first 50,000 sampled reads in the bam file.
+
+The filter step outputs the file <out>/<sample>_filtered_svs.tsv and/or <out>/<sample>_filtered_snvs.tsv depending on input. For SVs, the output is akin to the _svinfo.txt file format with added fields:
+
+* norm_mean: average of norm1 and norm2
+* gtype: copy-number state at the locus: "major, minor, CNV fraction" for example, "1,1,1.0". May be subclonal if battenberg input is supplied e.g. "1,1,0.7|2,1,0.3".
+* adjusted_norm: selected normal locus with adjusted normal read counts (in case of DNA-gain).
+* adjusted_support: total adjusted supporting read count. 
+* adjusted_depth: adjusted_norm + adjusted_support
+* preferred_side: which side the support/CNV state comes from
+* raw_mean_vaf: support / (mean(norm1, norm2) + support)
+* adjusted_vaf: adjusted_support / adjusted_depth
+
+For SNVs, example output looks like:
+
+```
+chrom	pos	gtype	ref	var
+1	44395	1,1,1.0	33.0	15.0
+1	4865339	1,1,1.0	23.0	25.0
+1	13846233	1,1,1.0	28.0	25.0
+1	33976797	1,1,1.0	30.0	19.0
+1	51346133	1,1,1.0	33.0	22.0
+```
+
+Where:
+* ref: total reference allele reads at locus.
+* var: total variant allele reads at locus.
 
 #### Required Parameters ####
 
@@ -111,7 +160,7 @@ Note that read length and insert sizes used by the filter step are provided as o
 #### Optional Parameters ####
 
 * -o or --out <out> : output directory to create files. Default: the sample name.
-* -cgf or --config <config.ini>: SVClone configuration file with additional parameters (svclone_config.ini is the default).
+* -cgf or --config <config.ini>: SVclone configuration file with additional parameters (svclone_config.ini is the default).
 * --params <params.txt> : Parameters file from processing step containing read information. If not supplied, the default search path is <out>/<sample>_params.txt'
 * -c or --cnvs <cnv file> : Battenberg subclones.txt file containing segmented copy-numbers for patient sample. If not supplied, will assume that all regions are copy-number neutral (Major = 1, Minor = 1).
 * -p <file> or --purity_ploidy <file>: Tumour purity and ploidy in tab-separated text file. Purity must be between 0 and 1. Ploidy can be a floating point number. Column names must be labelled 'sample', 'purity' and 'ploidy' (without quotes). Row 2 must contain the sample name and purity and ploidy values respectively.
@@ -134,7 +183,26 @@ sample	purity	ploidy
 
 Once we have the filtered SV and/or SNV counts, we can run the clustering:
 
-    ./SVClone.py cluster -s <sample_name>
+    ./SVclone.py cluster -s <sample_name>
+
+SVclone creates output based on the PCAWG output specification. This includes (per run):
+
+* number_of_clusters: number of clusters found.
+* <sample>_copynumber.txt: each variant's copy-number state, including total copy-number and number of chromosomes (alleles) bearing the mutation.
+* <sample>_multiplicity.txt: the total copy-number, the number of copies the variant occurs on, the different multiplicity options and the probability of each.
+* <sample>_assignment_probability_table.txt: probability of each variant's assignment to each cluster, based on number of times the proportion that a variant occurs in a particular cluster over all MCMC iterations.
+* <sample>_cluster_certainty.txt: each variant's most likely assignment to a particular cluster and corresponding average proportion (CCF x purity).
+* <sample>_fit.txt: each IC metric's score, plus some extra metrics from PyMC (lnL, logp etc.).
+ * <sample>_subclonal_structure: clusters found, the number of variants per cluster, the proportion and CCF. 
+
+And a few more files unique to SVclone:
+
+* <sample>_vaf_ccf.txt: variants with raw mean VAF, adjusted VAF (see filter step output), variant CCF derived from the trace, the transformed variant CCF and the cluster mean CCF/proportion.
+* <sample>_most_likely_copynumbers.txt: contains the output from the PCAWG copynumber output format, plus the variants gtypes, pv (probability of sampling a variant read) and the pv deviance from VAF (high deviance suggests low CCF confidence for the variant). 
+* phi_trace.txt.gz: dump of the phi trace
+* z_trace.txt.gz: dump of the z trace.
+* alpha_trace.txt.gz: dump of the alpha trace (if alpha is not fixed).
+* cluster_trace.png: a plot of the z, phi and alpha traces and a VAF histogram.
 
 #### Required Parameters ####
 
@@ -143,7 +211,7 @@ Once we have the filtered SV and/or SNV counts, we can run the clustering:
 #### Optional Parameters ####
 
 * -o or --out : output directory (sample name by default)
-* -cgf or --config <config.ini>: SVClone configuration file with additional parameters (svclone_config.ini is the default).
+* -cgf or --config <config.ini>: SVclone configuration file with additional parameters (svclone_config.ini is the default).
 * --params <params.txt> : Parameters file from processing step containing read information. If not supplied, the default search path is <out>/<sample>_params.txt'
 * --snvs <filtered_snvs> : SNVs output from filter step (automatically detected if present). 
 * --map : use maximum a-posteriori fitting (may significantly increase runtime).
@@ -160,9 +228,14 @@ If customisation is required for parameters, these can be modified in the svclon
 
 A post-processing script is included to visualise output of individual run plots and a summary plot for all runs of a sample. Run the script as follows:
 
-    Rscript post_processing_fit_diagnostics.R <SVclone output dir> <sample name> [--map] [--snvs]
+    Rscript post_processing_fit_diagnostics.R <SVclone output dir> <sample name> <cnvs> [--map] [--snvs] [--coclus]
+
+Optional inputs:
+
+cnvs: for plotting circos plots (will draw copy-number tracks).
 
 Optional flags:
 
 * --map : use if SVclone was run with the map option (recommended if running multiple runs). This option will add fit metric plots.
 * --snvs : use if SVclone output is for SNVs rather than SVs.
+* --coclus: use if SNVs and SVs were coclustered.
