@@ -6,6 +6,8 @@ import numpy as np
 import ConfigParser
 import math
 
+from shutil import copytree, ignore_patterns
+
 from . import cluster
 from . import run_clus
 from . import load_data
@@ -96,6 +98,10 @@ def post_assign_vars(var_df, var_filt_df, rundir, sample, sparams, cparams, clus
         sup, dep, cn_states, Nvar, norm = load_data.get_sv_vals(var_df, adjusted, male)
         if len(var_filt_df) > 0:
             fsup, fdep, fcn_states, fNvar, fnorm = load_data.get_sv_vals(var_filt_df, adjusted, male)
+
+    if len(ccert) != len(var_filt_df):
+        raise ValueError('''Number of filtered variants does not match cluster output,
+                         did you provide the correct filtered variants file?''')
 
     no_cn_state = np.array([len(cn)==0 for cn in cn_states])
     if np.any(no_cn_state):
@@ -375,13 +381,19 @@ def run_post_assign(args):
         if len(snv_df)>0:
             snv_df['gtype'] = default_gtype
 
+    copied_dir = False
     if len(sv_df) > 0:
         sv_to_assign = get_var_to_assign(sv_df, sv_filt_df)
+        pa_outdir = '%s_post_assign/' % rundir
         if len(sv_to_assign) > 0:
             sv_to_assign = filt.adjust_sv_read_counts(sv_to_assign, purity, ploidy, 0, rlen, Config)
             print('Post assigning %d SVs...' % len(sv_to_assign))
             post_assign_vars(sv_to_assign, sv_filt_df, rundir, sample, sample_params,
                              cluster_params, clus_th)
+        elif not os.path.exists(pa_outdir):
+            # copy files anyway, even if none need to be post-assigned
+            copytree(rundir, pa_outdir, ignore=ignore_patterns('*.gz'))
+            copied_dir = True
 
     if len(snv_df) > 0:
         snv_to_assign = get_var_to_assign(snv_df, snv_filt_df, snvs = True)
@@ -389,7 +401,9 @@ def run_post_assign(args):
             print('Post assigning %d SNVs...' % len(snv_to_assign))
             post_assign_vars(snv_to_assign, snv_filt_df, rundir, sample, sample_params,
                              cluster_params, clus_th, snvs = True)
+        elif not copied_dir:
+            # copy snvs dir (no need to post-assign)
+            copytree('%s/snvs' % rundir, '%s_post_assign/snvs' % rundir, ignore=ignore_patterns('*.gz'))
 
     if len(sv_df) > 0 and len(snv_df) > 0:
         amend_coclus_results(rundir, sample, sample_params)
-

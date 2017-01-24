@@ -15,6 +15,7 @@ import multiprocessing
 import time
 import shutil
 import pymc as pm
+import random
 
 from distutils.dir_util import copy_tree
 from collections import OrderedDict
@@ -551,6 +552,8 @@ def run_clustering(args):
     seeds           = args.seeds
     XX              = args.XX
     XY              = args.XY
+    subsample       = args.subsample
+    ss_seed         = args.ss_seed
 
     if out!='' and not os.path.exists(out):
         os.makedirs(out)
@@ -583,6 +586,14 @@ def run_clustering(args):
     if os.path.exists(snv_file):
         snv_df = pd.read_csv(snv_file,delimiter='\t',dtype=None,header=0,low_memory=False)
         snv_df = pd.DataFrame(snv_df).fillna('')
+        if subsample > 0 and subsample < len(snv_df):
+            print('Subsampling %d SNVs' % subsample)
+            if ss_seed != '': random.seed(int(ss_seed))
+            keep = random.sample(snv_df.index, subsample)
+            snv_df = snv_df.loc[keep]
+            snv_df.index = range(len(snv_df)) #re-index
+            snv_outname = '%s/%s_filtered_snvs_%d_subsampled.tsv' % (out, sample, subsample)
+            snv_df.to_csv(snv_outname, sep='\t', index=False, na_rep='')
 
     if (len(sv_df) == 0 or len(snv_df) ==0) and cluster_params['cocluster']:
         cluster_params['cocluster'] = False

@@ -103,9 +103,6 @@ filter_parser.add_argument("--snv_format",dest="snv_format",
                     help='''Supplied SNV VCF is in the following input format: sanger (default), mutect, consensus
                     (PCAWG) or mutect_callstats (non-VCF).''')
 
-filter_parser.add_argument("--subsample",dest="subsample",default=0,type=int,
-                    help="Subsample N SNVs from total filtered output.")
-
 filter_parser.add_argument("-o","--out",dest="out",default="",
                     help='''Output directory. Default: sample name.''')
 
@@ -116,9 +113,6 @@ filter_parser.add_argument("-p","--purity_ploidy",dest="pp_file",default="",
 filter_parser.add_argument("--blacklist", dest="blist", default="",
                     help='''Takes a file in BED format as an argument. Filter out any break-pairs where
                     either SV break-end overlaps an interval specified in the supplied bed file.''')
-
-filter_parser.add_argument("--seed", dest="seed", default="",
-                    help='''Integer seed to set seed for replicability of subsampling.''')
 
 filter_parser.set_defaults(func=run_filter.run)
 
@@ -151,7 +145,13 @@ cluster_parser.add_argument("--snvs",dest="snv_file",default="",
                     help="To specify filtered SNVs output from Filter Step. Default loc: <outdir>/<sample>_filtered_snvs.tsv")
 
 cluster_parser.add_argument("--seeds",dest="seeds",default="",
-                    help="Random seeds passed on to pymc (use for replicating runs).")
+                    help="Random seeds passed on to PyMC (use for replicating runs).")
+
+cluster_parser.add_argument("--subsample",dest="subsample",default=0,type=int,
+                    help="Subsample N SNVs from total filtered output to use for clustering.")
+
+cluster_parser.add_argument("--ss_seed", dest="ss_seed", default="",
+                    help='''Integer seed to set seed for replicability of subsampling.''')
 
 cluster_parser.add_argument("--XX",dest="XX",action="store_true",
                     help="Specify XX genotype. (Overwrites config file, sets male to False.)")

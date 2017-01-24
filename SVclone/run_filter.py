@@ -9,7 +9,6 @@ import numpy as np
 import re
 import pandas as pd
 import vcf
-import random
 
 from operator import methodcaller
 from SVprocess import load_data as svp_load
@@ -555,8 +554,6 @@ def run(args):
     pp_file     = args.pp_file
     cfg         = args.cfg
     blist_file  = args.blist
-    subsample   = args.subsample
-    seed        = args.seed
 
     Config = ConfigParser.ConfigParser()
     cfg_file = Config.read(cfg)
@@ -589,10 +586,6 @@ def run(args):
 
     if out!='' and not os.path.exists(out):
         os.makedirs(out)
-
-    if seed != '':
-        seed = int(seed)
-        random.seed(seed)
 
     pi, ploidy = svp_load.get_purity_ploidy(pp_file, sample, out)
     rlen, insert, insert_std = svp_load.get_read_params(param_file, sample, out)
@@ -669,10 +662,6 @@ def run(args):
         print('Final filtered SV count: %d' % len(sv_df))
 
     if len(snv_df)>0:
-        if subsample > 0 and subsample < len(snv_df):
-            keep = random.sample(snv_df.index, subsample)
-            snv_df = snv_df.loc[keep]
-            print('Subsampling %d SNVs' % subsample)
         snv_df = sort_by_loc(snv_df)
         snv_df.index = range(len(snv_df)) #reindex
         snv_df.to_csv('%s/%s_filtered_snvs.tsv'%(out,sample),sep='\t',index=False,na_rep='')
