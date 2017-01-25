@@ -1,6 +1,6 @@
 # README #
 
-This package allows the clustering of structural variation cancer cell fractions (CCFs). The package is divided into four components: annotate, count, filter and cluster. The annotate step infers directionality of each breakpoint (if not supplied), recalibrates breakpoint position to the soft-clip boundary and subsequently classifies SVs using a rule-based approach. The count step counts the variant and non-variant reads from breakpoint locations. Both the annotate and count steps utilise BAM-level information. The filter step removes SVs based on a number of adjustable parameters and prepares the variants for clustering. SNVs can also be added at this step as well as CNV information, which is matched to SV and SNV loci. Post-processing scripts are also included to aid in visualising the clustering results. 
+This package is used to cluster structural variants of similar cancer cell fraction (CCF). SVclone is divided into five components: annotate, count, filter, cluster and post-assign. The annotate step infers directionality of each breakpoint (if not supplied), recalibrates breakpoint position to the soft-clip boundary and subsequently classifies SVs using a rule-based approach. The count step counts the variant and non-variant reads from breakpoint locations. Both the annotate and count steps utilise BAM-level information. The filter step removes SVs based on a number of adjustable parameters and prepares the variants for clustering. SNVs can also be added at this step as well as CNV information, which is matched to SV and SNV loci. Any variants that were filtered out, or left out due to sub-sampling can be added back using the post-assign step, which assigns each variant (which contains a >0 VAF and matching copy-number state, at minimum) to the most likely cluster (obtained from the clsuter step). Post-processing scripts are also included to aid in visualising the clustering results. 
 
 ### How do I get set up? ###
 
@@ -168,8 +168,6 @@ Where:
 * --snvs <snv_file> : SNVs in VCF format to (optionally) compare the clustering with SVs.
 * --snv_format <sanger, mutect, mutect_callstats> (default = sanger) : Specify VCF input format (only if clustering SNVs).
 * --blacklist <file.bed> : Takes a list of intervals in BED format. Skip processing of any break-pairs where either SV break-end overlaps an interval specified in the supplied bed file. Using something like the [DAC blacklist](https://www.encodeproject.org/annotations/ENCSR636HFF/) is recommended.
-* --subsample <integer> : (SNVs only); subsample N variants from total filtered input.
-* --seed <integer> : (only valid if using subsampling) integer seed, can be set to ensure subsampling is replicable.
 
 ### Purity/ploidy file ###
 
@@ -217,8 +215,21 @@ And a few more files unique to SVclone:
 * --map : use maximum a-posteriori fitting (may significantly increase runtime).
 * --cocluster : cluster SVs and SNVs together.
 * --no_adjust : do not adjust read counts based on different classes of SV events.
+* --subsample <integer> : (SNVs only); subsample N variants from total filtered input.
+* --ss_seed (only valid if using subsampling) integer seed, can be set to ensure subsampling is replicable.
 * --seeds <one integer per run, comma separated> : set a random seed per run in order to replicate pyMC runs. 
 * --XX and --XY : overwrite the config file genotype with XX or XY. 
+
+### Post-assigning SVs ###
+
+The post-assign step obtains all the SVs or SNVs which were not used in the clustering (filtered out or not present due to sub-sampling) and assigns each variant to its most likely cluster, based on its read count and copy-number state. The step takes all the same input as the filter step (note: the -i flag is replaced with --svs). Optionally, the step also takes the --XX and XY config-override parameters specified in the cluster step. Additionally, the following parameters should also be defined if the <sample>_filtered_[snvs/svs].tsv file differs from the detault name and location (for instance, if sub-sampling was used):
+
+* --filt_svs : filtered SV file that was used to run clustering. Defaults to <out>/<sample>_filtered_svs.tsv
+* --filt_snvs : filtered SNV file that was used to run clustering. Defaults to <out>/<sample>_filtered_snvs.tsv
+
+Additionally, the run directory may be specified:
+
+* --run <run_dir> or -r <run_dir> : run for which to perform post-assignment. Defaults to "best" (selects best run if using MAP), if no best run is available, defaults to run0.
 
 #### Configuration file ####
 
