@@ -49,8 +49,7 @@ chr1	pos1	chr2	pos2
 22	21395573	22	21395746
 ```
 
-or, if directionality or classification information is available:
-
+Optionally a classification field may be specified in the 'sv_class_field' parameter in the configuration file, additionally, to specify directionality set the parameter 'use_dir' to True. For example:
 ```
 chr1	pos1	dir1	chr2	pos2	dir2	classification
 22	18240676		-	22	18232335	-	INV
@@ -59,9 +58,11 @@ chr1	pos1	dir1	chr2	pos2	dir2	classification
 22	21395573		+	22	21395746	+	INV
 ```
 
-The above input example also corresponds with the output of this step (output to <out>/<sample>_svin.txt).
+A blacklist can also be supplied at this step to not process areas to remove SVs where any of its breakpoints fall into one of these areas. 
 
-Optionally a classification field may be specified in the 'sv_class_field' parameter in the configuration file, additionally, to specify directionality set the parameter 'use_dir' to True. A blacklist can also be supplied at this step to not process areas to remove SVs where any of its breakpoints fall into one of these areas. 
+#### Annotate Output ####
+
+The above input example also corresponds with the output of this step (output to <out>/<sample>_svin.txt), with an added SV ID present in the column. Events that are considered part of the same event will have the same ID (which may be multiple breakpoints).
 
 #### Required Parameters ####
 
@@ -83,6 +84,8 @@ Run SV processing submodule to obtain read counts around breakpoints on each sam
     ./SVclone.py count -i <svs> -b <indexed_bamfile> -s <sample_name>
 
 The classification strings are not used by the program, except for DNA-gain events (such as duplications). The classification names for these types of SVs should be specified in the svclone_config.ini file (see configuration file section).
+
+#### Count output ####
 
 The count step will create a tab-separated <out>/<sample>_svinfo.txt file containing count information. For example:
 
@@ -125,6 +128,8 @@ To filter the data obtained from the SV counting program and/or filter SNV data,
     ./SVclone.py filter -i <sv_info.txt> -s <sample_name>
 
 Note that read length and insert sizes used by the filter step are provided as outputs from the count step (<out>/read_params.txt), based on the first 50,000 sampled reads in the bam file.
+
+#### Filter output ####
 
 The filter step outputs the file <out>/<sample>_filtered_svs.tsv and/or <out>/<sample>_filtered_snvs.tsv depending on input. For SVs, the output is akin to the _svinfo.txt file format with added fields:
 
@@ -183,6 +188,8 @@ Once we have the filtered SV and/or SNV counts, we can run the clustering:
 
     ./SVclone.py cluster -s <sample_name>
 
+#### Cluster output ####
+
 SVclone creates output based on the PCAWG output specification. This includes (per run):
 
 * number_of_clusters: number of clusters found.
@@ -191,7 +198,7 @@ SVclone creates output based on the PCAWG output specification. This includes (p
 * <sample>_assignment_probability_table.txt: probability of each variant's assignment to each cluster, based on number of times the proportion that a variant occurs in a particular cluster over all MCMC iterations.
 * <sample>_cluster_certainty.txt: each variant's most likely assignment to a particular cluster and corresponding average proportion (CCF x purity).
 * <sample>_fit.txt: each IC metric's score, plus some extra metrics from PyMC (lnL, logp etc.).
- * <sample>_subclonal_structure: clusters found, the number of variants per cluster, the proportion and CCF. 
+* <sample>_subclonal_structure: clusters found, the number of variants per cluster, the proportion and CCF. 
 
 And a few more files unique to SVclone:
 
@@ -230,6 +237,10 @@ The post-assign step obtains all the SVs or SNVs which were not used in the clus
 Additionally, the run directory may be specified:
 
 * --run <run_dir> or -r <run_dir> : run for which to perform post-assignment. Defaults to "best" (selects best run if using MAP), if no best run is available, defaults to run0.
+
+#### Post-assign output ####
+
+Post-assign creates the same output structure as in the cluster step. One minor difference: in the assignment_probabilities file output, we use a transformed likelihood to estimate probability of a variant belonging to a particular cluster, rather than a probability based on the MCMC chain (which does not exist for a post-assigned variant). 
 
 #### Configuration file ####
 
