@@ -6,7 +6,7 @@ import numpy as np
 import ConfigParser
 import math
 
-from shutil import copytree, ignore_patterns
+from shutil import copytree, ignore_patterns, rmtree
 
 from . import cluster
 from . import run_clus
@@ -382,16 +382,19 @@ def run_post_assign(args):
             snv_df['gtype'] = default_gtype
 
     copied_dir = False
+    pa_outdir = '%s_post_assign/' % rundir
     if len(sv_df) > 0:
         sv_to_assign = get_var_to_assign(sv_df, sv_filt_df)
-        pa_outdir = '%s_post_assign/' % rundir
         if len(sv_to_assign) > 0:
             sv_to_assign = filt.adjust_sv_read_counts(sv_to_assign, purity, ploidy, 0, rlen, Config)
             print('Post assigning %d SVs...' % len(sv_to_assign))
             post_assign_vars(sv_to_assign, sv_filt_df, rundir, sample, sample_params,
                              cluster_params, clus_th)
-        elif not os.path.exists(pa_outdir):
-            # copy files anyway, even if none need to be post-assigned
+        else:
+            # copy best run dir (no need to reassign)
+            # remove dir if it exists
+            if os.path.exists(pa_outdir):
+                rmtree(pa_outdir)
             copytree(rundir, pa_outdir, ignore=ignore_patterns('*.gz'))
             copied_dir = True
 
@@ -403,6 +406,9 @@ def run_post_assign(args):
                              cluster_params, clus_th, snvs = True)
         elif not copied_dir:
             # copy snvs dir (no need to post-assign)
+            # remove dir if it exists
+            if os.path.exists(pa_outdir):
+                rmtree(pa_outdir)
             copytree('%s/snvs' % rundir, '%s_post_assign/snvs' % rundir, ignore=ignore_patterns('*.gz'))
 
     if len(sv_df) > 0 and len(snv_df) > 0:
