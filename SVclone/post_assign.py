@@ -409,7 +409,10 @@ def run_post_assign(args):
             # remove dir if it exists
             if os.path.exists(pa_outdir):
                 rmtree(pa_outdir)
-            copytree('%s/snvs' % rundir, '%s_post_assign/snvs' % rundir, ignore=ignore_patterns('*.gz'))
+	    if run == 'best_run_snvs':
+            	copytree('%s/' % rundir, '%s_post_assign/snvs' % rundir, ignore=ignore_patterns('*.gz'))
+            else:
+		copytree('%s/snvs' % rundir, '%s_post_assign/snvs' % rundir, ignore=ignore_patterns('*.gz'))
 
     if len(sv_df) > 0 and len(snv_df) > 0:
         amend_coclus_results(rundir, sample, sample_params)
