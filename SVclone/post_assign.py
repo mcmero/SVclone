@@ -219,7 +219,7 @@ def post_assign_vars(var_df, var_filt_df, rundir, sample, sparams, cparams, clus
 
     vartype = 'snvs' if snvs else 'svs'
     df.to_csv('%s/../%s_filtered_%s_post_assign.tsv' % (rundir, sample, vartype), sep='\t', index=False, na_rep='')
-    print('Writing output to %s' % pa_outdir)
+    print('Writing output to %s for %s' % (pa_outdir, vartype))
     write_output.write_out_files(df, scs, clus_members, probs, ccert,
                                  pa_outdir, sample, purity, sup, dep,
                                  norm, cn_states, fit, False, cnv_pval, z_phi, are_snvs = snvs)
@@ -395,7 +395,8 @@ def run_post_assign(args):
             # remove dir if it exists
             if os.path.exists(pa_outdir):
                 rmtree(pa_outdir)
-            copytree(rundir, pa_outdir, ignore=ignore_patterns('*.gz'))
+            print("No need to reassign, copying directory")
+	    copytree(rundir, pa_outdir, ignore=ignore_patterns('*.gz'))
             copied_dir = True
 
     if len(snv_df) > 0:
@@ -407,8 +408,8 @@ def run_post_assign(args):
         elif not copied_dir:
             # copy snvs dir (no need to post-assign)
             # remove dir if it exists
-            if os.path.exists(pa_outdir):
-                rmtree(pa_outdir)
+            if os.path.exists('%s/snvs' % pa_outdir):
+                rmtree('%s/snvs' % pa_outdir)
 	    if run == 'best_run_snvs':
             	copytree('%s/' % rundir, '%s_post_assign/snvs' % rundir, ignore=ignore_patterns('*.gz'))
             else:
