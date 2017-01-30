@@ -618,7 +618,7 @@ if (!grepl('^--', bbf) & file.exists(bbf)) {
     colours <- c('#0000FF80','#FF000080','darkgreen','#0000FF40','#FF000040','#00FF0040')
 
     run <- 'run0'; if (map) {run <- best_run}
-    tmp <- get_run_info(wd, id, run)
+    tmp <- get_run_info(wd, id, run, snvs)
     dat <- tmp[[1]]
     sv_clust <- tmp[[2]]
     sv_clust$cluster <- sv_clust$cluster-1
