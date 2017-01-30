@@ -291,6 +291,9 @@ def run_post_assign(args):
         elif len(run_dirs) < 1:
             raise ValueError('No best run directories exist! Please specify which run to use.')
         run = run_dirs[0]
+	
+    if run.endswith("snvs"):
+	sv_file=''
 
     rundir = '%s/%s' % (out, run)
     if not os.path.exists(rundir):
