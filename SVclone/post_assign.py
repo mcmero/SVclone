@@ -250,6 +250,9 @@ def amend_coclus_results(rundir, sample, sparams):
     scs.to_csv('%s/%s_subclonal_structure.txt' % (pa_outdir, sample), sep='\t', index=False)
     scs.to_csv('%s/snvs/%s_subclonal_structure.txt' % (pa_outdir, sample), sep='\t', index=False)
 
+def string_to_bool(v):
+  return v.lower() in ("yes", "true", "t", "1")
+
 def run_post_assign(args):
 
     sample          = args.sample
@@ -274,6 +277,7 @@ def run_post_assign(args):
     if len(cfg_file)==0:
         raise ValueError('No configuration file found')
 
+    strict_cf = string_to_bool(Config.get('FilterParameters', 'strict_cnv_filt'))
     sv_offset = int(Config.get('FilterParameters', 'sv_offset'))
     gl_th     = int(Config.get('FilterParameters', 'germline_threshold'))
     cp_th     = float(Config.get('PostAssignParameters', 'clus_percent_threshold'))
@@ -355,17 +359,16 @@ def run_post_assign(args):
 
     if cnv_file != "":
         cnv_df = load_data.load_cnvs(cnv_file)
-        strict_cnv_filt = False
 
         if len(sv_df)>0:
             print('Matching copy-numbers for SVs...')
-            sv_df = filt.match_copy_numbers(sv_df,cnv_df,strict_cnv_filt,sv_offset)
-            sv_df = filt.match_copy_numbers(sv_df,cnv_df,strict_cnv_filt,sv_offset,\
+            sv_df = filt.match_copy_numbers(sv_df,cnv_df,strict_cf,sv_offset)
+            sv_df = filt.match_copy_numbers(sv_df,cnv_df,strict_cf,sv_offset,\
                     ['chr2','pos2','dir2','classification','pos1'],'gtype2')
 
         if len(snv_df)>0:
             print('Matching copy-numbers for SNVs...')
-            snv_df = filt.match_snv_copy_numbers(snv_df,cnv_df,strict_cnv_filt)
+            snv_df = filt.match_snv_copy_numbers(snv_df,cnv_df,strict_cf)
             n = len(snv_df)
             snv_df['gtype'] = np.array(map(filt.remove_zero_copynumbers, snv_df.gtype.values))
             snv_df = snv_df[snv_df.gtype != '']
