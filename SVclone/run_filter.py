@@ -204,14 +204,8 @@ def run_cnv_filter(df_flt, cnv, ploidy, neutral, filter_outliers, strict_cnv_fil
             df_flt = df_flt.fillna('')
             df_flt['gtype'] = map(remove_zero_copynumbers,df_flt.gtype.values)
 
-            if strict_cnv_filt:
-                df_flt = df_flt[df_flt.gtype.values!='']
-                print('Filtered out %d SNVs with missing or invalid copy-numbers' % (n_df - len(df_flt)))
-            else:
-                maj_allele = round(ploidy/2) if round(ploidy) > 1 else 1
-                min_allele = round(ploidy/2) if round(ploidy) > 1 else 0
-                default_gtype = '%d,%d,1.0' % (maj_allele, min_allele)
-                df_flt.gtype[df_flt.gtype.values==''] = default_gtype
+            df_flt = df_flt[df_flt.gtype.values!='']
+            print('Filtered out %d SNVs with missing or invalid copy-numbers' % (n_df - len(df_flt)))
 
             if filter_outliers:
                 # weight ranges by copy-numbers
@@ -256,7 +250,7 @@ def run_cnv_filter(df_flt, cnv, ploidy, neutral, filter_outliers, strict_cnv_fil
 
     return df_flt
 
-def match_snv_copy_numbers(snv_df, cnv_df, strict_cnv_filt):
+def match_snv_copy_numbers(snv_df, cnv_df):
     bp_chroms = np.unique(snv_df['chrom'].values)
     bp_chroms = sorted(bp_chroms, key=lambda item: (int(item) if item.isdigit() else str(item)))
 
@@ -275,20 +269,8 @@ def match_snv_copy_numbers(snv_df, cnv_df, strict_cnv_filt):
             overlaps = np.logical_and(pos >= cnv_start_list, pos <= cnv_end_list)
             match = cnv_tmp[overlaps]
 
-            if len(match)==0 and strict_cnv_filt:
+            if len(match)==0:
                 gtypes.append('')
-            elif len(match)==0:
-                # assign closest CNV state with closest boundary to SNV
-                closest_start = min(abs(cnv_start_list-pos))
-                closest_end   = min(abs(cnv_end_list-pos))
-                cnv_gtype = ''
-
-                if closest_start < closest_end:
-                    cnv_gtype = cnv_tmp[closest_start==abs(cnv_start_list-pos)].gtype.values[0]
-                else:
-                    cnv_gtype = cnv_tmp[closest_end==abs(cnv_end_list-pos)].gtype.values[0]
-
-                gtypes.append(cnv_gtype)
             else:
                 gtype = match.loc[match.index[0]].gtype
                 gtypes.append(gtype)
@@ -631,7 +613,7 @@ def run(args):
 
         if len(snv_df)>0:
             print('Matching copy-numbers for SNVs...')
-            snv_df = match_snv_copy_numbers(snv_df,cnv_df,strict_cnv_filt)
+            snv_df = match_snv_copy_numbers(snv_df,cnv_df)
             snv_df = run_cnv_filter(snv_df,cnvs,ploidy,neutral,filter_otl,strict_cnv_filt,
                                     filter_subclonal_cnvs,are_snvs=True)
     else:

@@ -596,6 +596,11 @@ if (!grepl('^--', bbf) & file.exists(bbf)) {
         colnames(bb)[grep('nMin1_A', colnames(bb))] <- 'nMin1_A'
         colnames(bb)[grep('nMaj2_A', colnames(bb))] <- 'nMaj2_A'
         colnames(bb)[grep('nMin2_A', colnames(bb))] <- 'nMin2_A'
+    } else if (length(grep('chromosome', colnames(bb))) > 0) {
+        # consensus format
+        bb <- bb[,1:8]
+        colnames(bb) <- c('chr', 'startpos', 'endpos', 'total_cn', 'nMaj1_A', 'nMin1_A', 'star', 'level')
+        bb$nMaj2_A <- NA; bb$nMin2_A <- NA
     }
 
     clon <- bb[is.na(bb$nMaj2_A),]
@@ -607,14 +612,16 @@ if (!grepl('^--', bbf) & file.exists(bbf)) {
     colnames(pdat) <- c('chr','start','end','value')
     pdat$value[pdat$value > 6] <- 6
 
-    pdat2 <- subclon[,c('chr','startpos','endpos')]
-    pdat2 <- cbind(pdat2, value=apply(cbind(subclon$nMaj2_A+subclon$nMin2_A,subclon$nMaj1_A+subclon$nMin1_A),1,mean))
-    pdat2$chr <- paste('chr',pdat2$chr,sep='')
+    if (nrow(subclon) > 0) {
+        pdat2 <- subclon[,c('chr','startpos','endpos')]
+        pdat2 <- cbind(pdat2, value=apply(cbind(subclon$nMaj2_A+subclon$nMin2_A,subclon$nMaj1_A+subclon$nMin1_A),1,mean))
+        pdat2$chr <- paste('chr',pdat2$chr,sep='')
 
-    pdat2$value[pdat2$value > 6] <- 6
-    colnames(pdat2)<-c('chr','start','end','value')
+        pdat2$value[pdat2$value > 6] <- 6
+        colnames(pdat2)<-c('chr','start','end','value')
 
-    pdat <- list(pdat, pdat2)
+        pdat <- list(pdat, pdat2)
+    }
     colours <- c('#0000FF80','#FF000080','darkgreen','#0000FF40','#FF000040','#00FF0040')
 
     run <- 'run0'; if (map) {run <- best_run}
