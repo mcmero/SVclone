@@ -91,11 +91,13 @@ def post_assign_vars(var_df, var_filt_df, rundir, sample, sparams, cparams, clus
     fsup, fdep, fcn_states, fNvar, fnorm = None, None, None, None, None
 
     if snvs:
-        sup, dep, cn_states, Nvar, norm = load_data.get_snv_vals(var_df, male)
+        if len(var_df) > 0:
+            sup, dep, cn_states, Nvar, norm = load_data.get_snv_vals(var_df, male)
         if len(var_filt_df) > 0:
             fsup, fdep, fcn_states, fNvar, fnorm = load_data.get_snv_vals(var_filt_df, male)
     else:
-        sup, dep, cn_states, Nvar, norm = load_data.get_sv_vals(var_df, adjusted, male)
+        if len(var_df) > 0:
+            sup, dep, cn_states, Nvar, norm = load_data.get_sv_vals(var_df, adjusted, male)
         if len(var_filt_df) > 0:
             fsup, fdep, fcn_states, fNvar, fnorm = load_data.get_sv_vals(var_filt_df, adjusted, male)
 
@@ -103,12 +105,13 @@ def post_assign_vars(var_df, var_filt_df, rundir, sample, sparams, cparams, clus
         raise ValueError('''Number of filtered variants does not match cluster output,
                          did you provide the correct filtered variants file?''')
 
-    no_cn_state = np.array([len(cn)==0 for cn in cn_states])
-    if np.any(no_cn_state):
-        keep = np.invert(no_cn_state)
-        sup, dep, norm, cn_states = sup[keep], dep[keep], np.array(norm)[keep], cn_states[keep]
-        var_df = var_df[keep]
-        Nvar = Nvar - sum(no_cn_state)
+    if Nvar:
+        no_cn_state = np.array([len(cn)==0 for cn in cn_states])
+        if np.any(no_cn_state):
+            keep = np.invert(no_cn_state)
+            sup, dep, norm, cn_states = sup[keep], dep[keep], np.array(norm)[keep], cn_states[keep]
+            var_df = var_df[keep]
+            Nvar = Nvar - sum(no_cn_state)
 
     best_clus_list = np.array([])
     clus_probs = np.array([])
@@ -119,18 +122,18 @@ def post_assign_vars(var_df, var_filt_df, rundir, sample, sparams, cparams, clus
     orig_scs     = scs.copy()
     scs          = scs[np.logical_and(percent_filt, abs_filt)]
 
-    if len(scs) > 1:
+    if len(scs) > 1 and Nvar > 0:
         for i in range(Nvar):
             lls, ll_probs = get_ll_probs(sup[i], dep[i], norm[i], cn_states[i], purity, scs)
             clus_probs = np.concatenate([clus_probs, [ll_probs]], axis=0) if len(clus_probs)>0 else np.array([ll_probs])
             best_clus = np.where(np.max(lls)==lls)[0][0]
             best_clus_list = np.append(best_clus_list, [best_clus])
-    else:
+    elif Nvar > 0:
         best_clus_list = [0] * Nvar
         clus_probs     = np.array([[1.]] * Nvar)
 
     best_clus_list = np.array(map(int, best_clus_list))
-    phis = scs.phi.values[best_clus_list]
+    phis = scs.phi.values[best_clus_list] if Nvar > 0 else None
 
     # reclassify minor cluster variants if filtered out
     if len(scs) != len(orig_scs) and len(var_filt_df) > 0:
@@ -173,16 +176,17 @@ def post_assign_vars(var_df, var_filt_df, rundir, sample, sparams, cparams, clus
         ccert[hpd_lo] = ccert[hpd_lo]/purity
         ccert[hpd_hi] = ccert[hpd_hi]/purity
 
-    lolim = 0 if snvs else 1
-    uplim = 2 if snvs else 7
-    nvar, nvar_filt = len(var_df), len(var_filt_df)
-    var_df.index = range(nvar_filt, nvar_filt + nvar)
-    ccert_add = var_df[var_df.columns.values[lolim:uplim]]
-    ccert_add['most_likely_assignment'] = best_clus_list
-    ccert_add['average_ccf'] = np.array(phis)
-    ccert_add[hpd_lo] = float('nan')
-    ccert_add[hpd_hi] = float('nan')
-    ccert = pd.concat([ccert, ccert_add], axis=0)
+    if Nvar > 0:
+        lolim = 0 if snvs else 1
+        uplim = 2 if snvs else 7
+        nvar, nvar_filt = len(var_df), len(var_filt_df)
+        var_df.index = range(nvar_filt, nvar_filt + nvar)
+        ccert_add = var_df[var_df.columns.values[lolim:uplim]]
+        ccert_add['most_likely_assignment'] = best_clus_list
+        ccert_add['average_ccf'] = np.array(phis)
+        ccert_add[hpd_lo] = float('nan')
+        ccert_add[hpd_hi] = float('nan')
+        ccert = pd.concat([ccert, ccert_add], axis=0)
 
     z_trace = np.loadtxt('%s/z_trace.txt.gz' % rundir)
     phi_trace = np.loadtxt('%s/phi_trace.txt.gz' % rundir)
@@ -195,26 +199,32 @@ def post_assign_vars(var_df, var_filt_df, rundir, sample, sparams, cparams, clus
     z_phi_add[:] = np.NAN
     z_phi = np.concatenate([z_phi, z_phi_add])
 
-    # NOTE: clus probabilities are of a different format here
-    # CN likelihoods are converted to probabilities,
-    # rather than probs being based on MCMC traces
-    probs_add = var_df[var_df.columns.values[lolim:uplim]]
-    uplim = uplim if snvs else uplim - 1
+    if Nvar > 0:
+        # NOTE: clus probabilities are of a different format here
+        # CN likelihoods are converted to probabilities,
+        # rather than probs being based on MCMC traces
+        probs_add = var_df[var_df.columns.values[lolim:uplim]]
+        uplim = uplim if snvs else uplim - 1
 
-    prob_cols = probs.columns.values[uplim:]
-    for idx,pc in enumerate(prob_cols):
-        probs_add[pc] = 0.
+        prob_cols = probs.columns.values[uplim:]
+        for idx,pc in enumerate(prob_cols):
+            probs_add[pc] = 0.
 
-    pa_clus_cols = ['cluster%d' % cid for cid in scs.clus_id.values]
-    for idx,pac in enumerate(pa_clus_cols):
-        probs_add[pac] = [round(cp, 2) for cp in clus_probs[:,idx]]
+        pa_clus_cols = ['cluster%d' % cid for cid in scs.clus_id.values]
+        for idx,pac in enumerate(pa_clus_cols):
+            probs_add[pac] = [round(cp, 2) for cp in clus_probs[:,idx]]
 
-    probs = pd.concat([probs, probs_add], axis=0)
-    df = pd.concat([var_filt_df, var_df], axis=0)
-    sup = np.append(fsup, sup) if len(var_filt_df) > 0 else sup
-    dep = np.append(fdep, dep) if len(var_filt_df) > 0 else dep
-    norm = np.append(fnorm, norm) if len(var_filt_df) > 0 else norm
-    cn_states = np.append(fcn_states, cn_states) if len(var_filt_df) > 0 else cn_states
+        probs = pd.concat([probs, probs_add], axis=0)
+        df = pd.concat([var_filt_df, var_df], axis=0)
+
+        sup = np.append(fsup, sup) if len(var_filt_df) > 0 else sup
+        dep = np.append(fdep, dep) if len(var_filt_df) > 0 else dep
+        norm = np.append(fnorm, norm) if len(var_filt_df) > 0 else norm
+        cn_states = np.append(fcn_states, cn_states) if len(var_filt_df) > 0 else cn_states
+    else:
+        sup, dep, norm, cn_states = fsup, fdep, fnorm, fcn_states
+        df = var_filt_df
+
     clus_members = np.array([np.where(ccert.most_likely_assignment.values==i)[0] for i in scs.clus_id.values])
 
     vartype = 'snvs' if snvs else 'svs'
@@ -295,7 +305,7 @@ def run_post_assign(args):
         elif len(run_dirs) < 1:
             raise ValueError('No best run directories exist! Please specify which run to use.')
         run = run_dirs[0]
-	
+
     if run.endswith("snvs"):
 	sv_file=''
 
@@ -391,35 +401,16 @@ def run_post_assign(args):
     pa_outdir = '%s_post_assign/' % rundir
     if len(sv_df) > 0:
         sv_to_assign = get_var_to_assign(sv_df, sv_filt_df)
-        if len(sv_to_assign) > 0:
-            sv_to_assign = filt.adjust_sv_read_counts(sv_to_assign, purity, ploidy, 0, rlen, Config)
-            print('Post assigning %d SVs...' % len(sv_to_assign))
-            post_assign_vars(sv_to_assign, sv_filt_df, rundir, sample, sample_params,
-                             cluster_params, clus_th)
-        else:
-            # copy best run dir (no need to reassign)
-            # remove dir if it exists
-            if os.path.exists(pa_outdir):
-                rmtree(pa_outdir)
-            print("No need to reassign, copying directory")
-	    copytree(rundir, pa_outdir, ignore=ignore_patterns('*.gz'))
-            copied_dir = True
+        sv_to_assign = filt.adjust_sv_read_counts(sv_to_assign, purity, ploidy, 0, rlen, Config)
+        print('Post assigning %d SVs...' % len(sv_to_assign))
+        post_assign_vars(sv_to_assign, sv_filt_df, rundir, sample, sample_params,
+                         cluster_params, clus_th)
 
     if len(snv_df) > 0:
         snv_to_assign = get_var_to_assign(snv_df, snv_filt_df, snvs = True)
-        if len(snv_to_assign) > 0:
-            print('Post assigning %d SNVs...' % len(snv_to_assign))
-            post_assign_vars(snv_to_assign, snv_filt_df, rundir, sample, sample_params,
-                             cluster_params, clus_th, snvs = True)
-        elif not copied_dir:
-            # copy snvs dir (no need to post-assign)
-            # remove dir if it exists
-            if os.path.exists('%s/snvs' % pa_outdir):
-                rmtree('%s/snvs' % pa_outdir)
-	    if run == 'best_run_snvs':
-            	copytree('%s/' % rundir, '%s_post_assign/snvs' % rundir, ignore=ignore_patterns('*.gz'))
-            else:
-		copytree('%s/snvs' % rundir, '%s_post_assign/snvs' % rundir, ignore=ignore_patterns('*.gz'))
+        print('Post assigning %d SNVs...' % len(snv_to_assign))
+        post_assign_vars(snv_to_assign, snv_filt_df, rundir, sample, sample_params,
+                         cluster_params, clus_th, snvs = True)
 
     if len(sv_df) > 0 and len(snv_df) > 0:
         amend_coclus_results(rundir, sample, sample_params)
