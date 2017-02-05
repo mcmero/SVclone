@@ -378,7 +378,7 @@ def run_post_assign(args):
 
         if len(snv_df)>0:
             print('Matching copy-numbers for SNVs...')
-            snv_df = filt.match_snv_copy_numbers(snv_df,cnv_df,strict_cf)
+            snv_df = filt.match_snv_copy_numbers(snv_df,cnv_df)
             n = len(snv_df)
             snv_df['gtype'] = np.array(map(filt.remove_zero_copynumbers, snv_df.gtype.values))
             snv_df = snv_df[snv_df.gtype != '']
