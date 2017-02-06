@@ -149,14 +149,16 @@ def post_assign_vars(var_df, var_filt_df, rundir, sample, sparams, cparams, clus
             for i in which_reclass:
                 # find most likely cluster for variant
                 lls, ll_probs = get_ll_probs(fsup[i], fdep[i], fnorm[i], fcn_states[i], purity, scs)
-                best_clus = np.where(np.max(lls)==lls)[0][0]
-                best_clus_id = scs.index[scs.clus_id.values==scs.clus_id.values[best_clus]].values[0]
+
+                # pos refers to index position, while array_idx is the array's index (this may differ)
+                best_clus_pos = np.where(np.max(lls)==lls)[0][0]
+                best_clus_array_idx = scs.index[scs.clus_id.values==scs.clus_id.values[best_clus_pos]].values[0]
 
                 # change variant's most likely assignment to new membership
-                ccert = ccert.set_value(i, 'most_likely_assignment', best_clus)
+                ccert = ccert.set_value(i, 'most_likely_assignment', scs.clus_id.values[best_clus_pos])
 
                 # increment subclonal cluster counts with newly assignment variant
-                scs = scs.set_value(best_clus_id, 'size', scs['size'][best_clus_id]+1)
+                scs = scs.set_value(best_clus_array_idx, 'size', scs['size'].values[best_clus_pos]+1)
 
     clusts = scs.clus_id.values
     for clus_idx in best_clus_list:
