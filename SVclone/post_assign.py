@@ -153,11 +153,10 @@ def post_assign_vars(var_df, var_filt_df, rundir, sample, sparams, cparams, clus
                 best_clus_id = scs.index[scs.clus_id.values==scs.clus_id.values[best_clus]].values[0]
 
                 # change variant's most likely assignment to new membership
-                ccert = ccert.set_value(i, 'most_likely_assignment', best_clus_id)
+                ccert = ccert.set_value(i, 'most_likely_assignment', best_clus)
 
                 # increment subclonal cluster counts with newly assignment variant
-                idx = scs.index[scs.clus_id.values==best_clus_id].values[0]
-                scs = scs.set_value(idx, 'size', scs['size'][idx]+1)
+                scs = scs.set_value(best_clus_id, 'size', scs['size'][best_clus_id]+1)
 
     clusts = scs.clus_id.values
     for clus_idx in best_clus_list:
@@ -179,8 +178,8 @@ def post_assign_vars(var_df, var_filt_df, rundir, sample, sparams, cparams, clus
     if Nvar > 0:
         lolim = 0 if snvs else 1
         uplim = 2 if snvs else 7
-        nvar, nvar_filt = len(var_df), len(var_filt_df)
-        var_df.index = range(nvar_filt, nvar_filt + nvar)
+        nvar_filt = len(var_filt_df)
+        var_df.index = range(nvar_filt, nvar_filt + Nvar)
         ccert_add = var_df[var_df.columns.values[lolim:uplim]]
         ccert_add['most_likely_assignment'] = best_clus_list
         ccert_add['average_ccf'] = np.array(phis)
@@ -229,6 +228,7 @@ def post_assign_vars(var_df, var_filt_df, rundir, sample, sparams, cparams, clus
 
     vartype = 'snvs' if snvs else 'svs'
     df.to_csv('%s/../%s_filtered_%s_post_assign.tsv' % (rundir, sample, vartype), sep='\t', index=False, na_rep='')
+
     print('Writing output to %s for %s' % (pa_outdir, vartype))
     write_output.write_out_files(df, scs, clus_members, probs, ccert,
                                  pa_outdir, sample, purity, sup, dep,
