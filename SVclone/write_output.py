@@ -10,12 +10,12 @@ from . import dtypes
 from . import cluster
 from . import load_data
 
-def adjust_vafs(mlcn_vect, ccert, vafs, pi):
+def adjust_vafs(mlcn_vect, ccert, vafs, pi, norm):
     '''
     adjust VAFs to CCFs using pv per variant
     '''
     mlcn  = pd.DataFrame(mlcn_vect)
-    phis  = ccert.average_proportion.values / pi
+    phis  = ccert.average_proportion.values / float(pi)
     probs = mlcn.pv.values / phis
 
     adj_vafs = (1 / probs) * vafs
@@ -72,20 +72,28 @@ def write_out_files(df, clus_info, clus_members, df_probs, clus_cert, clus_out_d
         outf.write("sample\tclusters\n")
         outf.write('%s\t%d\n'%(sample, len(clus_info)))
 
-    cmem        = np.hstack(clus_members)
     cn_dtype    = dtypes.sv_cn_dtype    if not are_snvs else dtypes.snv_cn_dtype
     mlcn_dtype  = dtypes.sv_mlcn_dtype  if not are_snvs else dtypes.snv_mlcn_dtype
     mult_dtype  = dtypes.sv_mult_dtype  if not are_snvs else dtypes.snv_mult_dtype
 
+    # re-sort all output in cluster member order
+    cmem      = np.hstack(clus_members)
+    df        = df.loc[cmem]
+    df.index  = range(len(df)) #reindex df
+    df_probs  = df_probs.loc[cmem]
+    clus_cert = clus_cert.loc[cmem]
+    z_phi     = z_phi[cmem]
+    sup, dep, norm, cn_states = sup[cmem], dep[cmem], np.array(norm)[cmem], cn_states[cmem]
+
+    # prepare data structures for output
     cn_vect     = np.empty((0, len(cmem)), dtype=cn_dtype)
     mlcn_vect   = np.empty((0, len(cmem)), dtype=mlcn_dtype)
     mult_vect   = np.empty((0, len(cmem)), dtype=mult_dtype)
-    clus_vars   = df.loc[cmem].copy()
 
     phis = clus_cert.average_ccf.values
     cns, pvs = cluster.get_most_likely_cn_states(cn_states, sup, dep, phis, pi, cnv_pval, norm)
 
-    for idx, var in clus_vars.iterrows():
+    for idx, var in df.iterrows():
         gtype1, gtype2 = None, None
         if not are_snvs:
             if math.isnan(var.ID):
@@ -149,7 +157,8 @@ def write_out_files(df, clus_info, clus_members, df_probs, clus_cert, clus_out_d
             pv_dev = np.abs(pv - float(var['var']) / (var['var'] + var.ref))
 
             cn_new_row = np.array([(chrom, pos, tot_cn1, int(sc_cn*freq))], dtype=cn_dtype)
-            ml_new_row = np.array([(chrom, pos, var['gtype'], ref_cn, sc_cn, freq, frac, pv, pv_dev)], dtype=mlcn_dtype)
+            ml_new_row = np.array([(chrom, pos, var['gtype'], ref_cn, sc_cn, freq, frac, pv, pv_dev)],
+                                  dtype=mlcn_dtype)
 
             var_states = cn_states[idx]
             tot_opts = ','.join(map(str,[int(x[1]) for x in var_states]))
@@ -180,7 +189,7 @@ def write_out_files(df, clus_info, clus_members, df_probs, clus_cert, clus_out_d
         ccf_out = df[df.columns.values[:2]]
         vafs = df['var'].values / (df['var'].values + df['ref'].values)
         ccf_out['raw_VAF'] = vafs
-        ccf_out['variant_CCF'] = adjust_vafs(mlcn_vect, clus_cert, vafs, pi)
+        ccf_out['variant_CCF'] = adjust_vafs(mlcn_vect, clus_cert, vafs, pi, norm)
         ccf_out['variant_CCF_trace'] = z_phi
         ccf_out['cluster_proportion'] = clus_cert.average_proportion.values
         ccf_out['cluster_CCF'] = clus_cert.average_proportion.values / pi
@@ -188,7 +197,7 @@ def write_out_files(df, clus_info, clus_members, df_probs, clus_cert, clus_out_d
         ccf_out = df[df.columns.values[:7]]
         ccf_out['raw_mean_VAF'] = df['raw_mean_vaf'].values
         ccf_out['adjusted_VAF'] = df['adjusted_vaf'].values
-        ccf_out['variant_CCF'] = adjust_vafs(mlcn_vect, clus_cert, df['adjusted_vaf'].values, pi)
+        ccf_out['variant_CCF'] = adjust_vafs(mlcn_vect, clus_cert, df['adjusted_vaf'].values, pi, norm)
         ccf_out['variant_CCF_trace'] = z_phi
         ccf_out['cluster_proportion'] = clus_cert.average_proportion.values
         ccf_out['cluster_CCF'] = clus_cert.average_proportion.values / pi
