@@ -17,12 +17,12 @@ def get_normal_copynumber(chrom, male):
     else:
         return 2.
 
-def get_sv_vals(sv_df, adjusted, male):
-    combos = sv_df.apply(cluster.get_sv_allele_combos,axis=1).values
+def get_sv_vals(sv_df, adjusted, male, cparams):
+    combos = sv_df.apply(cluster.get_sv_allele_combos, axis=1, args=(cparams,)).values
     sides = sv_df.preferred_side.map(int).values
-    cn_states = [cn[side] for cn,side in zip(combos,sides)]
+    cn_states = [cn[side] for cn,side in zip(combos, sides)]
     cn_states = pd.DataFrame([[sv] for sv in cn_states])[0].values
-    chroms = [c1 if side == 0 else c2 for c1,c2 in zip(sv_df.chr1.values,sv_df.chr2.values)]
+    chroms = [c1 if side == 0 else c2 for c1,c2 in zip(sv_df.chr1.values, sv_df.chr2.values)]
     norm = [get_normal_copynumber(c, male) for c in chroms]
 
     if adjusted:
@@ -38,11 +38,11 @@ def get_sv_vals(sv_df, adjusted, male):
         Nvar = len(sv_df)
         return sup,dep,cn_states,Nvar,norm
 
-def get_snv_vals(df, male):
+def get_snv_vals(df, male, cparams):
     n = df['ref'].map(float).values
     b = df['var'].map(float).values
 
-    cn_states = [cluster.get_allele_combos(gtype.split('|')) for gtype in df.gtype]
+    cn_states = [cluster.get_allele_combos(gtype.split('|'), cparams) for gtype in df.gtype]
     cn_states = pd.DataFrame([[cn] for cn in cn_states])[0].values
 
     norm = [get_normal_copynumber(c, male) for c in df.chrom.values]
@@ -315,6 +315,7 @@ def get_params_cluster_step(sample, cfg, out, pp_file, param_file, XX, XY):
     thin            = int(Config.get('ClusterParameters', 'thin'))
     threads         = int(Config.get('ClusterParameters', 'threads'))
     nclus_init      = Config.get('ClusterParameters', 'nclus_init')
+    restrict_cnss   = string_to_bool(Config.get('ClusterParameters', 'restrict_cnv_search_space'))
 
     use_map         = string_to_bool(Config.get('ClusterParameters', 'map'))
     merge_clusts    = string_to_bool(Config.get('ClusterParameters', 'merge'))
@@ -350,7 +351,8 @@ def get_params_cluster_step(sample, cfg, out, pp_file, param_file, XX, XY):
                        'male': male, 'merge_clusts': merge_clusts, 'adjusted': adjusted, 'phi_limit': phi_limit,
                        'clus_limit': clus_limit, 'subclone_diff': subclone_diff, 'cocluster': cocluster ,
                        'clonal_cnv_pval': cnv_pval, 'adjust_phis': adjust_phis, 'sv_to_sim': sv_to_sim,
-                       'threads': threads, 'ccf_reject': ccf_reject, 'nclus_init': nclus_init }
+                       'threads': threads, 'ccf_reject': ccf_reject, 'nclus_init': nclus_init,
+                       'restrict_cnss': restrict_cnss }
     output_params  = { 'plot': plot, 'smc_het': smc_het, 'cluster_penalty': cluster_penalty, 'fit_metric': fit_metric }
 
     return sample_params, cluster_params, output_params

@@ -438,6 +438,7 @@ def adjust_sv_read_counts(sv_df,pi,pl,min_dep,rlen,Config):
     dna_loss_class = Config.get('SVclasses', 'dna_loss_class').split(',')
     support_adjust_factor = float(Config.get('FilterParameters', 'support_adjust_factor'))
     filter_subclonal_cnvs = string_to_bool(Config.get('FilterParameters', 'filter_subclonal_cnvs'))
+    restrict_cnss = string_to_bool(Config.get('ClusterParameters', 'restrict_cnv_search_space'))
 
     gt1_sc  = [float(x.split('|')[0].split(',')[2])<1 if x!='' else False for x in sv_df.gtype1.values]
     gt2_sc  = [float(x.split('|')[0].split(',')[2])<1 if x!='' else False for x in sv_df.gtype2.values]
@@ -471,7 +472,8 @@ def adjust_sv_read_counts(sv_df,pi,pl,min_dep,rlen,Config):
         exclusive_subclones = zip(sv_df.gtype1.values[one_sc],sv_df.gtype2.values[one_sc])
         sides[one_sc] = [1 if len(gt1.split('|'))>1 else 0 for gt1,gt2 in exclusive_subclones]
     norm = np.array([float(ni[si]) for ni,si in zip(n, sides)])
-    combos = sv_df.apply(cluster.get_sv_allele_combos, axis=1)
+    cparams = {'restrict_cnss': restrict_cnss} #fake cparams dic for compatibility
+    combos = sv_df.apply(cluster.get_sv_allele_combos, axis=1, args=(cparams,))
     cn_states = [cn[side] for cn,side in zip(combos, sides)]
 
     try:

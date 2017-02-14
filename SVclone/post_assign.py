@@ -92,14 +92,14 @@ def post_assign_vars(var_df, var_filt_df, rundir, sample, sparams, cparams, clus
 
     if snvs:
         if len(var_df) > 0:
-            sup, dep, cn_states, Nvar, norm = load_data.get_snv_vals(var_df, male)
+            sup, dep, cn_states, Nvar, norm = load_data.get_snv_vals(var_df, male, cparams)
         if len(var_filt_df) > 0:
-            fsup, fdep, fcn_states, fNvar, fnorm = load_data.get_snv_vals(var_filt_df, male)
+            fsup, fdep, fcn_states, fNvar, fnorm = load_data.get_snv_vals(var_filt_df, male, cparams)
     else:
         if len(var_df) > 0:
-            sup, dep, cn_states, Nvar, norm = load_data.get_sv_vals(var_df, adjusted, male)
+            sup, dep, cn_states, Nvar, norm = load_data.get_sv_vals(var_df, adjusted, male, cparams)
         if len(var_filt_df) > 0:
-            fsup, fdep, fcn_states, fNvar, fnorm = load_data.get_sv_vals(var_filt_df, adjusted, male)
+            fsup, fdep, fcn_states, fNvar, fnorm = load_data.get_sv_vals(var_filt_df, adjusted, male, cparams)
 
     if len(ccert) != len(var_filt_df):
         raise ValueError('''Number of filtered variants does not match cluster output,
