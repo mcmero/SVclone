@@ -122,6 +122,10 @@ def post_assign_vars(var_df, var_filt_df, rundir, sample, sparams, cparams, clus
     orig_scs     = scs.copy()
     scs          = scs[np.logical_and(percent_filt, abs_filt)]
 
+    if len(scs) == 0:
+        scs = orig_scs
+        print("WARNING: all clusters fail minimum size requirements! No cluster filtering has been performed.")
+
     if len(scs) > 1 and Nvar > 0:
         for i in range(Nvar):
             lls, ll_probs = get_ll_probs(sup[i], dep[i], norm[i], cn_states[i], purity, scs)
