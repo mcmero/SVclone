@@ -241,7 +241,7 @@ def run_cnv_filter(df_flt, cnv, ploidy, neutral, filter_outliers, strict_cnv_fil
             gt_exceeds_cn = np.array([exceeds_cn_limit(gtype, max_cn) for gtype in df_flt.gtype.values])
             if np.any(gt_exceeds_cn):
                 n_df = len(df_flt)
-                df_flt = df_flt[np.invert(gt_exceed_cn)]
+                df_flt = df_flt[np.invert(gt_exceeds_cn)]
                 print('Filtered out %d SNVs where major or minor alleles exceed the CN max' % (n_df - len(df_flt)))
 
         else:
