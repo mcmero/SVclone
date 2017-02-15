@@ -109,6 +109,19 @@ def is_clonal_neutral(gtype):
         return (gt[0]==1 and gt[1]==1 and gt[2]==1)
     return False
 
+def exceeds_cn_limit(gtype, max_cn):
+    '''
+    returns True if any one major or minor allele
+    of any clone exceeds the max_cn threshold
+    '''
+    if gtype=='': return False
+    gtype = map(methodcaller('split',','),gtype.split('|'))
+    if len(gtype)==1:
+        gt = map(float, gtype[0])
+        return (gt[0] > max_cn or gt[1] > max_cn)
+    else:
+        return np.any(np.array([float(gt[0]) > max_cn or float(gt[1]) > max_cn for gt in gtype]))
+
 def remove_zero_copynumbers(gtype):
     '''
     remove any clonal or subclonal copy-numbers
@@ -166,7 +179,7 @@ def filter_outlying_norm_wins(df_flt):
 
     return df_flt
 
-def run_cnv_filter(df_flt, cnv, ploidy, neutral, filter_outliers, strict_cnv_filt, filter_subclonal, are_snvs=False):
+def run_cnv_filter(df_flt, cnv, ploidy, neutral, filter_outliers, strict_cnv_filt, filter_subclonal, max_cn, are_snvs=False):
     '''
     filter based on either CNV neutral, or presence of CNV vals
     '''
@@ -223,7 +236,14 @@ def run_cnv_filter(df_flt, cnv, ploidy, neutral, filter_outliers, strict_cnv_fil
                 n_df = len(df_flt)
                 is_clon  = [len(x.split('|'))==1 for x in df_flt.gtype.values]
                 df_flt = df_flt.loc[is_clon]
-                print('Filtered out %d SNVs with subclonal CNV states.' % (n_df - len(df_flt)))
+                print('Filtered out %d SNVs with subclonal CNV states' % (n_df - len(df_flt)))
+
+            gt_exceeds_cn = np.array([exceeds_cn_limit(gtype, max_cn) for gtype in df_flt.gtype.values])
+            if np.any(gt_exceeds_cn):
+                n_df = len(df_flt)
+                df_flt = df_flt[np.invert(gt_exceed_cn)]
+                print('Filtered out %d SNVs where major or minor alleles exceed the CN max' % (n_df - len(df_flt)))
+
         else:
             df_flt['gtype1'].fillna('')
             df_flt['gtype2'].fillna('')
@@ -247,6 +267,14 @@ def run_cnv_filter(df_flt, cnv, ploidy, neutral, filter_outliers, strict_cnv_fil
             if filter_outliers:
                 df_flt = filter_outlying_norm_wins(df_flt)
                 print('Filtered out %d SVs which had outlying depths' % (n_df - len(df_flt)))
+
+            gt1_exceeds_cn = np.array([exceeds_cn_limit(gtype, max_cn) for gtype in df_flt.gtype1.values])
+            gt2_exceeds_cn = np.array([exceeds_cn_limit(gtype, max_cn) for gtype in df_flt.gtype2.values])
+
+            if np.any(gt1_exceeds_cn) or np.any(gt2_exceeds_cn):
+                n_df = len(df_flt)
+                df_flt = df_flt[np.invert(np.logical_or(gt1_exceeds_cn, gt2_exceeds_cn))]
+                print('Filtered out %d SVs where major or minor alleles exceed the CN max' % (n_df - len(df_flt)))
 
     return df_flt
 
@@ -545,6 +573,7 @@ def run(args):
     if len(cfg_file)==0:
         raise ValueError('No configuration file found')
 
+    max_cn      = int(Config.get('BamParameters', 'max_cn'))
     valid_chrs  = Config.get('ValidationParameters', 'chroms').split(',')
     gl_th       = int(Config.get('FilterParameters', 'germline_threshold'))
     sv_offset   = int(Config.get('FilterParameters', 'sv_offset'))
@@ -611,13 +640,14 @@ def run(args):
             sv_df = match_copy_numbers(sv_df,cnv_df,strict_cnv_filt,sv_offset)
             sv_df = match_copy_numbers(sv_df,cnv_df,strict_cnv_filt,sv_offset,\
                     ['chr2','pos2','dir2','classification','pos1'],'gtype2')
-            sv_df = run_cnv_filter(sv_df,cnvs,ploidy,neutral,filter_otl,strict_cnv_filt,filter_subclonal_cnvs)
+            sv_df = run_cnv_filter(sv_df,cnvs,ploidy,neutral,filter_otl,strict_cnv_filt,
+                                   filter_subclonal_cnvs,max_cn)
 
         if len(snv_df)>0:
             print('Matching copy-numbers for SNVs...')
             snv_df = match_snv_copy_numbers(snv_df,cnv_df)
             snv_df = run_cnv_filter(snv_df,cnvs,ploidy,neutral,filter_otl,strict_cnv_filt,
-                                    filter_subclonal_cnvs,are_snvs=True)
+                                    filter_subclonal_cnvs,max_cn,are_snvs=True)
     else:
         print('No CNV input defined, assuming all loci major/minor allele copy-numbers are ploidy/2')
         if len(sv_df)>0:
@@ -627,14 +657,15 @@ def run(args):
             sv_df['gtype1'] = default_gtype
             sv_df['gtype2'] = default_gtype
             if filter_otl:
-                sv_df = run_cnv_filter(sv_df,cnvs,ploidy,neutral,filter_otl,strict_cnv_filt,filter_subclonal_cnvs)
+                sv_df = run_cnv_filter(sv_df,cnvs,ploidy,neutral,filter_otl,strict_cnv_filt,
+                                       filter_subclonal_cnvs,max_cn)
         if len(snv_df)>0:
             maj_allele = round(ploidy/2) if round(ploidy) > 1 else 1
             min_allele = round(ploidy/2) if round(ploidy) > 1 else 0
             default_gtype = '%d,%d,1.0' % (maj_allele, min_allele)
             snv_df['gtype'] = default_gtype
             snv_df = run_cnv_filter(snv_df,cnvs,ploidy,neutral,filter_otl,strict_cnv_filt,
-                                    filter_subclonal_cnvs,are_snvs=True)
+                                    filter_subclonal_cnvs,max_cn,are_snvs=True)
 
     if len(sv_df)==0 and len(snv_df)==0:
         raise ValueError('No variants found to output!')
