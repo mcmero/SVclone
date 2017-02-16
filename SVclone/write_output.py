@@ -67,8 +67,8 @@ def write_out_files(df, clus_info, clus_members, df_probs, clus_cert, clus_out_d
         smc_clus_info = smc_clus_info[['cluster', 'n_ssms', 'proportion']]
         smc_clus_info.to_csv('%s/smc_1C_cluster_structure.txt' % clus_out_dir, sep='\t', index=False, header=False)
 
-    clus_info.to_csv('%s/%s_subclonal_structure.txt'%(clus_out_dir, sample), sep='\t', index=False)
-    with open('%s/number_of_clusters.txt'%clus_out_dir,'w') as outf:
+    clus_info.to_csv('%s/%s_subclonal_structure.txt' % (clus_out_dir, sample), sep='\t', index=False)
+    with open('%s/number_of_clusters.txt' % clus_out_dir,'w') as outf:
         outf.write("sample\tclusters\n")
         outf.write('%s\t%d\n'%(sample, len(clus_info)))
 

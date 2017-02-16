@@ -9,7 +9,7 @@ from sklearn.cluster import KMeans
 from scipy import stats
 from operator import methodcaller
 
-def add_copynumber_combos(combos, var_maj, var_min, ref_cn, frac):
+def add_copynumber_combos(combos, var_maj, var_min, ref_cn, frac, cparams):
     '''
     ref_cn = total reference (non-variant) copy-number
     var_total = total variant copy-number
@@ -21,6 +21,10 @@ def add_copynumber_combos(combos, var_maj, var_min, ref_cn, frac):
     var_total = float(var_maj + var_min)
     if var_total == 0.:
         mu_v = 0.
+    elif cparams['restrict_cnss']:
+        combos.append([ref_cn, var_total, 1. / var_total, frac])
+        combos.append([ref_cn, var_total, float(var_maj) / var_total, frac])
+        combos.append([ref_cn, var_total, float(var_min) / var_total, frac])
     else:
         for i in range(1, int(var_maj+1)):
             mu_v = 1.0*i / var_total
@@ -28,7 +32,7 @@ def add_copynumber_combos(combos, var_maj, var_min, ref_cn, frac):
 
     return combos
 
-def get_allele_combos(cn):
+def get_allele_combos(cn, cparams):
     combos = []
 
     if len(cn) == 0 or cn[0]=='':
@@ -42,19 +46,19 @@ def get_allele_combos(cn):
         major2, minor2, total2, frac2 = c2[0], c2[1], c2[0]+c2[1], c2[2]
 
         # generate copynumbers for each subclone being the potential variant pop
-        combos = add_copynumber_combos(combos, major1, minor1, total2, frac1)
-        combos = add_copynumber_combos(combos, major2, minor2, total1, frac2)
+        combos = add_copynumber_combos(combos, major1, minor1, total2, frac1, cparams)
+        combos = add_copynumber_combos(combos, major2, minor2, total1, frac2, cparams)
     else:
         c = map(float,cn[0].split(','))
         major, minor, frac = c[0], c[1], c[2]
-        combos = add_copynumber_combos(combos, major, minor, major + minor, frac)
+        combos = add_copynumber_combos(combos, major, minor, major + minor, frac, cparams)
 
     return filter_cns(combos)
 
-def get_sv_allele_combos(sv):
+def get_sv_allele_combos(sv, cparams):
     cn_tmp = tuple([tuple(sv.gtype1.split('|')),tuple(sv.gtype2.split('|'))])
-    combos_bp1 = get_allele_combos(cn_tmp[0])
-    combos_bp2 = get_allele_combos(cn_tmp[1])
+    combos_bp1 = get_allele_combos(cn_tmp[0], cparams)
+    combos_bp2 = get_allele_combos(cn_tmp[1], cparams)
 
     return tuple([combos_bp1,combos_bp2])
 
