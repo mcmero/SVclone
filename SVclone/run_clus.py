@@ -121,7 +121,9 @@ def merge_clusters(clus_out_dir,clus_info,clus_merged,clus_members,merged_ids,su
             clus_merged.loc[idx] = clus_info.loc[idx]
             break
         cn = clus_info.loc[idx+1]
-        if abs(ci.phi - float(cn.phi)) < subclone_diff:
+        # low CI boundary of current cluster, high CI boundary of next cluster
+        ci_lo, cn_hi = ci[3], cn[4]
+        if cn_hi >= (ci_lo - subclone_diff):
             print("\nReclustering similar clusters...")
             new_size = ci['size'] + cn['size']
 
