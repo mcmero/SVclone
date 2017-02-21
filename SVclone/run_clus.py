@@ -321,8 +321,7 @@ def post_process_clusters(mcmc,sv_df,snv_df,clus_out_dir,sup,dep,norm,cn_states,
     if len(snv_df)>0 and len(sv_df)==0:
         # snvs only trace output
         dump_out_dir = '%s/snvs'%clus_out_dir
-    trace_out = 'premerge_' if merge_clusts else ''
-    trace_out = '%s/%s'%(dump_out_dir,trace_out)
+    trace_out = '%s/' % (dump_out_dir)
     write_output.dump_trace(center_trace, trace_out+'phi_trace.txt')
     write_output.dump_trace(z_trace, trace_out+'z_trace.txt')
 
