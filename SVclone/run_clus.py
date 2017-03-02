@@ -53,7 +53,7 @@ def plot_clusters(trace, clusters, assignments, sup, dep, clus_out_dir, cparams)
     if len(alpha_trace) > 0:
         fig, axes = plt.subplots(5, 1, sharex=False, sharey=False, figsize=(12.5,15))
         axes[4].set_title("Alpha trace")
-        axes[4].plot(alpha_trace, lw=1)
+        axes[4].plot(range(len(alpha_trace)), alpha_trace, lw=1)
 
     RGB_tuples = gen_new_colours(len(clusters))
 
@@ -121,7 +121,9 @@ def merge_clusters(clus_out_dir,clus_info,clus_merged,clus_members,merged_ids,su
             clus_merged.loc[idx] = clus_info.loc[idx]
             break
         cn = clus_info.loc[idx+1]
-        if abs(ci.phi - float(cn.phi)) < subclone_diff:
+        # low CI boundary of current cluster, high CI boundary of next cluster
+        ci_lo, cn_hi = ci[3], cn[4]
+        if cn_hi >= (ci_lo - subclone_diff):
             print("\nReclustering similar clusters...")
             new_size = ci['size'] + cn['size']
 
@@ -321,8 +323,7 @@ def post_process_clusters(mcmc,sv_df,snv_df,clus_out_dir,sup,dep,norm,cn_states,
     if len(snv_df)>0 and len(sv_df)==0:
         # snvs only trace output
         dump_out_dir = '%s/snvs'%clus_out_dir
-    trace_out = 'premerge_' if merge_clusts else ''
-    trace_out = '%s/%s'%(dump_out_dir,trace_out)
+    trace_out = '%s/' % (dump_out_dir)
     write_output.dump_trace(center_trace, trace_out+'phi_trace.txt')
     write_output.dump_trace(z_trace, trace_out+'z_trace.txt')
 
