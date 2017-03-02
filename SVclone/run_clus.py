@@ -53,7 +53,7 @@ def plot_clusters(trace, clusters, assignments, sup, dep, clus_out_dir, cparams)
     if len(alpha_trace) > 0:
         fig, axes = plt.subplots(5, 1, sharex=False, sharey=False, figsize=(12.5,15))
         axes[4].set_title("Alpha trace")
-        axes[4].plot(alpha_trace, lw=1)
+        axes[4].plot(range(len(alpha_trace)), alpha_trace, lw=1)
 
     RGB_tuples = gen_new_colours(len(clusters))
 

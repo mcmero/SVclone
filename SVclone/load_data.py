@@ -67,6 +67,7 @@ def load_cnvs(cnv_file):
     try:
         if 'nMaj1_A' in cnv_df.columns.values:
             # battenberg input
+            cnv_df = cnv_df[np.invert(np.isnan(cnv_df.nMaj1_A.values))]
             cnv_df['chr'] = map(str,cnv_df['chr'])
             cnv_df['nMaj1_A'] = map(float,cnv_df['nMaj1_A'])
             cnv_df['nMin1_A'] = map(float,cnv_df['nMin1_A'])
@@ -85,11 +86,11 @@ def load_cnvs(cnv_file):
 
             cnv_df['gtype'] = gtypes
             select_cols = ['chr','startpos','endpos','gtype']
-            cnv_df = cnv_df[np.invert(np.isnan(cnv_df.nMaj1_A.values))]
             return cnv_df[select_cols]
 
         elif 'battenberg_nMaj1_A' in cnv_df.columns.values:
             # also battenberg
+            cnv_df = cnv_df[np.invert(np.isnan(cnv_df.battenberg_nMaj1_A.values))]
             cnv_df['chr'] = map(str,cnv_df['chr'])
             cnv_df['battenberg_nMaj1_A'] = map(float,cnv_df['battenberg_nMaj1_A'])
             cnv_df['battenberg_nMin1_A'] = map(float,cnv_df['battenberg_nMin1_A'])
@@ -113,31 +114,33 @@ def load_cnvs(cnv_file):
 
         elif 'clonal_frequency' in cnv_df.columns.values:
             # pcawg clonal copy-number calls format
+            cnv_df = cnv_df[np.invert(np.isnan(cnv_df.major_cn.values))]
             cnv_df['chromosome'] = cnv_df.chromosome.map(str)
             cnv_df = cnv_df.rename(columns={'chromosome': 'chr', 'start': 'startpos', 'end': 'endpos'})
             gtypes = cnv_df.major_cn.map(str) + ',' + cnv_df.minor_cn.map(str) + ',' + cnv_df.clonal_frequency.map(str)
             cnv_df['gtype'] = gtypes
             select_cols = ['chr','startpos','endpos','gtype']
-            cnv_df = cnv_df[select_cols]
-            return cnv_df
+            return cnv_df[select_cols]
 
         elif 'star' in cnv_df.columns.values:
             # pcawg star copy-number calls format
+            cnv_df = cnv_df[np.invert(np.isnan(cnv_df.major_cn.values))]
             cnv_df['chromosome'] = cnv_df.chromosome.map(str)
             cnv_df = cnv_df.rename(columns={'chromosome': 'chr', 'start': 'startpos', 'end': 'endpos'})
             gtypes = cnv_df.major_cn.map(str) + ',' + cnv_df.minor_cn.map(str) + ',1.0'
             cnv_df['gtype'] = gtypes
             select_cols = ['chr','startpos','endpos','gtype']
-            cnv_df = cnv_df[select_cols]
-            return cnv_df
+            return cnv_df[select_cols]
 
         else:
             # caveman input
+            cnv_df = cnv_df[np.invert(np.isnan(cnv_df.tumour_total.values))]
             major = cnv_df.tumour_total.map(int) - cnv_df.tumour_minor.map(int)
             gtypes = major.map(str) + ',' + cnv_df.tumour_minor.map(str) + ',1.0'
             cnv_df['gtype'] = gtypes
             select_cols = ['chr','startpos','endpos','gtype']
             return cnv_df[select_cols]
+
     except KeyError:
         raise Exception('''CNV file column names not recognised.
         Check the input is a battenberg output file (with headers) or an ASCAT caveman CSV.''')
