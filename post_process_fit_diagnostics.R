@@ -595,7 +595,7 @@ if (map) {
 
 setwd(rundir)
 if (!grepl('^--', bbf) & file.exists(bbf)) {
-    print('Potting circos...')
+    print('Plotting circos...')
     bb <- read.delim(bbf, sep='\t', stringsAsFactors = F)
 
     if (length(grep('battenberg', colnames(bb))) > 0) {
