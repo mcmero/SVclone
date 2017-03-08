@@ -332,7 +332,7 @@ for (run in runs) {
 }
 
 pdf(paste(id, '_cluster_hist.pdf',sep=''),height=4, width=max(3,length(runs)*0.6))
-ggplot(clusts, aes(x=factor(run), y=n_ssms, fill=factor(cluster))) + geom_bar(stat='identity')
+ggplot(clusts, aes(x=factor(run), y=n_ssms, fill=factor(cluster))) + geom_bar(stat='identity') + theme_minimal()
 dev.off()
 
 ############################################################################################
@@ -353,13 +353,17 @@ if (length(args)>2 & map) {
     ic_table$run <- factor(ic_table$run, levels=mixedsort(unique(as.character(ic_table$run))))
     ic_table$IC <- factor(ic_table$IC, levels=allowed_ics)
     g1 <- ggplot(ic_table[ic_table$IC=='BIC',],
-                 aes(y=value, x=run, group=IC)) + ylab('value') + geom_line() + ggtitle('BIC')
+                 aes(y=value, x=run, group=IC)) + ylab('value') + geom_line() + ggtitle('BIC') +
+                 theme_minimal()
     g2 <- ggplot(ic_table[ic_table$IC=='AIC',],
-                 aes(y=value, x=run, group=IC)) + ylab('value') + geom_line() + ggtitle('AIC')
+                 aes(y=value, x=run, group=IC)) + ylab('value') + geom_line() + ggtitle('AIC') +
+                 theme_minimal()
     g3 <- ggplot(ic_table[ic_table$IC=='AICc',],
-                 aes(y=value, x=run, group=IC)) + ylab('value') + geom_line() + ggtitle('AICc')
+                 aes(y=value, x=run, group=IC)) + ylab('value') + geom_line() + ggtitle('AICc') +
+                 theme_minimal()
     g4 <- ggplot(ic_table[ic_table$IC=='svc_IC',],
-                 aes(y=value, x=run, group=IC)) + ylab('value') + geom_line() + ggtitle('svc_IC')
+                 aes(y=value, x=run, group=IC)) + ylab('value') + geom_line() + ggtitle('svc_IC') +
+                 theme_minimal()
     pdf(paste(id, 'ic_plots.pdf',sep='_'), height=6)
     grid.arrange(g1,g2,g3,g4)
     dev.off()
@@ -452,7 +456,7 @@ for (run in runs) {
                           axis.title = element_text(size = 16),
                           axis.text.x = element_text(size = 14),
                           axis.text.y = element_text(size = 14)) +
-                    geom_point(size=1) + xlim(0,2) + ylim(0,1) + ylab('VAF')
+                    geom_point(size=1) + xlim(0,2) + ylim(0,1) + ylab('VAF') + theme_minimal()
 
     # attach table for convenience, also add BIC/AIC
     sv_clust <- read.table(paste(run, '/', snv_dir, id, '_subclonal_structure.txt', sep=''),
@@ -489,7 +493,7 @@ for (run in runs) {
                   axis.title = element_text(size = 16),
                   axis.text.x = element_text(size = 14),
                   axis.text.y = element_text(size = 14)) +
-            geom_point(size=1) + xlim(0,2) + ylim(0,1) + ylab('VAF')
+            geom_point(size=1) + xlim(0,2) + ylim(0,1) + ylab('VAF') + theme_minimal()
         plot5 <- plot_hist('./', id, snvs = TRUE, pick_run = run, post = post)
         plot6 <- plot_hist('./', id, snvs = FALSE, pick_run = run, vaf = TRUE, post = post)
         plot7 <- plot_hist('./', id, snvs = TRUE, pick_run = run, varclass = TRUE, post = post)
@@ -499,16 +503,17 @@ for (run in runs) {
             height <- 12+round(nrow(tabout)*0.2)
             pdf(outname, height=height, width=9)
             grid.arrange(sc_tab, ic_tab,
-                         plot1 + ggtitle(paste(run, 'SVs')), plot2 + ggtitle('SVs'),
-                         plot5 + ggtitle(paste(run, 'SNVs')), plot6 + ggtitle('SNVs'),
+                         plot1 + ggtitle(paste(run, 'SVs')), plot5 + ggtitle('SNVs'),
+                         plot2 + ggtitle(paste(run, 'SVs')), plot6 + ggtitle('SNVs'),
                          plot8 + ggtitle(paste(run, 'SVs')), plot7 + ggtitle(paste(run, 'SNVs')),
                          plot3 + ggtitle(paste(run, 'SVs')), plot4 + ggtitle(paste(run, 'SNVs')), ncol=2)
             dev.off()
         } else {
             height <- 12+round(nrow(tabout)*0.2)
             pdf(outname, height=height, width=9)
-            grid.arrange(sc_tab, grid.rect(gp=gpar(col='white')), plot1 + ggtitle(paste(run, 'SVs')), plot2 + ggtitle('SVs'),
-                         plot5 + ggtitle(paste(run, 'SNVs')), plot6 + ggtitle('SNVs'),
+            grid.arrange(sc_tab, grid.rect(gp=gpar(col='white')),
+                         plot1 + ggtitle(paste(run, 'SVs')), plot5 + ggtitle('SNVs'),
+                         plot2 + ggtitle(paste(run, 'SVs')), plot6 + ggtitle('SNVs'),
                          plot8 + ggtitle(paste(run, 'SVs')), plot7 + ggtitle(paste(run, 'SNVs')),
                          plot3 + ggtitle(paste(run, 'SVs')), plot4 + ggtitle(paste(run, 'SNVs')), ncol=2)
             dev.off()
@@ -523,7 +528,9 @@ for (run in runs) {
         if (map & length(grep('post', run))==0) {
             height <- 7+round(nrow(tabout)*0.2)
             pdf(outname, height=height, width=9)
-            grid.arrange(sc_tab, ic_tab, plot1, plot2, plot4, plot3, ncol=2)
+            grid.arrange(sc_tab, ic_tab,
+                         plot1, plot2,
+                         plot4, plot3, ncol=2)
             dev.off()
         } else {
             height <- 10+round(nrow(tabout)*0.2)
@@ -565,11 +572,12 @@ rp <- ggplot(data = all_runs_scs) +
     geom_jitter(data = all_runs_ccfs, aes(x = run, y = CCF, colour = factor(cluster)),
                 position=position_jitter(width=0.4), alpha = 0.5, size = 2) +
     scale_size(range = c(4,25), guide = FALSE) + ggtitle('Clustering summary') +
-    geom_point(aes(x = run, y = CCF, size=variant_proportion), colour = '#4d4d4d', alpha=0.8)
+    geom_point(aes(x = run, y = CCF, size=variant_proportion), colour = '#4d4d4d', alpha=0.8) +
+    theme_minimal()
 
 if (map) {
     svic_plot <- ggplot(ic_table[ic_table$IC=='svc_IC',], aes(y=value, x=run, group=1)) +
-        ylab('value') + geom_line() + ggtitle('SVclone IC')
+        ylab('value') + geom_line() + ggtitle('SVclone IC') + theme_minimal()
     pdf_name <- paste(id, '_run_summary.pdf', sep='')
     pdf(pdf_name, height = 6, width = 14 + (length(runs)/2))
     suppressWarnings(grid.arrange(rp, svic_plot, nrow = 1))
