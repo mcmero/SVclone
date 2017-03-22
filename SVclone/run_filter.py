@@ -30,49 +30,54 @@ def run_simple_filter(df,rlen,insert,minsplit,minspan,sizefilter,min_dep,filter_
     '''
     filter based on presence of supporting reads and > fragment length
     '''
-    span = np.array(df.spanning)
-    split = np.array(df.split1+df.split2)
-    df_flt = df[np.logical_and(span>=minspan,split>=minsplit)]
+    df_flt = df.copy()
 
+    n = len(df_flt)
+    itx = df_flt['chr1'] != df_flt['chr2']
+    frag_len = 2 * rlen + insert
+    sizefilter = sizefilter if sizefilter>=0 else frag_len
+    df_flt = df_flt[ itx | (abs(df_flt['pos1'] - df_flt['pos2']) > sizefilter) ]
+    print('Filtered out %d SVs based on size limits' % (n - len(df_flt)))
+
+    n = len(df_flt)
     dep1 = df_flt.support + df_flt.norm1
     dep2 = df_flt.support + df_flt.norm2
-    df_flt = df_flt[np.logical_and(dep1>=min_dep,dep2>=min_dep)]
+    df_flt = df_flt[np.logical_and(dep1 >= min_dep, dep2 >= min_dep)]
+    print('Filtered out %d SVs based on minimum depth limit' % (n - len(df_flt)))
 
-    print('Filtered out %d SVs based on minimum depth and spanning/split read limits' % (len(df) - len(df_flt)))
-
-    itx = df_flt['chr1']!=df_flt['chr2']
-    frag_len = 2*rlen+insert
-    sizefilter = sizefilter if sizefilter>=0 else frag_len
-    df_flt2 = df_flt[ itx | (abs(df_flt['pos1']-df_flt['pos2'])>sizefilter) ]
-
-    print('Filtered out %d SVs based on size limits' % (len(df_flt) - len(df_flt2)))
+    n = len(df_flt)
+    span = np.array(df_flt.spanning)
+    split = np.array(df_flt.split1 + df_flt.split2)
+    df_flt = df_flt[np.logical_and(span >= minspan, split >= minsplit)]
+    print('Filtered out %d SVs based on spanning/split read limits' % (n - len(df_flt)))
 
     if filter_chrs:
-        chr1 = np.array([chrom in valid_chrs for chrom in df_flt2.chr1])
-        chr2 = np.array([chrom in valid_chrs for chrom in df_flt2.chr2])
-        df_flt3 = df_flt2[np.logical_and(chr1,chr2)]
-
-        print('Filtered out %d SVs that had non-standard chromosomes' % (len(df_flt2) - len(df_flt3)))
-        df_flt2 = pd.DataFrame(df_flt3,copy=True)
+        n = len(df_flt)
+        chr1 = np.array([chrom in valid_chrs for chrom in df_flt.chr1])
+        chr2 = np.array([chrom in valid_chrs for chrom in df_flt.chr2])
+        df_flt = df_flt[np.logical_and(chr1, chr2)]
+        print('Filtered out %d SVs that had non-standard chromosomes' % (n - len(df_flt)))
 
     if len(blist) > 0:
+        n = len(df_flt)
         keep = []
-        for idx,sv in df_flt2.iterrows():
-            pos_olap1 = np.logical_and(sv['pos1']>=blist.f1, sv['pos1']<=blist.f2)
-            olap1 = np.logical_and(sv['chr1']==blist.f0, pos_olap1)
+        for idx,sv in df_flt.iterrows():
+            pos_olap1 = np.logical_and(sv['pos1'] >= blist.f1, sv['pos1'] <= blist.f2)
+            olap1 = np.logical_and(sv['chr1'] == blist.f0, pos_olap1)
 
-            pos_olap2 = np.logical_and(sv['pos2']>=blist.f1, sv['pos2']<=blist.f2)
-            olap2 = np.logical_and(sv['chr2']==blist.f0, pos_olap2)
+            pos_olap2 = np.logical_and(sv['pos2'] >= blist.f1, sv['pos2'] <= blist.f2)
+            olap2 = np.logical_and(sv['chr2'] == blist.f0, pos_olap2)
 
             olaps = blist[np.logical_or(olap1, olap2)]
             if len(olaps) > 0:
                 keep.append(False)
             else:
                 keep.append(True)
-        df_flt2 = df_flt2[keep]
-        print('Filtered out %d SVs found in the supplied blacklist' % (len(keep)-sum(keep)))
 
-    return df_flt2
+        df_flt = df_flt[keep]
+        print('Filtered out %d SVs found in the supplied blacklist' % (n - len(df_flt)))
+
+    return df_flt
 
 def run_simple_snv_filter(snv_df, min_dep, blist, filter_chrs, valid_chrs):
 
