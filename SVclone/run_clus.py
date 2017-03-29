@@ -429,7 +429,7 @@ def cluster_and_process(sv_df, snv_df, run, out_dir, sample_params, cluster_para
     if cluster_params['cocluster'] and len(sv_df)>0 and len(snv_df)>0:
         # coclustering
         sup, dep, cn_states, Nvar, norm = load_data.get_snv_vals(snv_df, male, cluster_params)
-        sv_sup, sv_dep, sv_cn_states, sv_Nvar, sv_norm = load_data.get_sv_vals(sv_df, 
+        sv_sup, sv_dep, sv_cn_states, sv_Nvar, sv_norm = load_data.get_sv_vals(sv_df,
                                                 cluster_params['adjusted'], male, cluster_params)
         sup = np.append(sup, sv_sup)
         dep = np.append(dep, sv_dep)

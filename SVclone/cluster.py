@@ -233,6 +233,7 @@ def cluster(sup,dep,cn_states,Nvar,sparams,cparams,phi_limit,norm,recluster=Fals
     n_iter = cparams['n_iter'] if not recluster else int(cparams['n_iter']/4)
     burn = cparams['burn'] if not recluster else int(cparams['burn']/4)
     thin, use_map = cparams['thin'], cparams['use_map']
+    use_map = False if recluster else use_map
     nclus_init = cparams['nclus_init']
 
     purity, ploidy = sparams['pi'], sparams['ploidy']
