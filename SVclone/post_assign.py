@@ -313,7 +313,7 @@ def run_post_assign(args):
         run = run_dirs[0]
 
     if run.endswith("snvs"):
-        sv_file=''
+	sv_file=''
 
     rundir = '%s/%s' % (out, run)
     if not os.path.exists(rundir):

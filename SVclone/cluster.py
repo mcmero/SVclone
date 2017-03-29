@@ -186,7 +186,6 @@ def get_most_likely_cn_states(cn_states, s, d, phi, pi, pval_cutoff, norm):
 def get_initialisation(nclus_init, Ndp, sparams, sup, dep, norm, cn_states, sens, phi_limit, pval_cutoff):
 
     purity, ploidy, mean_cov = sparams['pi'], sparams['ploidy'], sparams['mean_cov']
-    ipdb.set_trace()
     mlcn, mlpv = get_most_likely_cn_states(cn_states, sup, dep, np.ones(len(sup)), purity, pval_cutoff, norm)
     data = (sup / dep) * (1 / np.array(mlpv))
     data = np.array([d if d < phi_limit else phi_limit for d in data])
@@ -210,20 +209,19 @@ def get_initialisation(nclus_init, Ndp, sparams, sup, dep, norm, cn_states, sens
         phi_fill = np.array([sens if x < sens else x for x in phi_fill])
         phi_init = np.concatenate([phi_init, phi_fill])
 
-    # for testing initalisation
-    import colorsys
-    import matplotlib.pyplot as plt
-    def gen_new_colours(N):
-        HSV_tuples = [(x*1.0/N, 0.5, 0.5) for x in range(N)]
-        RGB_tuples = map(lambda x: colorsys.hsv_to_rgb(*x), HSV_tuples)
-        return RGB_tuples
-    RGB_tuples = np.array(gen_new_colours(Ndp))
-
-    for lab in np.unique(kme.labels_):
-        dat = data[np.where(kme.labels_==lab)[0]]
-        plt.hist(dat,bins=np.array(range(0,200,2))/100.,alpha=0.75,color=RGB_tuples[lab])
-    plt.savefig('test')
-    ipdb.set_trace()
+#    # for testing initalisation
+#    import colorsys
+#    import matplotlib.pyplot as plt
+#    def gen_new_colours(N):
+#        HSV_tuples = [(x*1.0/N, 0.5, 0.5) for x in range(N)]
+#        RGB_tuples = map(lambda x: colorsys.hsv_to_rgb(*x), HSV_tuples)
+#        return RGB_tuples
+#    RGB_tuples = np.array(gen_new_colours(Ndp))
+#
+#    for lab in np.unique(kme.labels_):
+#        dat = data[np.where(kme.labels_==lab)[0]]
+#        plt.hist(dat,bins=np.array(range(0,200,2))/100.,alpha=0.75,color=RGB_tuples[lab])
+#    plt.savefig('test')
 
     return z_init, phi_init
 
