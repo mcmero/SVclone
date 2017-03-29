@@ -62,15 +62,15 @@ def get_var_to_assign(var_df, var_filt_df, snvs = False):
     return var_to_assign
 
 def get_ll_probs(s, d, n, cn, purity, scs):
-    lls = np.array(np.max(cluster.calc_lik(cn, s, d, scs.phi.values[0], purity, n)[1]))
+    lls = np.array([np.max(cluster.calc_lik(cn, s, d, scs.phi.values[0], purity, n)[1])])
     for j in range(1, len(scs)):
         ll = cluster.calc_lik(cn, s, d, scs.phi.values[j], purity, n)[1]
         lls = np.append(lls, np.max(ll))
-    try:
+    if len(lls) > 1:
         lls_conv = [math.e ** ll for ll in lls]
         ll_probs = [float(lc) / sum(lls_conv) for lc in lls_conv]
-    except TypeError:
-        ll_probs = (math.e ** lls) / lls
+    else:
+        ll_probs = [1.]
 
     return lls, ll_probs
 
@@ -139,6 +139,14 @@ def post_assign_vars(var_df, var_filt_df, rundir, sample, sparams, cparams, clus
     best_clus_list = np.array(map(int, best_clus_list))
     phis = scs.phi.values[best_clus_list] if Nvar > 0 else None
 
+    hpd_lo = 'HPD_lo'
+    hpd_hi = 'HPD_hi'
+    if len(ccert) > 0:
+        hpd_lo = ccert.columns.values[-2]
+        hpd_hi = ccert.columns.values[-1]
+        ccert[hpd_lo] = ccert[hpd_lo]/purity
+        ccert[hpd_hi] = ccert[hpd_hi]/purity
+
     # reclassify minor cluster variants if filtered out
     if len(scs) != len(orig_scs) and len(var_filt_df) > 0:
         scs_fo = orig_scs[np.invert(np.logical_and(percent_filt, abs_filt))]
@@ -149,6 +157,7 @@ def post_assign_vars(var_df, var_filt_df, rundir, sample, sparams, cparams, clus
         mla = ccert.most_likely_assignment.values
         which_reclass = np.where(np.array([cv in scs_fo.clus_id.values for cv in mla]))[0]
         if len(which_reclass) > 0:
+            not_reclass = np.array([ccidx not in which_reclass for ccidx in ccert.index.values])
             print('Reassigning %d variants from filtered out clusters' % len(which_reclass))
             for i in which_reclass:
                 # find most likely cluster for variant
@@ -159,7 +168,24 @@ def post_assign_vars(var_df, var_filt_df, rundir, sample, sparams, cparams, clus
                 best_clus_array_idx = scs.index[scs.clus_id.values==scs.clus_id.values[best_clus_pos]].values[0]
 
                 # change variant's most likely assignment to new membership
-                ccert = ccert.set_value(i, 'most_likely_assignment', scs.clus_id.values[best_clus_pos])
+                new_clus = scs.clus_id.values[best_clus_pos]
+                ccert = ccert.set_value(i, 'most_likely_assignment', new_clus)
+
+                # update cluster proportion
+                ccert = ccert.set_value(i, 'average_ccf', scs.phi.values[best_clus_pos])
+                tmp = ccert.loc[not_reclass]
+                lo_val = tmp[tmp.most_likely_assignment==new_clus][hpd_lo].values[0]
+                hi_val = tmp[tmp.most_likely_assignment==new_clus][hpd_hi].values[0]
+                ccert = ccert.set_value(i, hpd_lo, lo_val)
+                ccert = ccert.set_value(i, hpd_hi, hi_val)
+
+                # update cluster assignment probability
+                pa_clus_cols = ['cluster%d' % cid for cid in scs.clus_id.values]
+                if len(pa_clus_cols) > 1:
+                    for idx,pac in enumerate(pa_clus_cols):
+                        probs = probs.set_value(i, pac, round(ll_probs[idx], 2))
+                else:
+                    probs.set_value(i, pa_clus_cols[0], 1.)
 
                 # increment subclonal cluster counts with newly assignment variant
                 scs = scs.set_value(best_clus_array_idx, 'size', scs['size'].values[best_clus_pos]+1)
@@ -172,14 +198,6 @@ def post_assign_vars(var_df, var_filt_df, rundir, sample, sparams, cparams, clus
 
     # convert from position index to cluster index (may differ)
     best_clus_list = [clusts[clus_idx] for clus_idx in best_clus_list]
-
-    hpd_lo = 'HPD_lo'
-    hpd_hi = 'HPD_hi'
-    if len(ccert) > 0:
-        hpd_lo = ccert.columns.values[-2]
-        hpd_hi = ccert.columns.values[-1]
-        ccert[hpd_lo] = ccert[hpd_lo]/purity
-        ccert[hpd_hi] = ccert[hpd_hi]/purity
 
     if Nvar > 0:
         lolim = 0 if snvs else 1
