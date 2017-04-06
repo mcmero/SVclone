@@ -21,7 +21,7 @@ map <- FALSE
 clus_stab <- FALSE
 snvs <- FALSE
 coclus <- FALSE
-allowed_ics <- c( 'AICc', 'AIC', 'BIC', 'svc_IC')
+allowed_ics <- c('svc_IC')
 snv_dir <- ''
 
 map <- '--map' %in% args
@@ -340,7 +340,7 @@ dev.off()
 ############################################################################################
 
 if (length(args)>2 & map) {
-    print('Plotting AIC & BIC metrics...')
+    #print('Plotting AIC & BIC metrics...')
     ic_table <- NULL
     for (run in runs) {
         ic <- read.table(paste(run, '/', snv_dir, id, '_fit.txt', sep=''), sep='\t', header=F, stringsAsFactors = F)
@@ -352,49 +352,51 @@ if (length(args)>2 & map) {
     colnames(ic_table)[2:3] <- c('IC', 'value')
     ic_table$run <- factor(ic_table$run, levels=mixedsort(unique(as.character(ic_table$run))))
     ic_table$IC <- factor(ic_table$IC, levels=allowed_ics)
-    g1 <- ggplot(ic_table[ic_table$IC=='BIC',],
-                 aes(y=value, x=run, group=IC)) + ylab('value') + geom_line() + ggtitle('BIC') +
-                 theme_minimal()
-    g2 <- ggplot(ic_table[ic_table$IC=='AIC',],
-                 aes(y=value, x=run, group=IC)) + ylab('value') + geom_line() + ggtitle('AIC') +
-                 theme_minimal()
-    g3 <- ggplot(ic_table[ic_table$IC=='AICc',],
-                 aes(y=value, x=run, group=IC)) + ylab('value') + geom_line() + ggtitle('AICc') +
-                 theme_minimal()
-    g4 <- ggplot(ic_table[ic_table$IC=='svc_IC',],
-                 aes(y=value, x=run, group=IC)) + ylab('value') + geom_line() + ggtitle('svc_IC') +
-                 theme_minimal()
-    pdf(paste(id, 'ic_plots.pdf',sep='_'), height=6)
-    grid.arrange(g1,g2,g3,g4)
-    dev.off()
+
+#    g1 <- ggplot(ic_table[ic_table$IC=='BIC',],
+#                 aes(y=value, x=run, group=IC)) + ylab('value') + geom_line() + ggtitle('BIC') +
+#                 theme_minimal()
+#    g2 <- ggplot(ic_table[ic_table$IC=='AIC',],
+#                 aes(y=value, x=run, group=IC)) + ylab('value') + geom_line() + ggtitle('AIC') +
+#                 theme_minimal()
+#    g3 <- ggplot(ic_table[ic_table$IC=='AICc',],
+#                 aes(y=value, x=run, group=IC)) + ylab('value') + geom_line() + ggtitle('AICc') +
+#                 theme_minimal()
+#    g4 <- ggplot(ic_table[ic_table$IC=='svc_IC',],
+#                 aes(y=value, x=run, group=IC)) + ylab('value') + geom_line() + ggtitle('svc_IC') +
+#                 theme_minimal()
+#    pdf(paste(id, 'ic_plots.pdf',sep='_'), height=6)
+#    grid.arrange(g1,g2,g3,g4)
+#    dev.off()
 
     ic_table <- cast(ic_table, run~IC)
-    min_bic <- ic_table[min(ic_table$BIC)==ic_table$BIC,]
-    min_bic$AIC <- min_bic$run
-    min_bic$run <- 'min_BIC'
-    min_bic$AICc <- min_bic$BIC
-    min_bic$BIC <- NA; min_bic$svc_IC <- NA
 
-    min_aic <- ic_table[min(ic_table$AIC)==ic_table$AIC,]
-    min_aic$AICc <- min_aic$AIC
-    min_aic$AIC <- min_aic$run
-    min_aic$run <- 'min_AIC'
-    min_aic$BIC <- NA; min_aic$svc_IC <- NA
-
-    min_aicc <- ic_table[min(ic_table$AICc)==ic_table$AICc,]
-    min_aicc$AIC <- min_aicc$run
-    min_aicc$run <- 'min_AICc'
-    min_aicc$BIC <- NA; min_aicc$svc_IC <- NA
+#    min_bic <- ic_table[min(ic_table$BIC)==ic_table$BIC,]
+#    min_bic$AIC <- min_bic$run
+#    min_bic$run <- 'min_BIC'
+#    min_bic$AICc <- min_bic$BIC
+#    min_bic$BIC <- NA; min_bic$svc_IC <- NA
+#
+#    min_aic <- ic_table[min(ic_table$AIC)==ic_table$AIC,]
+#    min_aic$AICc <- min_aic$AIC
+#    min_aic$AIC <- min_aic$run
+#    min_aic$run <- 'min_AIC'
+#    min_aic$BIC <- NA; min_aic$svc_IC <- NA
+#
+#    min_aicc <- ic_table[min(ic_table$AICc)==ic_table$AICc,]
+#    min_aicc$AIC <- min_aicc$run
+#    min_aicc$run <- 'min_AICc'
+#    min_aicc$BIC <- NA; min_aicc$svc_IC <- NA
 
     min_svcic <- ic_table[min(ic_table$svc_IC,na.rm=T)==ic_table$svc_IC,]
-    min_svcic$AIC <- min_svcic$run
+#    min_svcic$AIC <- min_svcic$run
     min_svcic$run <- 'min_svc_IC'
-    min_svcic$AICc <- min_svcic$svc_IC
-    min_svcic$BIC <- NA; min_svcic$svc_IC <- NA
+#    min_svcic$AICc <- min_svcic$svc_IC
+#    min_svcic$BIC <- NA; min_svcic$svc_IC <- NA
 
-    ic_table <- rbind(ic_table, min_bic)
-    ic_table <- rbind(ic_table, min_aic)
-    ic_table <- rbind(ic_table, min_aicc)
+#    ic_table <- rbind(ic_table, min_bic)
+#    ic_table <- rbind(ic_table, min_aic)
+#    ic_table <- rbind(ic_table, min_aicc)
     ic_table <- rbind(ic_table, min_svcic)
 
     write.table(ic_table, paste(id,'_ic_metrics.csv', sep=''), sep=',', quote=F, row.names=F, na = '')
