@@ -268,7 +268,7 @@ def cluster(sup,dep,cn_states,Nvar,sparams,cparams,phi_limit,norm,recluster=Fals
         value[-1] = 1-sum(value[:-1])
         return value
 
-    z_init = np.zeros(Nvar)
+    z_init = np.zeros(Nvar, dtype=np.int)
     phi_init = np.random.rand(Ndp) * phi_limit
 
     # use smart initialisation if nclus_init specified
