@@ -543,6 +543,35 @@ def simu_sv(sv):
     simu_sv.adjusted_vaf = float(simu_sv.adjusted_support) / simu_sv.adjusted_depth
     return simu_sv
 
+def get_seeds(seeds, n_runs):
+    '''
+    splits seed argument list or if no list,
+    generate a new list of random seeds
+    '''
+    try:
+        if seeds =='':
+            seeds = [np.random.randint(0,10000) for i in range(n_runs)]
+        else:
+            seeds = [int(s) for s in seeds.split(',')]
+    except ValueError:
+        seeds = [np.random.randint(0,10000) for i in range(n_runs)]
+
+    return(seeds)
+
+def subsample_snvs(snv_df, subsample, run, ss_seeds, sample, out):
+    print('Subsampling %d SNVs for run%d' % (subsample, run))
+    print('Random seed for sampling is %d' % ss_seeds[run])
+
+    np.random.seed(ss_seeds[run])
+    keep = np.random.choice(snv_df.index, size=subsample, replace=False)
+    snv_run_df = snv_df.loc[keep]
+
+    snv_run_df.index = range(len(snv_run_df)) #re-index
+    snv_outname = '%s/%s_filtered_snvs_%d_subsampled_run%d.tsv' % (out, sample, subsample, run)
+    snv_run_df.to_csv(snv_outname, sep='\t', index=False, na_rep='')
+
+    return(snv_run_df)
+
 def run_clustering(args):
 
     sample          = args.sample
@@ -556,7 +585,7 @@ def run_clustering(args):
     XX              = args.XX
     XY              = args.XY
     subsample       = args.subsample
-    ss_seed         = args.ss_seed
+    ss_seeds         = args.ss_seeds
 
     if out!='' and not os.path.exists(out):
         os.makedirs(out)
@@ -565,14 +594,8 @@ def run_clustering(args):
                    load_data.get_params_cluster_step(sample, cfg, out, pp_file, param_file, XX, XY)
     n_runs = cluster_params['n_runs']
 
-    try:
-        if seeds =='':
-            seeds = [np.random.randint(0,10000) for i in range(n_runs)]
-        else:
-            seeds = [int(s) for s in seeds.split(',')]
-    except ValueError:
-        seeds = [np.random.randint(0,10000) for i in range(n_runs)]
-
+    seeds = get_seeds(seeds, n_runs)
+    ss_seeds = get_seeds(ss_seeds, n_runs)
 
     sv_df       = pd.DataFrame()
     snv_df      = pd.DataFrame()
@@ -589,14 +612,6 @@ def run_clustering(args):
     if os.path.exists(snv_file):
         snv_df = pd.read_csv(snv_file,delimiter='\t',dtype=None,header=0,low_memory=False)
         snv_df = pd.DataFrame(snv_df).fillna('')
-        if subsample > 0 and subsample < len(snv_df):
-            print('Subsampling %d SNVs' % subsample)
-            if ss_seed != '': random.seed(int(ss_seed))
-            keep = random.sample(snv_df.index, subsample)
-            snv_df = snv_df.loc[keep]
-            snv_df.index = range(len(snv_df)) #re-index
-            snv_outname = '%s/%s_filtered_snvs_%d_subsampled.tsv' % (out, sample, subsample)
-            snv_df.to_csv(snv_outname, sep='\t', index=False, na_rep='')
 
     if (len(sv_df) == 0 or len(snv_df) ==0) and cluster_params['cocluster']:
         cluster_params['cocluster'] = False
@@ -620,7 +635,10 @@ def run_clustering(args):
 
     if threads == 1:
         for run in range(n_runs):
-            cluster_and_process(sv_df,snv_df,run,out,sample_params,cluster_params,output_params,seeds)
+            snv_run_df = snv_df
+            if subsample > 0 and subsample < len(snv_df):
+                snv_run_df = subsample_snvs(snv_df, subsample, run, ss_seeds, sample, out)
+            cluster_and_process(sv_df,snv_run_df,run,out,sample_params,cluster_params,output_params,seeds)
         # select the best run based on min BIC
         if use_map and n_runs > 1:
             if len(sv_df) > 0:
@@ -635,7 +653,10 @@ def run_clustering(args):
                 run = j + (i * threads)
                 if not run > n_runs-1:
                     print("Thread %d; cluster run: %d" % (j, run))
-                    process = multiprocessing.Process(target=cluster_and_process,args=(sv_df,snv_df,run,out,
+                    snv_run_df = snv_df
+                    if subsample > 0 and subsample < len(snv_df):
+                        snv_run_df = subsample_snvs(snv_df, subsample, run, ss_seeds, sample, out)
+                    process = multiprocessing.Process(target=cluster_and_process,args=(sv_df,snv_run_df,run,out,
                                                       sample_params,cluster_params,output_params,seeds))
                     jobs.append(process)
             for j in jobs:

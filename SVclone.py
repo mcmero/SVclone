@@ -150,8 +150,8 @@ cluster_parser.add_argument("--seeds",dest="seeds",default="",
 cluster_parser.add_argument("--subsample",dest="subsample",default=0,type=int,
                     help="Subsample N SNVs from total filtered output to use for clustering.")
 
-cluster_parser.add_argument("--ss_seed", dest="ss_seed", default="",
-                    help='''Integer seed to set seed for replicability of subsampling.''')
+cluster_parser.add_argument("--ss_seeds", dest="ss_seeds", default="",
+                    help='''Integer seeds to set seeds for replicability of subsampling.''')
 
 cluster_parser.add_argument("--XX",dest="XX",action="store_true",
                     help="Specify XX genotype. (Overwrites config file, sets male to False.)")
