@@ -7,9 +7,9 @@ from . import dtypes
 def remove_duplicates(svs):
     for idx,row in enumerate(svs):
         #reorder breakpoints based on position or chromosomes
-        sv_id, chr1, pos1, dir1, chr2, pos2, dir2, sv_class = row
+        sv_id, chr1, pos1, dir1, chr2, pos2, dir2, sv_class, oid, opos1, opos2 = row
         if (chr1!=chr2 and chr1>chr2) or (chr1==chr2 and pos1 > pos2):
-            svs[idx] = (sv_id, chr2,pos2,dir2,chr1,pos1,dir1,sv_class)
+            svs[idx] = (sv_id, chr2, pos2, dir2, chr1, pos1, dir1, sv_class, oid, opos1, opos2)
     return np.unique(svs)
 
 def load_input_vcf(svin,class_field,use_dir):
@@ -60,7 +60,7 @@ def load_input_vcf(svin,class_field,use_dir):
                 new_id = int(new_id[0])
             except ValueError:
                 new_id = 0
-            new_sv = np.array([(new_id,chr1,pos1,dir1,chr2,pos2,dir2,sv_class)],dtype=sv_dtype)
+            new_sv = np.array([(new_id, chr1, pos1, dir1, chr2, pos2, dir2, sv_class, sv_id, pos1, pos2)], dtype=sv_dtype)
             svs = np.append(svs,new_sv)
         except KeyError:
             print("SV %s improperly paired or missing attributes"%sv_id)
@@ -70,7 +70,6 @@ def load_input_vcf(svin,class_field,use_dir):
     return svs
 
 def load_input_socrates(svin,use_dir,min_mapq,filt_repeats,Config):
-    #sv_dtype =  [s for s in dtypes.sv_dtype] if use_dir else [s for i,s in enumerate(dtypes.sv_dtype) if i not in [2,5]]
     sv_dtype = dtypes.sv_dtype
     pos_field1 = Config.get('SocratesOpts', 'pos1')
     pos_field2 = Config.get('SocratesOpts', 'pos2')
@@ -81,9 +80,8 @@ def load_input_socrates(svin,use_dir,min_mapq,filt_repeats,Config):
     repeat1_field = Config.get('SocratesOpts', 'repeat1')
     repeat2_field = Config.get('SocratesOpts', 'repeat2')
 
-    #TODO: make parsing of socrates input more robust
     soc_in = np.genfromtxt(svin,delimiter='\t',names=True,dtype=None,invalid_raise=False)
-    svs = np.empty(0,dtype=sv_dtype)
+    svs = np.empty(0, dtype=sv_dtype)
     filtered_out = 0
 
     sv_id = 0
@@ -110,7 +108,7 @@ def load_input_socrates(svin,use_dir,min_mapq,filt_repeats,Config):
             dir1 = row[dir_field1] if use_dir else '?'
             dir2 = row[dir_field2] if use_dir else '?'
 
-            add_sv = np.array([(sv_id,chr1,pos1,dir1,chr2,pos2,dir2,'')],dtype=sv_dtype)
+            add_sv = np.array([(sv_id, chr1, pos1, dir1, chr2, pos2, dir2, '', '', pos1, pos2)], dtype=sv_dtype)
             svs = np.append(svs,add_sv)
             sv_id += 1
         except IndexError:
@@ -120,17 +118,19 @@ def load_input_socrates(svin,use_dir,min_mapq,filt_repeats,Config):
     return remove_duplicates(svs)
 
 def load_input_simple(svin,use_dir,class_field):
-    #sv_dtype =  [s for s in dtypes.sv_dtype] if use_dir else [s for i,s in enumerate(dtypes.sv_dtype) if i not in [2,5]]
     sv_dtype = dtypes.sv_dtype
 
     sv_tmp = np.genfromtxt(svin,delimiter='\t',names=True,dtype=None,invalid_raise=False)
-    svs = np.empty(0,dtype=sv_dtype)
+    svs = np.empty(0, dtype=sv_dtype)
     sv_id = 0
     for row in sv_tmp:
         chr1 = str(row['chr1'])
         pos1 = int(row['pos1'])
         chr2 = str(row['chr2'])
         pos2 = int(row['pos2'])
+        orig_id = str(row['ID']) if 'ID' in sv_tmp.dtype.names else ''
+        orig_pos1 = pos1
+        orig_pos2 = pos2
         sv_class = row[class_field] if class_field!='' else ''
         add_sv = np.empty(0)
 
@@ -139,7 +139,7 @@ def load_input_simple(svin,use_dir,class_field):
             dir1 = str(row['dir1'])
             dir2 = str(row['dir2'])
 
-        add_sv = np.array([(sv_id,chr1,pos1,dir1,chr2,pos2,dir2,sv_class)],dtype=sv_dtype)
+        add_sv = np.array([(sv_id, chr1, pos1, dir1, chr2, pos2, dir2, sv_class, orig_id, orig_pos1, orig_pos2)], dtype=sv_dtype)
         svs = np.append(svs,add_sv)
         sv_id += 1
     return remove_duplicates(svs)
@@ -201,7 +201,7 @@ def get_read_params(params_file, sample, out):
     params_file = default_loc if params_file == '' else params_file
 
     if os.path.exists(params_file):
-        read_params = np.genfromtxt(params_file,delimiter='\t',names=True,dtype=None,invalid_raise=False)
+        read_params = np.genfromtxt(params_file, delimiter='\t', names=True, dtype=None, invalid_raise=False)
         rlen        = int(read_params['read_len'])
         insert      = float(read_params['insert_mean'])
         std         = float(read_params['insert_std'])

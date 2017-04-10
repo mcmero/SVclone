@@ -94,8 +94,8 @@ def get_bp_dir(sv, loc_reads, pos, sc_len, threshold, bp_num):
 def retrieve_loc_reads(sv, bam, max_dep, threshold):
     bp_dtype = [('chrom', 'S20'), ('start', int), ('end', int), ('dir', 'S1')]
 
-    sv_id, chr1, pos1, dir1, \
-        chr2, pos2, dir2, sv_class = [h[0] for h in dtypes.sv_dtype]
+    sv_id, chr1, pos1, dir1, chr2, pos2, dir2, \
+        sv_class, orig_id, orig_pos1, orig_pos2 = [h[0] for h in dtypes.sv_dtype]
     bp1 = np.array((sv[chr1], sv[pos1]-(threshold*2), \
                     sv[pos1]+(threshold*2), sv[dir1]), dtype=bp_dtype)
     bp2 = np.array((sv[chr2], sv[pos2]-(threshold*2), \
@@ -579,7 +579,7 @@ def preproc_svs(args):
         svs, ca = infer_sv_dirs(svs, ca, bam, max_dep, sc_len, threshold, blist)
     elif not trust_sc_pos:
         print('Recalibrating consensus alignments...')
-        # use directions, but recheck the consensus alignments
+        # set BP pos to softclip position
         for idx, sv in enumerate(svs):
             if len(blist) > 0 and sv_in_blacklist(sv, blist):
                 svs[idx]['classification'] = 'BLACKLIST'

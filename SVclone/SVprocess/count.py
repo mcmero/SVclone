@@ -326,7 +326,11 @@ def get_sv_read_counts(row,bam,rparams,out,split_reads,span_reads,anom_reads):
     inserts, min_ins, max_ins, max_dp = rparams['insert'], rparams['min_ins'], rparams['max_ins'], rparams['max_dp']
     threshold, sc_len, norm_overlap = rparams['threshold'], rparams['threshold'], rparams['norm_overlap']
 
-    sv_id, chr1_field, pos1_field, dir1_field, chr2_field, pos2_field, dir2_field, sv_class = [h[0] for h in dtypes.sv_dtype]
+    sv_id, chr1_field, pos1_field, dir1_field, \
+        chr2_field, pos2_field, \
+        dir2_field, sv_class, \
+        oid_field, opos1_field, opos2_field = [h[0] for h in dtypes.sv_dtype]
+
     bp1 = np.array((row[chr1_field],row[pos1_field]-max_ins,
                     row[pos1_field]+max_ins,row[dir1_field]),dtype=dtypes.bp_dtype)
     bp2 = np.array((row[chr2_field],row[pos2_field]-max_ins,
@@ -334,9 +338,9 @@ def get_sv_read_counts(row,bam,rparams,out,split_reads,span_reads,anom_reads):
     pos1, pos2 = row[pos1_field], row[pos2_field]
 
     rc = np.zeros(1,dtype=dtypes.sv_out_dtype)[0]
-    rc['chr1'],rc['pos1'],rc['dir1']=row[chr1_field],row[pos1_field],row[dir1_field]
-    rc['chr2'],rc['pos2'],rc['dir2']=row[chr2_field],row[pos2_field],row[dir2_field]
-    rc['ID'],rc['classification']=row[sv_id],row[sv_class]
+    rc['chr1'], rc['pos1'], rc['dir1'] = row[chr1_field], row[pos1_field], row[dir1_field]
+    rc['chr2'], rc['pos2'], rc['dir2'] = row[chr2_field], row[pos2_field], row[dir2_field]
+    rc['ID'], rc['classification'] = row[sv_id], row[sv_class]
 
     if row[dir1_field] not in ['+','-'] or row[dir2_field] not in ['+','-']:
         #one or both breaks don't have a valid direction
@@ -460,7 +464,11 @@ def recount_anomalous_reads(bam,outname,anom_reads,max_dp,max_ins):
     anom_reads = np.unique(anom_reads['query_name'])
     sv_proc = np.genfromtxt(outname,delimiter='\t',names=True,dtype=dtypes.sv_out_dtype,invalid_raise=False)
     for idx,row in enumerate(sv_proc):
-        sv_id, chr1_field, pos1_field, dir1_field, chr2_field, pos2_field, dir2_field, sv_class = [h[0] for h in dtypes.sv_dtype]
+        sv_id, chr1_field, pos1_field, dir1_field, \
+            chr2_field, pos2_field, \
+            dir2_field, sv_class, \
+            oid_field, opos1_field, opos2_field = [h[0] for h in dtypes.sv_dtype]
+
         bp1 = np.array((row[chr1_field],row[pos1_field]-max_ins,
                         row[pos1_field]+max_ins,row[dir1_field]),dtype=dtypes.bp_dtype)
         bp2 = np.array((row[chr2_field],row[pos2_field]-max_ins,
@@ -498,8 +506,13 @@ def extract_sv_info(svin, bam, rparams, outname):
     span_reads = np.empty([0,len(dtypes.read_dtype)],dtype=dtypes.read_dtype)
     anom_reads = np.empty([0,len(dtypes.read_dtype)],dtype=dtypes.read_dtype)
 
-    sv_id, chr1_field, pos1_field, dir1_field, chr2_field, pos2_field, dir2_field, sv_class = [h[0] for h in dtypes.sv_dtype]
-    svs = np.genfromtxt(svin,delimiter='\t',names=True,dtype=None,invalid_raise=False)
+    sv_id, chr1_field, pos1_field, dir1_field, \
+        chr2_field, pos2_field, \
+        dir2_field, sv_class, \
+        oid_field, opos1_field, opos2_field = [h[0] for h in dtypes.sv_dtype]
+
+    svs = np.genfromtxt(svin, delimiter='\t', names=True, dtype=None, invalid_raise=False)
+
     print("Extracting data from %d SVs"%len(svs))
     for row in svs:
         sv_prop = row[chr1_field],row[pos1_field],row[chr2_field],row[pos2_field]
@@ -528,8 +541,12 @@ def extract_sv_info(svin, bam, rparams, outname):
         sv_rc['vaf1'] = support / (support + norm1) if support!=0 else 0
         sv_rc['vaf2'] = support / (support + norm2) if support!=0 else 0
 
+        sv_rc[oid_field] = row[oid_field] if 'original_ID' in svs.dtype.names else ''
+        sv_rc[opos1_field] = row[opos1_field] if 'original_pos1' in svs.dtype.names else 0
+        sv_rc[opos2_field] = row[opos2_field] if 'original_pos2' in svs.dtype.names else 0
+
         with open(outname,'a') as outf:
-            writer = csv.writer(outf,delimiter='\t',quoting=csv.QUOTE_NONE)
+            writer = csv.writer(outf, delimiter='\t', quoting=csv.QUOTE_NONE)
             writer.writerow(sv_rc)
 
     return split_reads, span_reads, anom_reads
