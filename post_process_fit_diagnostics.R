@@ -674,12 +674,10 @@ if (!grepl('^--', bbf) & file.exists(bbf)) {
         {
             x <- dat[j,]
             ccf <- x$CCF
-            if(ccf>1.2) {
-                lcol=colours[1]
-            } else if(ccf<1.2 & ccf>0.9) {
-                lcol=colours[1]
-            } else {
+            if(ccf<0.9) {
                 lcol=colours[2]
+            } else {
+                lcol=colours[1]
             }
             circos.link(paste('chr',as.character(x[1]),sep=''),
                         as.numeric(x[2]),
