@@ -267,9 +267,16 @@ def run_cnv_filter(df_flt, cnv, ploidy, neutral, filter_outliers, strict_cnv_fil
                 df_flt.gtype1[df_flt.gtype1.values==''] = default_gtype
                 df_flt.gtype2[df_flt.gtype2.values==''] = default_gtype
 
-            n_df = len(df_flt)
+            if filter_subclonal:
+                n_df = len(df_flt)
+                gt1_is_clon  = [len(x.split('|'))==1 for x in df_flt.gtype1.values]
+                gt2_is_clon  = [len(x.split('|'))==1 for x in df_flt.gtype2.values]
+                is_clonal  = np.logical_and(gt1_is_clon, gt2_is_clon)
+                df_flt = df_flt.loc[is_clonal]
+                print('Filtered out %d SVs with any subclonal CNV states.' % (n_df - len(df_flt)))
 
             if filter_outliers:
+                n_df = len(df_flt)
                 df_flt = filter_outlying_norm_wins(df_flt)
                 print('Filtered out %d SVs which had outlying depths' % (n_df - len(df_flt)))
 
@@ -476,12 +483,6 @@ def adjust_sv_read_counts(sv_df,pi,pl,min_dep,rlen,Config):
     gt1_sc  = [float(x.split('|')[0].split(',')[2])<1 if x!='' else False for x in sv_df.gtype1.values]
     gt2_sc  = [float(x.split('|')[0].split(',')[2])<1 if x!='' else False for x in sv_df.gtype2.values]
     one_sc  = np.logical_xor(gt1_sc,gt2_sc)
-    any_sc  = np.logical_or(gt1_sc,gt2_sc)
-
-    if filter_subclonal_cnvs:
-        sv_filt = sv_df.loc[np.invert(any_sc)].copy()
-        print('Filtered out %d SVs with any subclonal CNV states.' % (len(sv_df) - len(sv_filt)))
-        sv_df = sv_filt
 
     n = zip(np.array(sv_df.norm1.values),np.array(sv_df.norm2.values))
     s = np.array(sv_df.split1.values+sv_df.split2.values)
@@ -504,6 +505,7 @@ def adjust_sv_read_counts(sv_df,pi,pl,min_dep,rlen,Config):
         # prefer sides with clonal genotype data
         exclusive_subclones = zip(sv_df.gtype1.values[one_sc],sv_df.gtype2.values[one_sc])
         sides[one_sc] = [1 if len(gt1.split('|'))>1 else 0 for gt1,gt2 in exclusive_subclones]
+
     norm = np.array([float(ni[si]) for ni,si in zip(n, sides)])
     cparams = {'restrict_cnss': restrict_cnss} #fake cparams dic for compatibility
     combos = sv_df.apply(cluster.get_sv_allele_combos, axis=1, args=(cparams,))
