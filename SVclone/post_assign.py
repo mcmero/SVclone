@@ -181,6 +181,7 @@ def collate_variant_output(var_df, var_filt_df, Nvar, ccert, probs, clus_probs, 
     ccert_add[hpd_lo] = float('nan')
     ccert_add[hpd_hi] = float('nan')
     ccert = pd.concat([ccert, ccert_add], axis=0)
+    ccert.index = range(len(ccert)) #reindex
 
     # NOTE: clus probabilities are of a different format here
     # CN likelihoods are converted to probabilities,
@@ -197,7 +198,10 @@ def collate_variant_output(var_df, var_filt_df, Nvar, ccert, probs, clus_probs, 
         probs_add[pac] = [round(cp, 2) for cp in clus_probs[:,idx]]
 
     probs = pd.concat([probs, probs_add], axis=0)
+    probs.index = range(len(probs)) #reindex
+
     df = pd.concat([var_filt_df, var_df], axis=0)
+    df.index = range(len(df)) #reindex
 
     return(df, ccert, probs)
 
