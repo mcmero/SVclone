@@ -555,6 +555,7 @@ def sort_by_loc(snv_df):
                         if item[0].isdigit() else str(item[0]), int(item.partition('_')[2])))
     snv_df.index = loc
     snv_df = snv_df.loc[sortloc]
+    snv_df = snv_df.drop_duplicates()
 
     return snv_df
 
