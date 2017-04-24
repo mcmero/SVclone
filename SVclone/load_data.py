@@ -335,6 +335,13 @@ def get_params_cluster_step(sample, cfg, out, pp_file, param_file, XX, XY):
     fit_metric      = Config.get('OutputParameters', 'fit_metric')
     cluster_penalty = int(Config.get('OutputParameters', 'cluster_penalty'))
 
+    try:
+        merge_iter      = int(Config.get('ClusterParameters', 'merge_iter'))
+        merge_burn      = int(Config.get('ClusterParameters', 'merge_burn'))
+    except ConfigParser.NoOptionError:
+        merge_iter = int(round(n_iter / 4))
+        merge_burn = int(round(burn / 4))
+
     if burn == 0 and use_map:
         print('No burn-in period specified, setting MAP to false.')
         use_map = False
@@ -355,7 +362,7 @@ def get_params_cluster_step(sample, cfg, out, pp_file, param_file, XX, XY):
                        'clus_limit': clus_limit, 'subclone_diff': subclone_diff, 'cocluster': cocluster ,
                        'clonal_cnv_pval': cnv_pval, 'adjust_phis': adjust_phis, 'sv_to_sim': sv_to_sim,
                        'threads': threads, 'ccf_reject': ccf_reject, 'nclus_init': nclus_init,
-                       'restrict_cnss': restrict_cnss }
+                       'restrict_cnss': restrict_cnss, 'merge_iter': merge_iter, 'merge_burn': merge_burn }
     output_params  = { 'plot': plot, 'smc_het': smc_het, 'cluster_penalty': cluster_penalty, 'fit_metric': fit_metric }
 
     return sample_params, cluster_params, output_params
