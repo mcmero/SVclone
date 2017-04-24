@@ -230,8 +230,8 @@ def cluster(sup,dep,cn_states,Nvar,sparams,cparams,phi_limit,norm,recluster=Fals
     clustering model using Dirichlet Process
     '''
     Ndp = cparams['clus_limit'] if not recluster else 1
-    n_iter = cparams['n_iter'] if not recluster else int(cparams['n_iter']/4)
-    burn = cparams['burn'] if not recluster else int(cparams['burn']/4)
+    n_iter = cparams['n_iter'] if not recluster else cparams['merge_iter']
+    burn = cparams['burn'] if not recluster else cparams['merge_burn']
     thin, use_map = cparams['thin'], cparams['use_map']
     use_map = False if recluster else use_map
     nclus_init = cparams['nclus_init']
