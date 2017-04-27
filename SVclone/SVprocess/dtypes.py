@@ -25,7 +25,7 @@ read_dtype = [('query_name', '<U150'),
             ('ins_len', 'int64'), 
             ('is_reverse', np.bool)]
 
-#####################################################################
+####################################################################
 # Output dtypes
 #####################################################################
 
@@ -55,7 +55,10 @@ sv_out_dtype = [('ID', 'int64'),
             ('anomalous', 'int64'),
             ('spanning', 'int64'),
             ('norm1', 'int64'),
-            ('norm2', 'int64'), 
+            ('norm2', 'int64'),
             ('support', 'int64'),
             ('vaf1', float),
-            ('vaf2', float)]
+            ('vaf2', float),
+            ('original_ID', 'S100'),
+            ('original_pos1', 'int64'),
+            ('original_pos2', 'int64')]

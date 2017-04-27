@@ -40,7 +40,7 @@ def getTypeFromSting(classification):
         return SVtypes.interchromosomal
     else:
         return SVtypes.error
-    
+
 # def getResultString(result):
     # string=""
     # bpstr=""
@@ -69,7 +69,7 @@ def getTypeFromSting(classification):
 # #    for breakpoint in result[1]:
 # #        bpstr+=delimeter+breakpoint
     # return string#+bpstr
-    
+
 def getResultType(result):
     string=""
     r=result[0]
@@ -131,7 +131,7 @@ def detect (prevSV,prevResult,sv):
             anchor_chrom,c1_anchor,c1_anchor_dir = sv['chr2'],sv['pos2'],sv['dir2']
             realign_chrom,c1_realign,c1_realign_dir = sv['chr1'],sv['pos1'],sv['dir1']
 
-#    line=line.strip().split(delimeter) 
+#    line=line.strip().split(delimeter)
 #    c1_realign=line[0].split(':')[1]
 #    c1_realign_dir=line[1]
 #    c1_realign_consensus=line[2]
@@ -157,13 +157,13 @@ def detect (prevSV,prevResult,sv):
 #    c2_short_support_max_len=line[22]
 #    c2_avg_realign_mapq=line[23]
 #    otherInfo=line[24]
-    
+
     if realign_chrom != anchor_chrom:
         result=SVtypes.interchromosomal
 #    elif c1_realign_dir!=c1_anchor_dir and c2_realign_dir!=c2_anchor_dir:
     elif c1_realign_dir!=c1_anchor_dir:
 #         not inversion
-        
+
         #if +anchor_loci>-realign_loci and -anchor_loci<+realign_loci, is tandem
         #if +anchor_loci<-realign_loci and -anchor_loci>+realign_loci, is deletion
         if int(c1_anchor)<int(c1_realign) and c1_anchor_dir=="-" and c1_realign_dir=="+":
@@ -182,7 +182,7 @@ def detect (prevSV,prevResult,sv):
             result=SVtypes.novelInsertion
         else:
             result=SVtypes.error
-        
+
         #if two lines, interspersed duplication = del + tandem
         if prevSV:
             panchor_chrom,pc1_anchor,pc1_anchor_dir = prevSV['chr1'],prevSV['pos1'],prevSV['dir1']
@@ -196,7 +196,7 @@ def detect (prevSV,prevResult,sv):
             if abs(distance1)<blurbp2 or abs(distance2)<blurbp2:#if this two events are nearby.
                 if result+prevResult==SVtypes.interspersedDuplication:
                     result=SVtypes.interspersedDuplication
-        
+
 #    elif c1_realign_dir==c1_anchor_dir and c2_realign_dir==c2_anchor_dir:
     elif c1_realign_dir==c1_anchor_dir and c1_anchor_dir==c1_realign_dir:
 #         inversion
@@ -215,9 +215,10 @@ def detect (prevSV,prevResult,sv):
 def detectTransloc(idx,sv_info,tolerance):
     #find the mobile part. r:[interInserType,[p1,p2,p3,p4]]
     if idx-1 < 0:
-        return []    
+        return []
     sv1 = sv_info[idx-1]
     sv2 = sv_info[idx]
+    chrom = str(sv1['chr1'])
     p1 = int(sv1['pos1'])
     p2 = int(sv2['pos1'])
     p3 = int(sv1['pos2'])
@@ -225,17 +226,26 @@ def detectTransloc(idx,sv_info,tolerance):
     mobilePart = [p1,p2] if abs(p2-p1) > tolerance else [p3,p4]
     # flip coords if loc1 > loc2
     mobilePart = mobilePart if mobilePart[0]<mobilePart[1] else [mobilePart[1],mobilePart[0]]
+
     # try to find if the mobile part is deleted. If so, it is translocation.
     translocs = []
+    del_lbl = getResultType([SVtypes.deletion])
     for i,sv in enumerate(sv_info):
-        if sv['classification']==getResultType([SVtypes.deletion]):
-            p1 = int(sv['pos1'])
-            p2 = int(sv['pos2'])
-            if abs(mobilePart[0]-p1)<tolerance and abs(mobilePart[1]-p2)<tolerance:
-                translocs = [idx-1,idx,i]
-                break
+        if sv1 == sv or sv2 == sv:
+            continue
+        if not (sv['chr1'] == chrom and sv['chr2'] == chrom):
+            continue
+        if not (sv['dir1'] == '+' and sv['dir2'] == '-'):
+            continue
+        #if sv['classification'] != del_lbl:
+        #    continue
+        p1_dist = abs(mobilePart[0] - int(sv['pos1']))
+        p2_dist = abs(mobilePart[1] - int(sv['pos2']))
+        if p1_dist < tolerance and p2_dist < tolerance:
+            translocs = [idx-1,idx,i]
+            break
     return translocs
-    
+
 def realignLoci(line):
     return int(line.strip().split(delimeter)[0].split(":")[1])
 def anchorLoci(line):
@@ -257,7 +267,7 @@ def wrapColor(str,kind):
         return htmlOtherWrapper+str+htmlEndDiv
     if kind=="other2":
         return htmlOther2Wrapper+str+htmlEndDiv
-    
+
 def writeComapreResultToHTML(myResult,stand,compareResult,recal,precision):
     myResult=myResult.strip().split("\n")
     stand=stand.strip().split("\n")
@@ -265,7 +275,7 @@ def writeComapreResultToHTML(myResult,stand,compareResult,recal,precision):
     for x in compareResult:
         for y in x:
             checkroll.append(y)
-    
+
     htmlHead=open("head.html").read();
     htmlFoot=open("foot.html").read();
     htmlBody=""
@@ -273,7 +283,7 @@ def writeComapreResultToHTML(myResult,stand,compareResult,recal,precision):
         htmlBody+="Recal:"+str(recal)+"; Precision:"+str(precision)
     htmlBody+="<tr><td>Detect result</td><td>Source in breakpoint file</td><td>line No. in breakpoint file</td></tr>";
 
-    
+
     i=0;
     unusedbk=0;
     lastStandPoint=0;
@@ -307,7 +317,7 @@ def writeComapreResultToHTML(myResult,stand,compareResult,recal,precision):
                         unusedbk+=1
 #                         print "unused dk:",lastStandPoint+x
                 lastStandPoint+=jump
-                
+
             if len(cr)>0:
                 col2Str=""
                 col1Str=""

@@ -37,37 +37,60 @@ def gen_new_colours(N):
     RGB_tuples = list(map(lambda x: colorsys.hsv_to_rgb(*x), HSV_tuples))
     return RGB_tuples
 
-def plot_clusters(center_trace, clusters, assignments, sup, dep, clus_out_dir, cparams):
-    burn = cparams['burn']
+def plot_clusters(trace, clusters, assignments, sup, dep, clus_out_dir, cparams):
+
+    center_trace = trace("phi_k")[:]
+    z_trace = trace('z')[:]
     phi_limit = cparams['phi_limit']
-    fig, axes = plt.subplots(3, 1, sharex=False, sharey=False, figsize=(12.5,10))
+    maxclus = max([max(z) for z in z_trace])
+
+    alpha_trace = []
+    try:
+        alpha_trace = trace('alpha')[:]
+    except KeyError:
+        pass
+
+    fig, axes = plt.subplots(4, 1, sharex=False, sharey=False, figsize=(12.5,12))
+    if len(alpha_trace) > 0:
+        fig, axes = plt.subplots(5, 1, sharex=False, sharey=False, figsize=(12.5,15))
+        axes[4].set_title("Alpha trace")
+        axes[4].plot(range(len(alpha_trace)), alpha_trace, lw=1)
 
     RGB_tuples = gen_new_colours(len(clusters))
 
     axes[0].set_ylim([0, phi_limit + 0.1])
+    axes[0].set_xlim([0, len(center_trace)])
     axes[0].set_title("Trace of $\phi_k$")
+
     axes[1].set_ylim([0, phi_limit + 0.1])
+    axes[1].set_xlim([0, len(center_trace)])
     axes[1].set_title("Adjusted trace of $\phi_k$")
-    axes[2].set_title("Raw VAFs")
+
+    axes[2].set_ylim([-1, maxclus+1])
+    axes[2].set_xlim([0, len(z_trace)])
+    axes[2].set_title("Trace of z categorical")
+
+    axes[3].set_title("Raw VAFs")
 
     center_trace_adj = get_adjusted_phi_trace(center_trace, clusters)
-    x_burn = np.arange(burn+1)
-    x = np.arange(burn, len(center_trace))
     for idx,clus in enumerate(clusters):
-        axes[0].plot(x_burn, center_trace[:burn+1, clus], c=RGB_tuples[idx], lw=1, alpha=0.4)
-        axes[0].plot(x, center_trace[burn:, clus], label="trace of center %d" % clus, c=RGB_tuples[idx], lw=1)
-        axes[1].plot(x_burn, center_trace_adj[:burn+1, clus], c=RGB_tuples[idx], lw=1, alpha=0.4)
-        axes[1].plot(x, center_trace_adj[burn:, clus], label="adjusted trace of center %d" % clus, c=RGB_tuples[idx], lw=1)
+        axes[0].plot(center_trace[:, clus], label="trace of center %d" % clus, c=RGB_tuples[idx], lw=1)
+        axes[1].plot(center_trace_adj[:, clus], label="adjusted trace of center %d" % clus, c=RGB_tuples[idx], lw=1)
 
     leg = axes[0].legend(loc="upper right")
     leg.get_frame().set_alpha(0.7)
-    
+
+    for i in range(len(z_trace[0])):
+        idx = int(np.where(assignments[i]==clusters)[0])
+        axes[2].plot(z_trace[:, i], label="", c=RGB_tuples[idx], lw=1, alpha=0.2)
+
     for idx,clus in enumerate(clusters):
         clus_idx = np.array(assignments)==clus
         sup_clus = sup[clus_idx]
         dep_clus = dep[clus_idx]
-        axes[2].hist(sup_clus/dep_clus,bins=np.array(range(0,100,2))/100.,alpha=0.75,color=RGB_tuples[idx])
+        axes[3].hist(sup_clus/dep_clus,bins=np.array(range(0,100,2))/100.,alpha=0.75,color=RGB_tuples[idx])
 
+    fig.tight_layout()
     plt.savefig('%s/cluster_trace_hist'%clus_out_dir)
 
 def index_max(values):
@@ -81,11 +104,17 @@ def mean_confidence_interval(phi_trace, alpha):
     phi_hpd = hpd(phi_trace, alpha)
     return round(m,4), round(phi_hpd[0],4), round(phi_hpd[1],4) #round(m-h,4), round(m+h,4)
 
-def merge_clusters(clus_out_dir,clus_info,clus_merged,clus_members,merged_ids,sup,dep,cn_states,sparams,cparams,subclone_diff,clus_limit,phi_limit):
+def merge_clusters(clus_out_dir,clus_info,clus_merged,clus_members,merged_ids,sup,dep,norm,cn_states,sparams,cparams):
+    clus_limit = cparams['clus_limit']
+    phi_limit = cparams['phi_limit']
+    subclone_diff = cparams['subclone_diff']
+    norm = np.array(norm)
+
     if len(clus_info)==1:
         return (clus_info,clus_members)
 
-    clus_info = clus_info.sort('phi',ascending=False).copy()
+    clus_info = clus_info.copy()
+    clus_info = clus_info.sort('phi',ascending=False)
     clus_info.index = range(0,len(clus_info))
     to_del = []
     for idx,ci in clus_info.iterrows():
@@ -93,7 +122,9 @@ def merge_clusters(clus_out_dir,clus_info,clus_merged,clus_members,merged_ids,su
             clus_merged.loc[idx] = clus_info.loc[idx]
             break
         cn = clus_info.loc[idx+1]
-        if abs(ci.phi - float(cn.phi)) < subclone_diff:
+        # low CI boundary of current cluster, high CI boundary of next cluster
+        ci_lo, cn_hi = ci[3], cn[4]
+        if cn_hi >= (ci_lo - subclone_diff):
             print("\nReclustering similar clusters...")
             new_size = ci['size'] + cn['size']
 
@@ -102,30 +133,30 @@ def merge_clusters(clus_out_dir,clus_info,clus_merged,clus_members,merged_ids,su
             trace = trace.trace("phi_k")[:]
 
             phis = mean_confidence_interval(trace,cparams['hpd_alpha'])
-            clus_merged.loc[idx] = np.array([ci.clus_id,new_size,phis[0],phis[1],phis[2]])            
+            clus_merged.loc[idx] = np.array([ci.clus_id,new_size,phis[0],phis[1],phis[2]])
             clus_members[idx] = new_members
 
             to_del.append(idx+1)
             merged_ids.append([int(ci.clus_id),int(cn.clus_id)])
-            
+
             df_trace = pd.DataFrame(trace[:])
             df_trace.to_csv('%s/reclus%d_phi_trace.txt'%(clus_out_dir,int(ci.clus_id)),sep='\t',index=False)
-            
+
             print('\n')
             if idx+2 < len(clus_info):
                 clus_merged.loc[idx+2:] = clus_info.loc[idx+2:]
             break
         else:
             clus_merged.loc[idx] = clus_info.loc[idx]
-    
+
     if len(to_del)>0:
         clus_members = np.delete(clus_members,to_del)
-        
+
         # clean and reorder merged dataframe
         clus_merged = clus_merged[pd.notnull(clus_merged['clus_id'])]
         clus_merged = clus_merged.sort('phi',ascending=False)
         clus_merged.index = range(len(clus_merged))
-        
+
         print("\nMerged clusters")
         print('Input')
         print(clus_info)
@@ -136,24 +167,26 @@ def merge_clusters(clus_out_dir,clus_info,clus_merged,clus_members,merged_ids,su
         return (clus_merged,clus_members,merged_ids)
     else:
         new_df = pd.DataFrame(columns=clus_merged.columns,index=clus_merged.index)
-        return merge_clusters(clus_out_dir,clus_merged,new_df,clus_members,merged_ids,sup,dep,cn_states,sparams,cparams,subclone_diff,clus_limit,phi_limit)
+        return merge_clusters(clus_out_dir,clus_merged,new_df,clus_members,merged_ids,sup,dep,norm,cn_states,sparams,cparams)
 
-def merge_results(clus_merged, merged_ids, df_probs, ccert):    
+def merge_results(clus_merged, merged_ids, df_probs, ccert):
     # merge probability table
     to_drop = []
     df_probs_new = pd.DataFrame(df_probs,copy=True)
-    
+    hpd_lo = ccert.columns.values[2]
+    hpd_hi = ccert.columns.values[3]
+
     for mid in merged_ids:
         clus1_vals = df_probs_new['cluster%d'%mid[0]].values
         clus2_vals = df_probs_new['cluster%d'%mid[1]].values
-        
+
         df_probs_new['cluster%d'%mid[0]] = clus1_vals + clus2_vals
-        to_drop.append(mid[1]) 
+        to_drop.append(mid[1])
 
     to_drop = set(to_drop)
     for td in to_drop:
         df_probs_new = df_probs_new.drop('cluster%d'%td,1)
-    
+
     # merge assignments in certainties table
     ccert_new = pd.DataFrame(ccert,copy=True)
     for mid in merged_ids:
@@ -162,9 +195,9 @@ def merge_results(clus_merged, merged_ids, df_probs, ccert):
 
     #update phis
     for idx,ci in clus_merged.iterrows():
-        ccert_new.loc[ccert_new.most_likely_assignment==ci.clus_id,'average_ccf'] = ci.phi
-        ccert_new.loc[ccert_new.most_likely_assignment==ci.clus_id,'90_perc_CI_lo'] = ci.phi_low_conf
-        ccert_new.loc[ccert_new.most_likely_assignment==ci.clus_id,'90_perc_CI_hi'] = ci.phi_hi_conf
+        ccert_new.loc[ccert_new.most_likely_assignment==ci.clus_id, 'average_ccf'] = ci['phi']
+        ccert_new.loc[ccert_new.most_likely_assignment==ci.clus_id, hpd_lo] = ci[hpd_lo]
+        ccert_new.loc[ccert_new.most_likely_assignment==ci.clus_id, hpd_hi] = ci[hpd_hi]
 
     return df_probs_new,ccert_new
 
@@ -185,8 +218,8 @@ def get_adjusted_phis(clus_info, center_trace, cparams):
     Fixes potential label-switching problems by re-ordering phi traces from
     smallest to largest then assigning phis in the order of the unadjusted phis
     '''
-    burn          = cparams['burn']
-    thin          = cparams['thin']
+    #burn          = cparams['burn']
+    #thin          = cparams['thin']
     hpd_alpha     = cparams['hpd_alpha']
 
     clus_idx = clus_info.clus_id.values
@@ -195,42 +228,50 @@ def get_adjusted_phis(clus_info, center_trace, cparams):
 
     if len(clus_idx) > 1:
         phis_adj = np.array([mean_confidence_interval(center_trace_adj[:,cid],hpd_alpha) for cid in clus_idx])
-        phis_sort = np.argsort(phis[:,0][::-1])
+        phis_sort = np.argsort(phis[:,0])[::-1]
 
         for i in range(len(phis_sort)):
-            on_idx = np.where(phis_sort==i)[0][0]
+            on_idx = phis_sort[i]
             phis[on_idx] = phis_adj[i]
 
         return(phis)
     else:
         return(phis)
 
-def post_process_clusters(trace, model, sv_df, snv_df, clus_out_dir, sup, dep, cn_states, sparams, cparams, output_params):
+def get_per_variant_phi(z_trace, phi_trace):
+
+    z_phi = np.array(z_trace.copy(), dtype=float)
+    for i in range(len(z_trace)):
+        for j in range(len(z_trace[0])):
+            clus = int(z_trace[i,j])
+            z_phi[i,j] = phi_trace[i, clus]
+
+    return z_phi.mean(axis=0)
+
+def post_process_clusters(mcmc,sv_df,snv_df,clus_out_dir,sup,dep,norm,cn_states,sparams,cparams,output_params,map_):
+
+    merge_clusts  = cparams['merge_clusts']
     subclone_diff = cparams['subclone_diff']
     phi_limit     = cparams['phi_limit']
     merge_clusts  = cparams['merge_clusts']
-    burn          = cparams['burn']
-    thin          = cparams['thin']
     map_          = cparams['use_map']
     cnv_pval      = cparams['clonal_cnv_pval']
+    hpd_alpha     = cparams['hpd_alpha']
+    adjust_phis   = cparams['adjust_phis']
+    clus_penalty  = output_params['cluster_penalty']
     smc_het       = output_params['smc_het']
-    write_matrix  = output_params['write_matrix']
     plot          = output_params['plot']
 
-    # fit to data frame
-    run_fit = pd.DataFrame()
-    if map_:
-       run_fit = pd.DataFrame([['DIC', pm.stats.dic(trace, model)],
-                               ['WAIC', pm.stats.waic(trace, model)],
-                               ['LOO', pm.stats.loo(trace, model)]])
-
-    # assign points to highest probabiliy cluster
+    try:
+        sv_df = sv_df[sv_df.classification.values!='SIMU_SV']
+    except AttributeError:
+        pass
     npoints = len(snv_df) + len(sv_df)
+    sup, dep, norm, cn_states = sup[:npoints], dep[:npoints], norm[:npoints], cn_states[:npoints]
 
     z_trace = trace['z']
-    z_trace_burn = z_trace[burn:]
-    z_trace_burn = z_trace_burn[range(0,len(z_trace_burn),thin)] if thin > 1 else z_trace_burn #thinning
-    clus_counts = [np.bincount(z_trace_burn[:,i]) for i in range(npoints)]
+    # assign points to highest probability cluster
+    clus_counts = [np.bincount(z_trace[:,i]) for i in range(npoints)]
     clus_max_prob = [index_max(c) for c in clus_counts]
     clus_mp_counts = np.bincount(clus_max_prob)
     clus_idx = np.nonzero(clus_mp_counts)[0]
@@ -239,30 +280,24 @@ def post_process_clusters(trace, model, sv_df, snv_df, clus_out_dir, sup, dep, c
     # cluster distribution
     clus_info = pd.DataFrame(clus_idx, columns=['clus_id'])
     clus_info['size'] = clus_mp_counts
-    
+
     if len(clus_info) < 1:
         print("Warning! Could not converge on any major SV clusters. Skipping.\n")
         return None
 
-    # get cluster means
-    center_trace = trace['phi_k']
-    center_trace_burn = center_trace[burn:]
-    center_trace = center_trace[range(0,len(center_trace),thin)] if thin > 1 else center_trace #thinning
+    center_trace = mcmc.trace("phi_k")[:]
+    phis = np.array([mean_confidence_interval(center_trace[:,cid], hpd_alpha) for cid in clus_idx])
+    if adjust_phis:
+        # fix potential label switching problems
+        print('Correcting phi traces...')
+        phis = get_adjusted_phis(clus_info, center_trace, cparams)
 
-    # fix potential label switching problems
-    center_trace_tmp = center_trace.copy()
-    for i in range(len(center_trace)):
-        ph = center_trace[i][clus_idx]
-        ranks = ph.argsort()[::-1]
-        for idx,clus in enumerate(clus_idx):
-            center_trace_tmp[i][clus] = ph[ranks[idx]]
-    center_trace = center_trace_tmp
-
-    phis = get_adjusted_phis(clus_info, center_trace, cparams)
+    hpd_lo = '_'.join([str(int(100-(100*hpd_alpha))), 'HPD', 'lo'])
+    hpd_hi = '_'.join([str(int(100-(100*hpd_alpha))), 'HPD', 'hi'])
     clus_info['phi'] = phis[:,0]
-    clus_info['95p_HPD_lo'] = phis[:,1]
-    clus_info['95p_HPD_hi'] = phis[:,2]
-    
+    clus_info[hpd_lo] = phis[:,1]
+    clus_info[hpd_hi] = phis[:,2]
+
     clus_ids = clus_info.clus_id.values
     clus_members = np.array([np.where(np.array(clus_max_prob)==i)[0] for i in clus_ids])
 
@@ -273,7 +308,7 @@ def post_process_clusters(trace, model, sv_df, snv_df, clus_out_dir, sup, dep, c
 
     # cluster certainty
     clus_max_df = pd.DataFrame(clus_max_prob,columns=['most_likely_assignment'])
-    phi_cols = ["average_ccf","95p_HPD_lo","95p_HPD_hi"]
+    phi_cols = ["average_ccf", hpd_lo, hpd_hi]
     phi_matrix = pd.DataFrame(phis[:],index=clus_ids,columns=phi_cols).loc[clus_max_prob]
     phi_matrix.index = range(len(phi_matrix))
     ccert = clus_max_df.join(phi_matrix)
@@ -286,12 +321,17 @@ def post_process_clusters(trace, model, sv_df, snv_df, clus_out_dir, sup, dep, c
     dump_out_dir = clus_out_dir
     if len(snv_df)>0 and len(sv_df)==0:
         # snvs only trace output
-        dump_out_dir = '%s/snvs'%clus_out_dir        
-    trace_out = 'premerge_' if merge_clusts else ''
-    trace_out = '%s/%s'%(dump_out_dir,trace_out)
+        dump_out_dir = '%s/snvs'%clus_out_dir
+    trace_out = '%s/' % (dump_out_dir)
     write_output.dump_trace(center_trace, trace_out+'phi_trace.txt')
     write_output.dump_trace(z_trace, trace_out+'z_trace.txt')
-    
+
+    try:
+        alpha_trace = mcmc.trace('alpha')[:]
+        write_output.dump_trace(alpha_trace, trace_out+'alpha_trace.txt')
+    except KeyError:
+        pass
+
     # cluster plotting
     if plot:
         plot_clusters(center_trace, clus_idx, clus_max_prob, sup, dep, clus_out_dir, cparams)
@@ -299,136 +339,161 @@ def post_process_clusters(trace, model, sv_df, snv_df, clus_out_dir, sup, dep, c
         plt.savefig('%s/traces.png' % clus_out_dir)
     
     # merge clusters
-    if len(clus_info)>1 and merge_clusts:        
+    if len(clus_info)>1 and merge_clusts:
         clus_merged = pd.DataFrame(columns=clus_info.columns,index=clus_info.index)
         clus_merged, clus_members, merged_ids  = merge_clusters(clus_out_dir,clus_info,clus_merged,\
-                clus_members,[],sup,dep,cn_states,sparams,cparams,subclone_diff,clus_limit,phi_limit)
-        
+                clus_members,[],sup,dep,norm,cn_states,sparams,cparams)
+
         if len(clus_merged)!=len(clus_info):
             clus_info = clus_merged
-            df_probs, ccert = merge_results(clus_merged, merged_ids, df_probs, ccert)    
+            df_probs, ccert = merge_results(clus_merged, merged_ids, df_probs, ccert)
 
     snv_probs = pd.DataFrame()
     snv_ccert = pd.DataFrame()
     snv_members = np.empty(0)
-    
+
+    z_phi = get_per_variant_phi(z_trace, center_trace)
+
+    # compile run fit statistics
+    run_fit = pd.DataFrame()
+    if map_ is not None:
+        nclus = len(clus_info)
+        # bic = -2 * map_.lnL + (1 + npoints + nclus * 2) + (nclus * clus_penalty) * np.log(npoints)
+        phis = ccert.average_ccf.values
+        cns, pvs = cluster.get_most_likely_cn_states(cn_states, sup, dep, phis, sparams['pi'], cnv_pval, norm)
+        lls = []
+        for si, di, pvi in zip(sup, dep, pvs):
+            lls.append(pm.binomial_like(si, di, pvi))
+        svc_ic = -2 * np.sum(lls) + (npoints + nclus * clus_penalty) * np.log(npoints)
+
+        run_fit = pd.DataFrame([['svc_IC', svc_ic], ['BIC', map_.BIC], ['AIC', map_.AIC], ['AICc', map_.AICc],
+                                ['lnL', map_.lnL], ['logp', map_.logp], ['logp_at_max', map_.logp_at_max],
+                                ['param_len', map_.len], ['data_len', map_.data_len]])
+
     if len(snv_df)>0:
         snv_pos = ['chrom','pos']
         snv_probs = df_probs.loc[:len(snv_df)-1]
         snv_probs = snv_df[snv_pos].join(snv_probs)
-        
+
         snv_ccert = ccert.loc[:len(snv_df)-1]
         snv_ccert = snv_df[snv_pos].join(snv_ccert)
 
         snv_max_probs = np.array(clus_max_prob)[:len(snv_df)]
         snv_members = np.array([np.where(np.array(snv_max_probs)==i)[0] for i in clus_ids])
 
-        snv_sup  = sup[:len(snv_df)]
-        snv_dep  = dep[:len(snv_df)]
+        snv_sup       = sup[:len(snv_df)]
+        snv_dep       = dep[:len(snv_df)]
+        snv_norm      = norm[:len(snv_df)]
         snv_cn_states = cn_states[:len(snv_df)]
-        write_output.write_out_files(snv_df,clus_info,snv_members,
+        snv_z_phi     = z_phi[:len(snv_df)]
+        write_output.write_out_files(snv_df,clus_info.copy(),snv_members,
                 snv_probs,snv_ccert,clus_out_dir,sparams['sample'],sparams['pi'],snv_sup,
-                snv_dep,snv_cn_states,run_fit,z_trace,smc_het,write_matrix,cnv_pval,are_snvs=True)
-    
+                snv_dep,snv_norm,snv_cn_states,run_fit,smc_het,cnv_pval,snv_z_phi,are_snvs=True)
+
     sv_probs = pd.DataFrame()
     sv_ccert = pd.DataFrame()
     sv_members = np.empty(0)
     if len(sv_df)>0:
         lb = len(snv_df) if len(snv_df)>0 else 0
-        
+
         sv_pos = ['chr1','pos1','dir1','chr2','pos2','dir2']
         sv_probs = df_probs.loc[lb:lb+len(sv_df)-1]
         sv_probs.index = sv_df.index
         sv_probs = sv_df[sv_pos].join(sv_probs)
-        
+
         sv_ccert = ccert.loc[lb:lb+len(sv_df)-1]
         sv_ccert.index = sv_df.index
         sv_ccert = sv_df[sv_pos].join(sv_ccert)
-        
+
         sv_max_probs = np.array(clus_max_prob)[:len(sv_df)]
         sv_members = np.array([np.where(np.array(sv_max_probs)==i)[0] for i in clus_ids])
 
-        sv_sup  = sup[lb:lb+len(sv_df)]
-        sv_dep  = dep[lb:lb+len(sv_df)]
+        sv_sup       = sup[lb:lb+len(sv_df)]
+        sv_dep       = dep[lb:lb+len(sv_df)]
+        sv_norm      = norm[lb:lb+len(sv_df)]
         sv_cn_states = cn_states[lb:lb+len(sv_df)]
-        write_output.write_out_files(sv_df,clus_info,sv_members,
+        sv_z_phi     = z_phi[lb:lb+len(sv_df)]
+        write_output.write_out_files(sv_df,clus_info.copy(),sv_members,
                     sv_probs,sv_ccert,clus_out_dir,sparams['sample'],sparams['pi'],sv_sup,
-                    sv_dep,sv_cn_states,run_fit,z_trace,smc_het,write_matrix,cnv_pval)
+                    sv_dep,sv_norm,sv_cn_states,run_fit,smc_het,cnv_pval,sv_z_phi)
 
-def cluster_and_process(sv_df, snv_df, run, out_dir, sample_params, cluster_params, output_params):
-    # set random seed
-    seed = int(round((time.time() - int(time.time())) * 10000 * (run+1)))
-    np.random.seed(seed)
+def cluster_and_process(sv_df, snv_df, run, out_dir, sample_params, cluster_params, output_params, seeds):
+    male = cluster_params['male']
+    np.random.seed(seeds[run])
+    print('Random seed for run %d is %d' % (run, seeds[run]))
 
     clus_out_dir = '%s/run%d'%(out_dir, run)
     if not os.path.exists(clus_out_dir):
         os.makedirs(clus_out_dir)
 
-    Nvar, sup, dep, cn_states = None, None, None, None
+    Nvar, sup, dep, cn_states, norm = None, None, None, None, None
     if cluster_params['cocluster'] and len(sv_df)>0 and len(snv_df)>0:
         # coclustering
-        sup, dep, cn_states, Nvar = load_data.get_snv_vals(snv_df)
-        sv_sup, sv_dep, sv_cn_states, sv_Nvar = load_data.get_sv_vals(sv_df, cluster_params['adjusted'])
+        sup, dep, cn_states, Nvar, norm = load_data.get_snv_vals(snv_df, male, cluster_params)
+        sv_sup, sv_dep, sv_cn_states, sv_Nvar, sv_norm = load_data.get_sv_vals(sv_df,
+                                                cluster_params['adjusted'], male, cluster_params)
         sup = np.append(sup, sv_sup)
         dep = np.append(dep, sv_dep)
+        norm = np.append(norm, sv_norm)
         cn_states = pd.concat([pd.DataFrame(cn_states),pd.DataFrame(sv_cn_states)])[0].values
         Nvar = Nvar + sv_Nvar
         print("Coclustering %d SVs & %d SNVs..." % (len(sv_df), len(snv_df)))
-        trace, model = cluster.cluster(sup, dep, cn_states, Nvar, sample_params,
-                                     cluster_params, cluster_params['phi_limit'])
-        post_process_clusters(trace, model, sv_df, snv_df, clus_out_dir, sup, dep, cn_states,
-                          sample_params, cluster_params, output_params)
+        mcmc, map_ = cluster.cluster(sup, dep, cn_states, Nvar, sample_params,
+                                     cluster_params, cluster_params['phi_limit'], norm)
+        post_process_clusters(mcmc, sv_df, snv_df, clus_out_dir, sup, dep, norm, cn_states,
+                          sample_params, cluster_params, output_params, map_)
 
     elif len(sv_df) > 0 or len(snv_df) > 0:
         # no coclustering
         if len(snv_df) > 0:
             if not os.path.exists('%s/snvs'%clus_out_dir):
                 os.makedirs('%s/snvs'%clus_out_dir)
-            sup,dep,cn_states,Nvar = load_data.get_snv_vals(snv_df)
+            sup, dep, cn_states, Nvar, norm = load_data.get_snv_vals(snv_df, male, cluster_params)
             print('Clustering %d SNVs...' % len(snv_df))
-            trace, model = cluster.cluster(sup, dep, cn_states, Nvar, sample_params,
-                                         cluster_params, cluster_params['phi_limit'])
-            post_process_clusters(trace, model, pd.DataFrame(), snv_df, clus_out_dir, sup, dep, cn_states,
-                              sample_params, cluster_params, output_params)
+            mcmc, map_ = cluster.cluster(sup, dep, cn_states, Nvar, sample_params,
+                                         cluster_params, cluster_params['phi_limit'], norm)
+            post_process_clusters(mcmc, pd.DataFrame(), snv_df, clus_out_dir, sup, dep, norm,
+                                  cn_states,sample_params, cluster_params, output_params, map_)
         if len(sv_df) > 0:
-            sup, dep, cn_states, Nvar = load_data.get_sv_vals(sv_df,cluster_params['adjusted'])
+            sup, dep, cn_states, Nvar, norm = load_data.get_sv_vals(sv_df,
+                                                cluster_params['adjusted'], male, cluster_params)
             print('Clustering %d SVs...' % len(sv_df))
-            trace, model = cluster.cluster(sup, dep, cn_states, Nvar, sample_params,
-                                         cluster_params, cluster_params['phi_limit'])
-            post_process_clusters(trace, model, sv_df, pd.DataFrame(), clus_out_dir, sup, dep, cn_states,
-                              sample_params, cluster_params, output_params)
+            mcmc, map_ = cluster.cluster(sup, dep, cn_states, Nvar, sample_params,
+                                         cluster_params, cluster_params['phi_limit'], norm)
+            post_process_clusters(mcmc, sv_df, pd.DataFrame(), clus_out_dir, sup, dep, norm,
+                                  cn_states, sample_params, cluster_params, output_params, map_)
 
     else:
         raise ValueError("No valid variants to cluster!")
 
-def pick_best_run(ic, n_runs, out, sample, ccf_reject, cocluster, are_snvs=False):
+def pick_best_run(n_runs, out, sample, ccf_reject, cocluster, fit_metric, cluster_penalty, are_snvs=False):
     snv_dir = 'snvs/' if are_snvs else ''
 
     ics = []
-    try:
-        for run in range(n_runs):
-            fit_file = '%s/run%d/%s%s_fit.txt' % (out, run, snv_dir, sample)
-            fit = pd.read_csv(fit_file, delimiter='\t', dtype=None, header=None, index_col=0)
-            ics.append(fit.loc[ic].values[0])
-    except:
-        raise Exception('Specified information criterion does not exist for these runs!')
-
+    for run in range(n_runs):
+        fit_file = '%s/run%d/%s%s_fit.txt' % (out, run, snv_dir, sample)
+        fit = pd.read_csv(fit_file, delimiter='\t', dtype=None, header=None)
+        try:
+            ic_val = fit.loc[fit[0]==fit_metric].values[0][1]
+            ics.append(ic_val)
+        except IndexError:
+            raise ValueError('Invalid fit metric specified or fit metric does not exist in run.')
     ics = np.array(ics)
 
     min_ic = -1
+    ic_sort = np.argsort(ics)
     for idx in range(n_runs):
-        ic_sort = np.argsort(ics)
-        min_ic = np.where(ic_sort == idx)[0][0]
-
-        if ics[min_ic] < 0 and ic != 'LOO':
-            continue
-
+        min_ic = ic_sort[idx]
         struct_file = '%s/run%d/%s%s_subclonal_structure.txt' % (out, min_ic, snv_dir, sample)
         clus_struct = pd.read_csv(struct_file, delimiter='\t', dtype=None, header=0)
 
         if len(clus_struct) > 1:
-            break
-        elif clus_struct.proportion[0] > ccf_reject:
+            var_props = clus_struct.n_ssms.map(float).values/sum(clus_struct.n_ssms)
+            clus_struct = clus_struct[var_props > 0.01] #filter out very small clusters
+            if len(clus_struct) > 1:
+                break
+
+        if clus_struct.CCF[0] > ccf_reject:
             break
         else:
             min_ic = -1
@@ -436,90 +501,105 @@ def pick_best_run(ic, n_runs, out, sample, ccf_reject, cocluster, are_snvs=False
     if min_ic == -1:
         print('No optimal run found! Consider more runs and/or more iterations.')
     else:
-        if are_snvs:
+        if cocluster:
+            print('Selecting run %d as best run for SVs & SNVs' % min_ic)
+            best_run = '%s/run%d' % (out, min_ic)
+            best_run_dest = '%s/best_run_coclus' % out
+            copy_tree(best_run, best_run_dest)
+
+            f = open('%s/run%s.txt' % (best_run_dest, min_ic), 'w')
+            f.close()
+        elif are_snvs:
             print('Selecting run %d as best run for SNVs' % min_ic)
             best_run = '%s/run%d/snvs' % (out, min_ic)
             best_run_dest = '%s/best_run_snvs' % out
             copy_tree(best_run, best_run_dest)
-            if cocluster:
-                shutil.copyfile('%s/run%d/phi_trace.txt.gz' % (out, min_ic), '%s/phi_trace.txt.gz' % best_run_dest)
-                shutil.copyfile('%s/run%d/z_trace.txt.gz' % (out, min_ic), '%s/z_trace.txt.gz' % best_run_dest)
-            else:
-                shutil.copyfile('%s/run%d/snvs/phi_trace.txt.gz' % (out, min_ic), '%s/phi_trace.txt.gz' % best_run_dest)
-                shutil.copyfile('%s/run%d/snvs/z_trace.txt.gz' % (out, min_ic), '%s/z_trace.txt.gz' % best_run_dest)
 
+            shutil.copyfile('%s/run%d/snvs/phi_trace.txt.gz' % (out, min_ic), '%s/phi_trace.txt.gz' % best_run_dest)
+            shutil.copyfile('%s/run%d/snvs/z_trace.txt.gz' % (out, min_ic), '%s/z_trace.txt.gz' % best_run_dest)
             shutil.copyfile('%s/run%d/cluster_trace_hist.png' % (out, min_ic),
                             '%s/cluster_trace_hist.png' % best_run_dest)
+
+            f = open('%s/run%s.txt' % (best_run_dest, min_ic), 'w')
+            f.close()
         else:
             print('Selecting run %d as best run for SVs' % min_ic)
             best_run = '%s/run%d' % (out, min_ic)
-            copy_tree(best_run, '%s/best_run_svs' % out)
+            best_run_dest = '%s/best_run_svs' % out
+            copy_tree(best_run, best_run_dest)
+
             snv_folder = '%s/best_run_svs/snvs' % out
             if os.path.exists(snv_folder):
                 shutil.rmtree(snv_folder)
 
-def string_to_bool(v):
-  return v.lower() in ("yes", "true", "t", "1")
+            f = open('%s/run%s.txt' % (best_run_dest, min_ic), 'w')
+            f.close()
+
+def simu_sv(sv):
+    simu_sv = sv.copy()
+    simu_sv.classification = 'SIMU_SV'
+    simu_sv[8:30] = 0
+    simu_sv.raw_mean_vaf = 0.0
+    simu_sv.adjusted_support = np.random.binomial(sv.adjusted_depth, sv.adjusted_vaf)
+    simu_sv.adjusted_vaf = float(simu_sv.adjusted_support) / simu_sv.adjusted_depth
+    return simu_sv
+
+def get_seeds(seeds, n_runs):
+    '''
+    splits seed argument list or if no list,
+    generate a new list of random seeds
+    '''
+    try:
+        if seeds =='':
+            seeds = [np.random.randint(0,10000) for i in range(n_runs)]
+        else:
+            seeds = [int(s) for s in seeds.split(',')]
+    except ValueError:
+        seeds = [np.random.randint(0,10000) for i in range(n_runs)]
+
+    return(seeds)
+
+def subsample_snvs(snv_df, subsample, run, ss_seeds, sample, out):
+    print('Subsampling %d SNVs for run%d' % (subsample, run))
+    print('Random seed for sampling is %d' % ss_seeds[run])
+
+    np.random.seed(ss_seeds[run])
+    keep = np.random.choice(snv_df.index, size=subsample, replace=False)
+    snv_run_df = snv_df.loc[keep]
+
+    snv_run_df.index = range(len(snv_run_df)) #re-index
+    snv_outname = '%s/%s_filtered_snvs_%d_subsampled_run%d.tsv' % (out, sample, subsample, run)
+    snv_run_df.to_csv(snv_outname, sep='\t', index=False, na_rep='')
+
+    return(snv_run_df)
 
 def run_clustering(args):
-    
+
+    sample          = args.sample
+    cfg             = args.cfg
+    out             = sample if args.out == "" else args.out
+    pp_file         = args.pp_file
+    param_file      = args.param_file
     snv_file        = args.snv_file
     sv_file         = args.sv_file
-    sample          = args.sample
-    out             = args.outdir
-    param_file      = args.param_file
-    pp_file         = args.pp_file
-    cfg             = args.cfg
-
-    out = sample if out == "" else out
-    Config = configparser.ConfigParser()
-    cfg_file = Config.read(cfg)
-
-    if len(cfg_file)==0:
-        raise ValueError('No configuration file found')
-
-    shape  = Config.get('BetaParameters', 'alpha')
-    scale  = Config.get('BetaParameters', 'beta')
-    beta   = ','.join([str(shape),str(scale)])
-
-    phi_limit       = float(Config.get('ClusterParameters', 'phi_limit'))
-    clus_limit      = int(Config.get('ClusterParameters', 'clus_limit'))
-    subclone_diff   = float(Config.get('ClusterParameters', 'subclone_diff'))
-    hpd_alpha       = float(Config.get('ClusterParameters', 'hpd_alpha'))
-
-    n_runs          = int(Config.get('ClusterParameters', 'n_runs'))
-    n_iter          = int(Config.get('ClusterParameters', 'n_iter'))
-    burn            = int(Config.get('ClusterParameters', 'burn'))
-    thin            = int(Config.get('ClusterParameters', 'thin'))
-    threads         = int(Config.get('ClusterParameters', 'threads'))
-
-    use_map         = string_to_bool(Config.get('ClusterParameters', 'map'))
-    merge_clusts    = string_to_bool(Config.get('ClusterParameters', 'merge'))
-    cocluster       = string_to_bool(Config.get('ClusterParameters', 'cocluster'))
-    adjusted        = string_to_bool(Config.get('ClusterParameters', 'adjusted'))
-    cnv_pval        = float(Config.get('ClusterParameters', 'clonal_cnv_pval'))
-
-    plot            = string_to_bool(Config.get('OutputParameters', 'plot'))
-    ccf_reject      = float(Config.get('OutputParameters', 'ccf_reject_threshold'))
-    smc_het         = string_to_bool(Config.get('OutputParameters', 'smc_het'))
-    write_matrix    = string_to_bool(Config.get('OutputParameters', 'coclus_matrix'))
-    ic              = str(Config.get('OutputParameters', 'fit_metric'))
+    seeds           = args.seeds
+    XX              = args.XX
+    XY              = args.XY
+    subsample       = args.subsample
+    ss_seeds        = args.ss_seeds
 
     if out!='' and not os.path.exists(out):
         os.makedirs(out)
 
-    pi, pl = svp_load.get_purity_ploidy(pp_file, sample, out)
-    rlen, insert, std = svp_load.get_read_params(param_file, sample, out)
+    sample_params, cluster_params, output_params = \
+                   load_data.get_params_cluster_step(sample, cfg, out, pp_file, param_file, XX, XY)
+    n_runs = cluster_params['n_runs']
 
-    sample_params  = { 'sample': sample, 'ploidy': pl, 'pi': pi, 'rlen': rlen, 'insert': insert }
-    cluster_params = { 'n_iter': n_iter, 'burn': burn, 'thin': thin, 'beta': beta, 'use_map': use_map, 'hpd_alpha': hpd_alpha,
-                       'merge_clusts': merge_clusts, 'adjusted': adjusted, 'phi_limit': phi_limit, 'clus_limit': clus_limit,
-                       'subclone_diff': subclone_diff, 'cocluster': cocluster , 'clonal_cnv_pval': cnv_pval }
-    output_params  = { 'plot': plot, 'write_matrix': write_matrix, 'smc_het': smc_het }
-    
+    seeds = get_seeds(seeds, n_runs)
+    ss_seeds = get_seeds(ss_seeds, n_runs)
+
     sv_df       = pd.DataFrame()
     snv_df      = pd.DataFrame()
-
     sv_file     = sv_file if sv_file != '' else '%s/%s_filtered_svs.tsv' % (out,sample)
     snv_file    = snv_file if snv_file != '' else '%s/%s_filtered_snvs.tsv' % (out,sample)
 
@@ -534,44 +614,63 @@ def run_clustering(args):
         snv_df = pd.read_csv(snv_file,delimiter='\t',dtype=None,header=0,low_memory=False)
         snv_df = pd.DataFrame(snv_df).fillna('')
 
-    clus_info,center_trace,ztrace,clus_members = None,None,None,None
+    if (len(sv_df) == 0 or len(snv_df) ==0) and cluster_params['cocluster']:
+        cluster_params['cocluster'] = False
 
-#    pr = cProfile.Profile()
-#    pr.enable()
+    clus_info, center_trace, ztrace, clus_members = None, None, None, None
+
+    sv_to_sim = cluster_params['sv_to_sim']
+    if sv_to_sim > 0:
+        print('Simulating %d SV...' % (len(sv_df) * sv_to_sim))
+        nvar = len(sv_df)
+        for i in range(nvar):
+            for j in range(sv_to_sim):
+                sv_df.loc[len(sv_df)] = simu_sv(sv_df.loc[i])
+
+    threads = cluster_params['threads']
+    use_map = cluster_params['use_map']
+    ccf_reject = cluster_params['ccf_reject']
+    cocluster = cluster_params['cocluster']
+    fit_metric = output_params['fit_metric']
+    cluster_penalty = output_params['cluster_penalty']
 
     if threads == 1:
         for run in range(n_runs):
-            cluster_and_process(sv_df,snv_df,run,out,sample_params,cluster_params,output_params)
+            snv_run_df = snv_df
+            if subsample > 0 and subsample < len(snv_df):
+                snv_run_df = subsample_snvs(snv_df, subsample, run, ss_seeds, sample, out)
+            cluster_and_process(sv_df,snv_run_df,run,out,sample_params,cluster_params,output_params,seeds)
+        # select the best run based on min BIC
+        if use_map and n_runs > 1:
+            if len(sv_df) > 0:
+                pick_best_run(n_runs, out, sample, ccf_reject, cocluster, fit_metric, cluster_penalty)
+            if len(snv_df) > 0 and not cocluster:
+                pick_best_run(n_runs, out, sample, ccf_reject, cocluster, fit_metric, cluster_penalty, are_snvs=True)
     else:
         conc_runs = max(1, n_runs / threads) if n_runs % threads == 0 else (n_runs / threads) + 1
         for i in range(conc_runs):
             jobs = []
-
             for j in range(threads):
-
                 run = j + (i * threads)
                 if not run > n_runs-1:
                     print("Thread %d; cluster run: %d" % (j, run))
-                    process = multiprocessing.Process(target=cluster_and_process,args=(sv_df,snv_df,run,out,
-                                                      sample_params,cluster_params,output_params))
+                    snv_run_df = snv_df
+                    if subsample > 0 and subsample < len(snv_df):
+                        snv_run_df = subsample_snvs(snv_df, subsample, run, ss_seeds, sample, out)
+                    process = multiprocessing.Process(target=cluster_and_process,args=(sv_df,snv_run_df,run,out,
+                                                      sample_params,cluster_params,output_params,seeds))
                     jobs.append(process)
-
             for j in jobs:
                 j.start()
             for j in jobs:
                 j.join()
 
-#    pr.disable()
-#    s = StringIO.StringIO()
-#    sortby = 'cumulative'
-#    ps = pstats.Stats(pr, stream=s).sort_stats(sortby)
-#    ps.print_stats()
-#    print(s.getvalue())
-
-    # select the best run based on min IC
-    if use_map and n_runs > 1:
-        if len(sv_df) > 0:
-            pick_best_run(ic, n_runs, out, sample, ccf_reject, cocluster)
-        if len(snv_df) > 0:
-            pick_best_run(ic, n_runs, out, sample, ccf_reject, cocluster, are_snvs=True)
-
+        while True:
+            if not use_map or n_runs == 1:
+                break
+            if np.all(np.array([not j.is_alive() for j in jobs])):
+                if len(sv_df) > 0:
+                    pick_best_run(n_runs, out, sample, ccf_reject, cocluster, fit_metric, cluster_penalty)
+                if len(snv_df) > 0 and not cocluster:
+                    pick_best_run(n_runs, out, sample, ccf_reject, cocluster, fit_metric, cluster_penalty, are_snvs=True)
+                break

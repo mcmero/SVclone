@@ -5,6 +5,7 @@ import numpy as np
 import vcf
 import pysam
 import os
+import re
 
 from . import load_data
 from . import count
@@ -93,8 +94,8 @@ def get_bp_dir(sv, loc_reads, pos, sc_len, threshold, bp_num):
 def retrieve_loc_reads(sv, bam, max_dep, threshold):
     bp_dtype = [('chrom', '<U20'), ('start', int), ('end', int), ('dir', '<U1')]
 
-    sv_id, chr1, pos1, dir1, \
-        chr2, pos2, dir2, sv_class = [h[0] for h in dtypes.sv_dtype]
+    sv_id, chr1, pos1, dir1, chr2, pos2, dir2, \
+        sv_class, orig_id, orig_pos1, orig_pos2 = [h[0] for h in dtypes.sv_dtype]
     bp1 = np.array((sv[chr1], sv[pos1]-(threshold*2), \
                     sv[pos1]+(threshold*2), sv[dir1]), dtype=bp_dtype)
     bp2 = np.array((sv[chr2], sv[pos2]-(threshold*2), \
@@ -188,22 +189,12 @@ def is_same_sv(sv1, sv2, threshold):
             return True
     return False
 
-def remove_duplicates(svs, threshold):
-    to_delete = []
-    for idx1, sv1 in enumerate(svs):
-        if idx1+1 == len(svs): 
-            break
-        for idx2, sv2 in enumerate(svs[idx1+1:]):
-            if idx1 != idx2:
-                sv1_tmp = (sv1['chr1'], sv1['pos1'], sv1['dir1'],\
-                           sv1['chr2'], sv1['pos2'], sv1['dir2'])
-                sv2_tmp = (sv2['chr1'], sv2['pos1'], sv2['dir1'],\
-                           sv2['chr2'], sv2['pos2'], sv1['dir2'])
-                if is_same_sv(sv1_tmp, sv2_tmp, threshold):
-                    to_delete.append(idx1)
-    svs = np.delete(svs, np.array(to_delete))
-    svs['ID'] = range(0,len(svs)) #re-index
-    return svs
+def remove_duplicates(svs):
+    sv_ids = zip(svs['chr1'], svs['pos1'], svs['dir1'], svs['chr2'], svs['pos2'], svs['dir2'])
+    sv_ids = ['%s:%d:%s:%s:%d:%s:' % (c1, p1, d1, c2, p2, d2) for c1, p1, d1, c2, p2, d2 in sv_ids]
+    sv_ids, idxs = np.unique(sv_ids, return_index=True)
+    #svs['ID'] = range(0,len(svs)) #re-index
+    return svs[idxs]
 
 def get_sv_pos_ranks(sv_list, threshold):
     '''
@@ -247,7 +238,7 @@ def split_dirs_dual_mixed_sv(svs, row, idx, ca, threshold):
                                 svs[idx]['pos2'], svs, threshold, mixed=True)
 
     if len(svmatch1) > 0 and len(svmatch2) > 0:
-        
+
         if len(svmatch1) > 1 or len(svmatch2) > 1:
 
             svs = set_svs_as_complex(svs, svmatch1)
@@ -294,7 +285,7 @@ def split_dirs_dual_mixed_sv(svs, row, idx, ca, threshold):
                     new_pos2 = ca[idxs]['ca_right2'] if \
                                 dirs[1] == '+' else ca[idxs]['ca_left2']
                     svs[idxs] = set_dir_class(sv, dirs[0], dirs[1], '', new_pos1, new_pos2)
-            else:                
+            else:
                 svs = set_svs_as_complex(svs, svmatch1)
                 svs = set_svs_as_complex(svs, svmatch2)
                 return svs
@@ -332,7 +323,7 @@ def split_mixed_svs(svs, ca, threshold):
                 new_svs = split_dirs_dual_mixed_sv(svs, row, idx, ca, threshold)
 
             elif row['dir1'] in ['-','+']:
-                #set dir to -, create new sv with dir set to +                
+                #set dir to -, create new sv with dir set to +
                 new_sv = svs[idx].copy()
                 new_pos2 = ca[idx]['ca_right2']
                 new_sv = set_dir_class(new_sv, row['dir1'], '+', '', 0, new_pos2)
@@ -406,6 +397,99 @@ def infer_sv_dirs(svs, ca, bam, max_dep, sc_len, threshold, blist):
 
     return svs, ca
 
+def nice_sort(ids):
+    # takes into account characters and numbers to sort data intuitively
+    convert = lambda text: int(text) if text.isdigit() else text
+    alphanum_key = lambda key: [ convert(c) for c in re.split('([0-9]+)', key) ]
+    return sorted(ids, key = alphanum_key)
+
+def sort_breakend_order(svs):
+    '''
+    per sv, ensure chrom1, chrom2 and pos1, pos2 are ordered
+    '''
+    svs = svs.copy()
+    for sv in np.nditer(svs, op_flags=['readwrite']):
+        if sv['chr1'] == sv['chr2']:
+            if sv['pos1'] > sv['pos2']:
+                ts = sv.copy()
+                sv['pos1'], sv['dir1'] = ts['pos2'], ts['dir2']
+                sv['pos2'], sv['dir2'] = ts['pos1'], ts['dir1']
+        else:
+            chrs = [str(sv['chr1']), str(sv['chr2'])]
+            if not np.all(np.array(chrs) == np.array(nice_sort(chrs))):
+                ts = sv.copy()
+                sv['chr1'], sv['pos1'], sv['dir1'] = ts['chr2'], ts['pos2'], ts['dir2']
+                sv['chr2'], sv['pos2'], sv['dir2'] = ts['chr1'], ts['pos1'], ts['dir1']
+    return svs
+
+def sort_svs(svs):
+    sv_ids = zip(svs['chr1'], svs['pos1'], svs['dir1'], svs['chr2'], svs['pos2'], svs['dir2'])
+    sv_ids = ['%s:%d:%s:%s:%d:%s:' % (c1, p1, d1, c2, p2, d2) for c1, p1, d1, c2, p2, d2 in sv_ids]
+    sv_ids_sorted = nice_sort(sv_ids)
+    sv_idx = [np.where(sid == np.array(sv_ids))[0][0] for sid in sv_ids_sorted]
+    svs = np.array(svs)[sv_idx]
+    return svs
+
+def classify_svs(svs, threshold):
+    svs = sort_breakend_order(svs)
+
+    # classify inter-chromosomal translocations in chroms don't match
+    inter_svs = np.array(filter(lambda sv: sv['chr1'] != sv['chr2'], svs))
+    if len(inter_svs) > 0:
+        for sv in np.nditer(inter_svs, op_flags=['readwrite']):
+            sv['classification'] = 'INTRX'
+
+    # extract only rearrangements from same chromosomes for classifying
+    intra_svs = np.array(filter(lambda sv: sv['chr1'] == sv['chr2'], svs))
+    if len(intra_svs) > 0:
+        intra_svs = sort_svs(intra_svs)
+
+        sv_id = 0
+        svd_prev_result, prev_sv = None, None
+        trx_label = svd.getResultType([svd.SVtypes.translocation])
+        intins_label = svd.getResultType([svd.SVtypes.interspersedDuplication])
+
+        for idx in range(len(intra_svs)):
+            sv = intra_svs[idx]
+            if sv['classification'] == '':
+                sv_class, sv_id, svd_prev_result, prev_sv = \
+                    classify_event(sv, sv_id, svd_prev_result, prev_sv)
+                sv['classification'] = sv_class
+            else:
+                sv_id += 1
+            sv['ID'] = sv_id
+
+        # reclassify once all have been processed
+        for idx in range(len(intra_svs)):
+            sv = intra_svs[idx]
+            if sv['classification'] == intins_label:
+                intra_svs[idx-1]['classification'] = intins_label
+                translocs = svd.detectTransloc(idx, intra_svs, threshold)
+                if len(translocs) > 0:
+                    new_idx = idx-1
+                    for i in translocs:
+                        intra_svs[i]['classification'] = trx_label
+                        intra_svs[i]['ID'] = new_idx
+
+    if len(intra_svs) > 0 and len(inter_svs) > 0:
+        svs = np.concatenate([intra_svs, inter_svs])
+    elif len(intra_svs) > 0:
+        svs = intra_svs
+    elif len(inter_svs) > 0:
+        svs = inter_svs
+
+    svs = remove_duplicates(svs)
+    svs = sort_svs(svs)
+    return svs
+
+def write_svs(svs, outname):
+    with open(outname, 'w') as outf:
+        writer = csv.writer(outf, delimiter='\t', quoting=csv.QUOTE_NONE, quotechar='')
+        header = [field for field, dtype in dtypes.sv_dtype]
+        writer.writerow(header)
+        for sv_out in svs:
+            writer.writerow(sv_out)
+
 def string_to_bool(v):
   return v.lower() in ("yes", "true", "t", "1")
 
@@ -428,9 +512,11 @@ def preproc_svs(args):
     max_cn       = int(Config.get('BamParameters', 'max_cn'))
     mean_cov     = int(Config.get('BamParameters', 'mean_cov'))
     rlen         = int(Config.get('BamParameters', 'read_len'))
+    insert_mean  = int(Config.get('BamParameters', 'insert_mean'))
+    insert_std   = int(Config.get('BamParameters', 'insert_std'))
 
-    use_dir      = string_to_bool(Config.get('SVidentifyParameters', 'use_dir'))
-    trust_sc_pos = string_to_bool(Config.get('SVidentifyParameters', 'trust_sc_position'))
+    use_dir      = string_to_bool(Config.get('SVannotateParameters', 'use_dir'))
+    trust_sc_pos = string_to_bool(Config.get('SVannotateParameters', 'trust_sc_position'))
     sc_len       = int(Config.get('SVcountParameters', 'sc_len'))
     threshold    = int(Config.get('SVcountParameters', 'threshold'))
 
@@ -440,7 +526,7 @@ def preproc_svs(args):
     filt_repeats = filt_repeats.split(', ') if filt_repeats != '' else filt_repeats
     filt_repeats = [rep for rep in filt_repeats if rep != '']
 
-    class_field  = str(Config.get('SVidentifyParameters', 'sv_class_field'))
+    class_field  = str(Config.get('SVannotateParameters', 'sv_class_field'))
     class_field  = '' if class_field == 'none' else class_field
 
     out = sample if out == "" else out
@@ -468,20 +554,32 @@ def preproc_svs(args):
                         ('ca_right2', int), ('ca_left2', int)]
     ca = np.zeros(len(svs), dtype=consens_dtype)
 
-    if rlen<0:
+    if rlen < 0:
         rlen = bamtools.estimateTagSize(bam)
-    
-    inserts = bamtools.estimateInsertSizeDistribution(bam)
-    inserts = (max(rlen*2,inserts[0]),inserts[1])
-    
+
+    inserts = [insert_mean, insert_std]
+    if rlen < 0:
+        rlen = bamtools.estimateTagSize(bam)
+    if inserts[0] < 0 or inserts[1] < 0:
+        inserts = bamtools.estimateInsertSizeDistribution(bam)
+        inserts = (max(rlen*2,inserts[0]),inserts[1])
+    else:
+        inserts[0] = inserts[0]
+
     max_ins = inserts[0]+(3*inserts[1]) #max fragment size = mean fragment len + (fragment std * 3)
     max_dep = ((mean_cov*(max_ins*2))/rlen)*max_cn
-    
+
+    default_loc = '%s/read_params.txt'%out
+    if not os.path.exists(default_loc):
+        with open(default_loc,'w') as outp:
+            outp.write('sample\tread_len\tinsert_mean\tinsert_std\n')
+            outp.write('%s\t%d\t%f\t%f\n\n'%(sample,rlen,inserts[0],inserts[1]))
+
     if not use_dir:
         svs, ca = infer_sv_dirs(svs, ca, bam, max_dep, sc_len, threshold, blist)
     elif not trust_sc_pos:
         print('Recalibrating consensus alignments...')
-        # use directions, but recheck the consensus alignments
+        # set BP pos to softclip position
         for idx, sv in enumerate(svs):
             if len(blist) > 0 and sv_in_blacklist(sv, blist):
                 svs[idx]['classification'] = 'BLACKLIST'
@@ -503,36 +601,8 @@ def preproc_svs(args):
             if new_align != 0:
                 svs[idx]['pos2'] = new_align
 
-    print('Removing duplicate SVs...')
-    svs = remove_duplicates(svs, threshold)
 
-    sv_id = 0
-    svd_prev_result, prev_sv = None, None
-    for idx, sv in enumerate(svs):
-        if sv['classification'] == '':
-            sv_class, sv_id, svd_prev_result, prev_sv = \
-                classify_event(sv, sv_id, svd_prev_result, prev_sv)
-            svs[idx]['classification'] = sv_class
-        else:
-            sv_id += 1
-        svs[idx]['ID'] = sv_id
-
-    # reclassify once all have been processed
-    for idx, sv in enumerate(svs):
-        trx_label = svd.getResultType([svd.SVtypes.translocation])
-        intins_label = svd.getResultType([svd.SVtypes.interspersedDuplication])
-        if sv['classification'] == intins_label:
-            svs[idx-1]['classification'] = intins_label
-            translocs = svd.detectTransloc(idx, svs, threshold)
-            if len(translocs) > 0:
-                new_idx = idx-1
-                for i in translocs:
-                    svs[i]['classification'] = trx_label
-                    svs[i]['ID'] = new_idx
-
-    with open(outname, 'w') as outf:
-        writer = csv.writer(outf, delimiter='\t', quoting=csv.QUOTE_NONE, quotechar='')
-        header = [field for field, dtype in dtypes.sv_dtype]
-        writer.writerow(header)
-        for sv_out in svs:
-            writer.writerow(sv_out)
+    print('Classifying SVs...')
+    svs = classify_svs(svs, threshold)
+    print('Writing SV output...')
+    write_svs(svs, outname)
