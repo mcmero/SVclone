@@ -46,7 +46,7 @@ def plot_clusters(trace, clusters, assignments, sup, dep, clus_out_dir, cparams)
 
     alpha_trace = []
     try:
-        alpha_trace = trace('alpha')[:]
+        alpha_trace = trace('alpha')[burn:]
     except KeyError:
         pass
 
@@ -258,6 +258,8 @@ def post_process_clusters(mcmc,sv_df,snv_df,clus_out_dir,sup,dep,norm,cn_states,
     cnv_pval      = cparams['clonal_cnv_pval']
     hpd_alpha     = cparams['hpd_alpha']
     adjust_phis   = cparams['adjust_phis']
+    burn          = cparams['burn']
+    thin          = cparams['thin']
     clus_penalty  = output_params['cluster_penalty']
     smc_het       = output_params['smc_het']
     plot          = output_params['plot']
@@ -269,7 +271,8 @@ def post_process_clusters(mcmc,sv_df,snv_df,clus_out_dir,sup,dep,norm,cn_states,
     npoints = len(snv_df) + len(sv_df)
     sup, dep, norm, cn_states = sup[:npoints], dep[:npoints], norm[:npoints], cn_states[:npoints]
 
-    z_trace = trace['z']
+    z_trace = trace['z'][burn:]
+    z_trace = z_trace[range(0, len(z_trace), thin]
     # assign points to highest probability cluster
     clus_counts = [np.bincount(z_trace[:,i]) for i in range(npoints)]
     clus_max_prob = [index_max(c) for c in clus_counts]
@@ -285,7 +288,9 @@ def post_process_clusters(mcmc,sv_df,snv_df,clus_out_dir,sup,dep,norm,cn_states,
         print("Warning! Could not converge on any major SV clusters. Skipping.\n")
         return None
 
-    center_trace = mcmc.trace("phi_k")[:]
+    center_trace = mcmc.trace("phi_k")[burn:]
+    center_trace = center_trace[range(0, len(center_trace), thin)]
+
     phis = np.array([mean_confidence_interval(center_trace[:,cid], hpd_alpha) for cid in clus_idx])
     if adjust_phis:
         # fix potential label switching problems
@@ -327,7 +332,7 @@ def post_process_clusters(mcmc,sv_df,snv_df,clus_out_dir,sup,dep,norm,cn_states,
     write_output.dump_trace(z_trace, trace_out+'z_trace.txt')
 
     try:
-        alpha_trace = mcmc.trace('alpha')[:]
+        alpha_trace = mcmc.trace('alpha')[burn:]
         write_output.dump_trace(alpha_trace, trace_out+'alpha_trace.txt')
     except KeyError:
         pass
@@ -337,7 +342,7 @@ def post_process_clusters(mcmc,sv_df,snv_df,clus_out_dir,sup,dep,norm,cn_states,
         plot_clusters(center_trace, clus_idx, clus_max_prob, sup, dep, clus_out_dir, cparams)
         pm.traceplot(trace)
         plt.savefig('%s/traces.png' % clus_out_dir)
-    
+
     # merge clusters
     if len(clus_info)>1 and merge_clusts:
         clus_merged = pd.DataFrame(columns=clus_info.columns,index=clus_info.index)

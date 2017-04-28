@@ -102,11 +102,11 @@ def calc_lik_with_clonal(combo, si, di, phi_i, pi, ni):
     # calculate with given phi
     # (lls currently uses precision fudge factor to get around 0 probability errors when pv = 1)
     pvs = np.array([get_pv(phi_i, c, pi, ni) for c in combo])
-    lls = np.array([pm.binomial_like(si, di, pvs[i]) for i,c in enumerate(combo)])-0.00000001
+    lls = np.array([pm2.binomial_like(si, di, pvs[i]) for i,c in enumerate(combo)])-0.00000001
 
     # calculate with clonal phi
     pvs_cl = np.array([get_pv(np.array(1), c, pi, ni) for c in combo])
-    lls_cl = np.array([pm.binomial_like(si, di, pvs_cl[i]) for i,c in enumerate(combo)])-0.00000001
+    lls_cl = np.array([pm2.binomial_like(si, di, pvs_cl[i]) for i,c in enumerate(combo)])-0.00000001
 
     return np.array([[pvs, lls], [pvs_cl, lls_cl]])
 
@@ -254,7 +254,7 @@ def cluster(sup,dep,cn_states,Nvar,sparams,cparams,phi_limit,norm,recluster=Fals
     print("Precision values: a_s = %f, a_b = %f" % (a_s, b_s))
 
     # to avoid out of bounds error
-    #Ndp = Nvar
+    Ndp = Nvar
 
     # pymc3 prefers lists vs. nparrays? can't say for sure
     sup = [int(si) for si in sup]
@@ -286,11 +286,8 @@ def cluster(sup,dep,cn_states,Nvar,sparams,cparams,phi_limit,norm,recluster=Fals
         @as_op(itypes=[t.dvector], otypes=[t.dvector])
         def stick_breaking(h=h):
             value = [u * np.prod(1.0 - h[:i]) for i, u in enumerate(h)]
-            #value /= np.sum(value)
             value[-1] = 1-sum(value[:-1])
-            #if np.sum(value)!=1:
-            #    value[len(value)-1] += 1-np.sum(value)#floaty roundy error
-            return value
+            return np.array(value)
 
         stick_breaking.grad = lambda *x: x[0] #dummy gradient (otherwise fit function fails)
         p = stick_breaking(h)
@@ -299,7 +296,7 @@ def cluster(sup,dep,cn_states,Nvar,sparams,cparams,phi_limit,norm,recluster=Fals
         @theano.compile.ops.as_op(itypes=[t.lvector, t.dvector], otypes=[t.dvector])
         def p_var(z=z, phi_k=phi_k):
             most_lik_cn_states, pvs = \
-                    get_most_likely_cn_states(cn_states, sup, dep, phi_k[z], pi, pval_cutoff)
+                    get_most_likely_cn_states(cn_states, sup, dep, phi_k[z], purity, pval_cutoff, norm)
             return np.array(pvs)
 
         p_var.grad = lambda *x: [t.cast(x[0][0], dtype='float64'), x[0][1]]
@@ -311,18 +308,20 @@ def cluster(sup,dep,cn_states,Nvar,sparams,cparams,phi_limit,norm,recluster=Fals
         bb_beta  = pm.Gamma('bb_beta', alpha=dep/bb_scale, beta=b_s, shape=Nvar, testval=bb_init)
         cbbinom  = pm.BetaBinomial('cbbinom', alpha=-(bb_beta*pv)/(pv-1), beta=bb_beta, n=dep, observed=sup)
 
-        if map_:
+        if use_map:
             start = pm.find_MAP(fmin=optimize.fmin_cg)
 
+        Ndp_vals = [x for x in range(Ndp)]
+
         step1 = pm.Metropolis(vars=[alpha, h, p, phi_k])
-        step2 = pm.CategoricalGibbsMetropolis(vars = [z])
-        #step2 = pm.ElemwiseCategorical(vars=[z], values=Ndp_vals)
+        #step2 = pm.CategoricalGibbsMetropolis(vars = [z], values=Ndp_vals)
+        step2 = pm.ElemwiseCategorical(vars=[z], values=Ndp_vals)
         step3 = pm.Metropolis(vars=[pv, bb_beta, cbbinom])
         #step3 = pm.Metropolis(vars=[pv, cbinom])
 
-        if map_:
-            trace = pm.sample(iters, [step1, step2, step3], start)
+        if use_map:
+            trace = pm.sample(n_iter, [step1, step2, step3], start)
         else:
-            trace = pm.sample(iters, [step1, step2, step3])
+            trace = pm.sample(n_iter, [step1, step2, step3])
 
     return trace, model
