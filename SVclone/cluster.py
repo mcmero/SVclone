@@ -123,7 +123,7 @@ def get_probs(var_states,s,d,phi,pi,norm):
 
 def get_probs_from_llik(cn_lik):
     probs = np.array([1.])
-    if len(cn_lik) > 1:        
+    if len(cn_lik) > 1:
         probs = [math.exp(x) for x in cn_lik]
         probs = np.array(probs)/sum(probs)
     return probs
@@ -234,7 +234,6 @@ def cluster(sup,dep,cn_states,Nvar,sparams,cparams,phi_limit,norm,recluster=Fals
     '''
     clustering model using Dirichlet Process
     '''
-
     Ndp = cparams['clus_limit'] if not recluster else 1
     n_iter = cparams['n_iter'] if not recluster else cparams['merge_iter']
     burn = cparams['burn'] if not recluster else cparams['merge_burn']
@@ -247,16 +246,17 @@ def cluster(sup,dep,cn_states,Nvar,sparams,cparams,phi_limit,norm,recluster=Fals
     sens = 1.0 / ((purity/ float(ploidy)) * np.mean(dep))
     pval_cutoff = cparams['clonal_cnv_pval']
     print('phi lower limit: %f; phi upper limit: %f' % (sens, phi_limit))
-    
+
     alpha, beta = cparams['alpha'], cparams['beta']
     print("Dirichlet concentration gamma values: alpha = %f, beta= %f" % (alpha, beta))
+
     a_s, b_s = map(lambda x: float(eval(x)), cparams['precision'].split(','))
     print("Precision values: a_s = %f, a_b = %f" % (a_s, b_s))
 
     # to avoid out of bounds error
     #Ndp = Nvar
 
-    # pymc3 prefers lists vs. nparrays for some instances? can't say for sure
+    # pymc3 prefers lists vs. nparrays? can't say for sure
     sup = [int(si) for si in sup]
     cn_states = list(cn_states)
 
@@ -276,9 +276,9 @@ def cluster(sup,dep,cn_states,Nvar,sparams,cparams,phi_limit,norm,recluster=Fals
 #                                                      cn_states, sens, phi_limit, pval_cutoff)
 #        except ValueError:
 #            pass
-    
-    with pm.Model() as model:
 
+    model = pm.Model()
+    with model:
         alpha = pm.Gamma('alpha', alpha=alpha, beta=beta, testval=alpha/beta)
         h = pm.Beta('h', alpha=1, beta=alpha, shape=Ndp, testval=1/(1+alpha))
         phi_k = pm.Uniform('phi_k', lower=sens, upper=phi_limit, shape=Ndp)
@@ -291,7 +291,7 @@ def cluster(sup,dep,cn_states,Nvar,sparams,cparams,phi_limit,norm,recluster=Fals
             #if np.sum(value)!=1:
             #    value[len(value)-1] += 1-np.sum(value)#floaty roundy error
             return value
-        
+
         stick_breaking.grad = lambda *x: x[0] #dummy gradient (otherwise fit function fails)
         p = stick_breaking(h)
         z = pm.Categorical('z', p=p, testval=0, shape=Nvar)
@@ -311,13 +311,12 @@ def cluster(sup,dep,cn_states,Nvar,sparams,cparams,phi_limit,norm,recluster=Fals
         bb_beta  = pm.Gamma('bb_beta', alpha=dep/bb_scale, beta=b_s, shape=Nvar, testval=bb_init)
         cbbinom  = pm.BetaBinomial('cbbinom', alpha=-(bb_beta*pv)/(pv-1), beta=bb_beta, n=dep, observed=sup)
 
-    with model:
-
         if map_:
             start = pm.find_MAP(fmin=optimize.fmin_cg)
 
         step1 = pm.Metropolis(vars=[alpha, h, p, phi_k])
-        step2 = pm.ElemwiseCategorical(vars=[z], values=Ndp_vals)
+        step2 = pm.CategoricalGibbsMetropolis(vars = [z])
+        #step2 = pm.ElemwiseCategorical(vars=[z], values=Ndp_vals)
         step3 = pm.Metropolis(vars=[pv, bb_beta, cbbinom])
         #step3 = pm.Metropolis(vars=[pv, cbinom])
 
@@ -327,8 +326,3 @@ def cluster(sup,dep,cn_states,Nvar,sparams,cparams,phi_limit,norm,recluster=Fals
             trace = pm.sample(iters, [step1, step2, step3])
 
     return trace, model
-
-
-
-
-

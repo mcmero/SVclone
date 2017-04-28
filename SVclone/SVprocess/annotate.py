@@ -434,13 +434,13 @@ def classify_svs(svs, threshold):
     svs = sort_breakend_order(svs)
 
     # classify inter-chromosomal translocations in chroms don't match
-    inter_svs = np.array(filter(lambda sv: sv['chr1'] != sv['chr2'], svs))
+    inter_svs = svs[ svs['chr1'] != svs['chr2'] ]
     if len(inter_svs) > 0:
         for sv in np.nditer(inter_svs, op_flags=['readwrite']):
             sv['classification'] = 'INTRX'
 
     # extract only rearrangements from same chromosomes for classifying
-    intra_svs = np.array(filter(lambda sv: sv['chr1'] == sv['chr2'], svs))
+    intra_svs = svs[ svs['chr1'] == svs['chr2'] ]
     if len(intra_svs) > 0:
         intra_svs = sort_svs(intra_svs)
 

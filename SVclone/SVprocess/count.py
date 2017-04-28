@@ -399,7 +399,7 @@ def get_sv_read_counts(row,bam,rparams,out,split_reads,span_reads,anom_reads):
 
 def get_params(cfg,bam,sample,out):
 
-    Config = ConfigParser.ConfigParser()
+    Config = configparser.ConfigParser()
     cfg_file = Config.read(cfg)
 
     if len(cfg_file)==0:
@@ -588,7 +588,7 @@ def extract_sv_info(svin, bam, rparams, outname):
         sv_rc[opos2_field] = row[opos2_field] if 'original_pos2' in svs.dtype.names else 0
 
         with open(outname,'a') as outf:
-            writer = csv.writer(outf, delimiter='\t', quoting=csv.QUOTE_NONE)
+            writer = csv.writer(outf, delimiter='\t', escapechar='\\', quoting=csv.QUOTE_NONE)
             writer.writerow(sv_rc)
 
     return split_reads, span_reads, anom_reads

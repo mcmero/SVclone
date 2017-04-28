@@ -13,7 +13,10 @@ sv_dtype = [('ID', 'int64'),
             ('chr2', '<U20'),
             ('pos2', 'int64'),
             ('dir2', '<U1'),
-            ('classification', '<U100')] 
+            ('classification', '<U100'),
+            ('original_ID', 'S100'),
+            ('original_pos1', 'int64'),
+            ('original_pos2', 'int64')]
 
 read_dtype = [('query_name', '<U150'), 
             ('chrom', '<U50'), 
