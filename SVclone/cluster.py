@@ -13,6 +13,8 @@ from theano.compile.ops import as_op
 from scipy import stats, optimize
 from sklearn.cluster import KMeans
 from operator import methodcaller
+theano.config.exception_verbosity = 'high'
+theano.config.warn.round = False
 
 def add_copynumber_combos(combos, var_maj, var_min, ref_cn, frac, cparams):
     '''
@@ -254,15 +256,16 @@ def cluster(sup,dep,cn_states,Nvar,sparams,cparams,phi_limit,norm,recluster=Fals
     print("Precision values: a_s = %f, a_b = %f" % (a_s, b_s))
 
     # to avoid out of bounds error
-    Ndp = Nvar
+    #Ndp = Nvar
 
     # pymc3 prefers lists vs. nparrays? can't say for sure
     sup = [int(si) for si in sup]
     cn_states = list(cn_states)
 
-#    z_init = np.zeros(Nvar, dtype=np.int)
-#    phi_init = np.random.rand(Ndp) * phi_limit
-#
+    #phi_init = np.random.rand(Ndp) * phi_limit
+    #phi_init = np.array([sens if x < sens else x for x in phi_init])
+    #phi_init[0] = 1.0 if 1 <= phi_limit else phi_limit
+
 #    # use smart initialisation if nclus_init specified
 #    if not nclus_init.lower() in ("no", "false", "f"):
 #        try:
@@ -281,7 +284,7 @@ def cluster(sup,dep,cn_states,Nvar,sparams,cparams,phi_limit,norm,recluster=Fals
     with model:
         alpha = pm.Gamma('alpha', alpha=alpha, beta=beta, testval=alpha/beta)
         h = pm.Beta('h', alpha=1, beta=alpha, shape=Ndp, testval=1/(1+alpha))
-        phi_k = pm.Uniform('phi_k', lower=sens, upper=phi_limit, shape=Ndp)
+        phi_k = pm.Uniform('phi_k', lower=sens, upper=phi_limit, shape=Ndp)#, testval=phi_init)
 
         @as_op(itypes=[t.dvector], otypes=[t.dvector])
         def stick_breaking(h=h):
@@ -308,14 +311,17 @@ def cluster(sup,dep,cn_states,Nvar,sparams,cparams,phi_limit,norm,recluster=Fals
         bb_beta  = pm.Gamma('bb_beta', alpha=dep/bb_scale, beta=b_s, shape=Nvar, testval=bb_init)
         cbbinom  = pm.BetaBinomial('cbbinom', alpha=-(bb_beta*pv)/(pv-1), beta=bb_beta, n=dep, observed=sup)
 
+    with model:
+
         if use_map:
             start = pm.find_MAP(fmin=optimize.fmin_cg)
 
         Ndp_vals = [x for x in range(Ndp)]
-
+        #step1 = pm.Metropolis(vars=[alpha, h, p, phi_k, pv, bb_beta, cbbinom])
         step1 = pm.Metropolis(vars=[alpha, h, p, phi_k])
-        #step2 = pm.CategoricalGibbsMetropolis(vars = [z], values=Ndp_vals)
-        step2 = pm.ElemwiseCategorical(vars=[z], values=Ndp_vals)
+        #step2 = pm.CategoricalGibbsMetropolis(vars = [z])
+        step2 = pm.ElemwiseCategorical(vars=[z], values=[0, 1, 2, 3, 4, 5])
+        #step2 = pm.ElemwiseCategorical(vars=[z], values=[x for x in range(Ndp-1)])
         step3 = pm.Metropolis(vars=[pv, bb_beta, cbbinom])
         #step3 = pm.Metropolis(vars=[pv, cbinom])
 
@@ -324,4 +330,4 @@ def cluster(sup,dep,cn_states,Nvar,sparams,cparams,phi_limit,norm,recluster=Fals
         else:
             trace = pm.sample(n_iter, [step1, step2, step3])
 
-    return trace, model
+    return trace[burn::thin], model

@@ -21,6 +21,7 @@ import pymc3 as pm
 from distutils.dir_util import copy_tree
 from collections import OrderedDict
 from IPython.core.pylabtools import figsize
+from pymc3 import traceplot
 from pymc.utils import hpd
 
 from . import cluster
@@ -38,15 +39,25 @@ def gen_new_colours(N):
     return RGB_tuples
 
 def plot_clusters(trace, clusters, assignments, sup, dep, clus_out_dir, cparams):
+    #traceplot(trace)
+    #plt.savefig('%s/pymc3_traceplot'%clus_out_dir)
 
-    center_trace = trace("phi_k")[:]
-    z_trace = trace('z')[:]
+    center_trace = trace["phi_k"]
+    #center_trace = trace["phi_k"][burn:]
+    #center_trace = center_trace[range(0, len(center_trace), thin)]
+
+    z_trace = trace['z']
+    #z_trace = trace['z'][burn:]
+    #z_trace = z_trace[range(0, len(z_trace), thin)]
+
     phi_limit = cparams['phi_limit']
     maxclus = max([max(z) for z in z_trace])
 
     alpha_trace = []
     try:
-        alpha_trace = trace('alpha')[burn:]
+        #alpha_trace = trace['alpha'][burn:]
+        alpha_trace = trace['alpha']
+        #alpha_trace = trace[range(0, len(alpha_trace), thin)]
     except KeyError:
         pass
 
@@ -108,6 +119,7 @@ def merge_clusters(clus_out_dir,clus_info,clus_merged,clus_members,merged_ids,su
     clus_limit = cparams['clus_limit']
     phi_limit = cparams['phi_limit']
     subclone_diff = cparams['subclone_diff']
+    burn = cparams['merge_burn']
     norm = np.array(norm)
 
     if len(clus_info)==1:
@@ -129,8 +141,9 @@ def merge_clusters(clus_out_dir,clus_info,clus_merged,clus_members,merged_ids,su
             new_size = ci['size'] + cn['size']
 
             new_members = np.concatenate([clus_members[idx],clus_members[idx+1]])
-            trace = cluster.cluster(sup[new_members],dep[new_members],cn_states[new_members],len(new_members),sparams,cparams,clus_limit,phi_limit)
-            trace = trace.trace("phi_k")[:]
+            trace, map_ = cluster.cluster(sup[new_members],dep[new_members],cn_states[new_members],len(new_members),sparams,cparams,clus_limit,phi_limit)
+            #trace, map_ = trace["phi_k"][burn:]
+            trace, map_ = trace["phi_k"]
 
             phis = mean_confidence_interval(trace,cparams['hpd_alpha'])
             clus_merged.loc[idx] = np.array([ci.clus_id,new_size,phis[0],phis[1],phis[2]])
@@ -139,7 +152,7 @@ def merge_clusters(clus_out_dir,clus_info,clus_merged,clus_members,merged_ids,su
             to_del.append(idx+1)
             merged_ids.append([int(ci.clus_id),int(cn.clus_id)])
 
-            df_trace = pd.DataFrame(trace[:])
+            df_trace = pd.DataFrame(trace)
             df_trace.to_csv('%s/reclus%d_phi_trace.txt'%(clus_out_dir,int(ci.clus_id)),sep='\t',index=False)
 
             print('\n')
@@ -248,7 +261,7 @@ def get_per_variant_phi(z_trace, phi_trace):
 
     return z_phi.mean(axis=0)
 
-def post_process_clusters(mcmc,sv_df,snv_df,clus_out_dir,sup,dep,norm,cn_states,sparams,cparams,output_params,map_):
+def post_process_clusters(trace,sv_df,snv_df,clus_out_dir,sup,dep,norm,cn_states,sparams,cparams,output_params,map_):
 
     merge_clusts  = cparams['merge_clusts']
     subclone_diff = cparams['subclone_diff']
@@ -258,8 +271,8 @@ def post_process_clusters(mcmc,sv_df,snv_df,clus_out_dir,sup,dep,norm,cn_states,
     cnv_pval      = cparams['clonal_cnv_pval']
     hpd_alpha     = cparams['hpd_alpha']
     adjust_phis   = cparams['adjust_phis']
-    burn          = cparams['burn']
-    thin          = cparams['thin']
+    #burn          = cparams['burn']
+    #thin          = cparams['thin']
     clus_penalty  = output_params['cluster_penalty']
     smc_het       = output_params['smc_het']
     plot          = output_params['plot']
@@ -271,8 +284,9 @@ def post_process_clusters(mcmc,sv_df,snv_df,clus_out_dir,sup,dep,norm,cn_states,
     npoints = len(snv_df) + len(sv_df)
     sup, dep, norm, cn_states = sup[:npoints], dep[:npoints], norm[:npoints], cn_states[:npoints]
 
-    z_trace = trace['z'][burn:]
-    z_trace = z_trace[range(0, len(z_trace), thin]
+    #z_trace = trace['z'][burn:]
+    z_trace = trace['z']
+    #z_trace = z_trace[range(0, len(z_trace), thin)]
     # assign points to highest probability cluster
     clus_counts = [np.bincount(z_trace[:,i]) for i in range(npoints)]
     clus_max_prob = [index_max(c) for c in clus_counts]
@@ -288,8 +302,9 @@ def post_process_clusters(mcmc,sv_df,snv_df,clus_out_dir,sup,dep,norm,cn_states,
         print("Warning! Could not converge on any major SV clusters. Skipping.\n")
         return None
 
-    center_trace = mcmc.trace("phi_k")[burn:]
-    center_trace = center_trace[range(0, len(center_trace), thin)]
+    #center_trace = trace["phi_k"][burn:]
+    center_trace = trace["phi_k"]
+    #center_trace = center_trace[range(0, len(center_trace), thin)]
 
     phis = np.array([mean_confidence_interval(center_trace[:,cid], hpd_alpha) for cid in clus_idx])
     if adjust_phis:
@@ -314,7 +329,7 @@ def post_process_clusters(mcmc,sv_df,snv_df,clus_out_dir,sup,dep,norm,cn_states,
     # cluster certainty
     clus_max_df = pd.DataFrame(clus_max_prob,columns=['most_likely_assignment'])
     phi_cols = ["average_ccf", hpd_lo, hpd_hi]
-    phi_matrix = pd.DataFrame(phis[:],index=clus_ids,columns=phi_cols).loc[clus_max_prob]
+    phi_matrix = pd.DataFrame(phis,index=clus_ids,columns=phi_cols).loc[clus_max_prob]
     phi_matrix.index = range(len(phi_matrix))
     ccert = clus_max_df.join(phi_matrix)
     clus_info.index = range(len(clus_info))
@@ -332,14 +347,16 @@ def post_process_clusters(mcmc,sv_df,snv_df,clus_out_dir,sup,dep,norm,cn_states,
     write_output.dump_trace(z_trace, trace_out+'z_trace.txt')
 
     try:
-        alpha_trace = mcmc.trace('alpha')[burn:]
+        #alpha_trace = trace['alpha'][burn:]
+        alpha_trace = trace['alpha']
+        #alpha_trace = alpha_trace[range(0, len(alpha_trace), thin)]
         write_output.dump_trace(alpha_trace, trace_out+'alpha_trace.txt')
     except KeyError:
         pass
 
     # cluster plotting
     if plot:
-        plot_clusters(center_trace, clus_idx, clus_max_prob, sup, dep, clus_out_dir, cparams)
+        plot_clusters(trace, clus_idx, clus_max_prob, sup, dep, clus_out_dir, cparams)
         pm.traceplot(trace)
         plt.savefig('%s/traces.png' % clus_out_dir)
 
