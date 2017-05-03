@@ -51,8 +51,8 @@ def get_snv_vals(df, male, cparams):
 def load_svs(sv_file):
     dat = pd.read_csv(sv_file, delimiter='\t', dtype=None, low_memory=False)
     sv_df = pd.DataFrame(dat)
-    sv_df.chr1 = sv_df.chr1.map(str)
-    sv_df.chr2 = sv_df.chr2.map(str)
+    sv_df.chr1 = sv_df.chr1.map(str).values
+    sv_df.chr2 = sv_df.chr2.map(str).values
     sv_df['norm_mean'] = list(map(np.mean,list(zip(sv_df['norm1'].values,sv_df['norm2'].values))))
     return sv_df
 
@@ -68,21 +68,21 @@ def load_cnvs(cnv_file):
         if 'nMaj1_A' in cnv_df.columns.values:
             # battenberg input
             cnv_df = cnv_df[np.invert(np.isnan(cnv_df.nMaj1_A.values))]
-            cnv_df['chr'] = map(str,cnv_df['chr'])
-            cnv_df['nMaj1_A'] = map(float,cnv_df['nMaj1_A'])
-            cnv_df['nMin1_A'] = map(float,cnv_df['nMin1_A'])
+            cnv_df['chr'] = cnv_df['chr'].map(str)
+            cnv_df['nMaj1_A'] = cnv_df['nMaj1_A'].map(float)
+            cnv_df['nMin1_A'] = cnv_df['nMaj1_A'].map(float)
 
-            gtypes = cnv_df['nMaj1_A'].map(str) + ',' + \
-                     cnv_df['nMin1_A'].map(str) + ',' + \
-                     cnv_df['frac1_A'].map(str)
+            gtypes = cnv_df['nMaj1_A'].map(str).values + ',' + \
+                     cnv_df['nMin1_A'].map(str).values + ',' + \
+                     cnv_df['frac1_A'].map(str).values
 
             # join subclonal genotypes
             subclonal = cnv_df['frac1_A']!=1
             cnv_sc    = cnv_df[subclonal]
             gtypes[subclonal] = gtypes[subclonal] + '|' + \
-                                cnv_sc['nMaj2_A'].map(str) + ',' + \
-                                cnv_sc['nMin2_A'].map(str) + ',' + \
-                                cnv_sc['frac2_A'].map(str)
+                                cnv_sc['nMaj2_A'].map(str).values + ',' + \
+                                cnv_sc['nMin2_A'].map(str).values + ',' + \
+                                cnv_sc['frac2_A'].map(str).values
 
             cnv_df['gtype'] = gtypes
             select_cols = ['chr','startpos','endpos','gtype']
@@ -91,21 +91,22 @@ def load_cnvs(cnv_file):
         elif 'battenberg_nMaj1_A' in cnv_df.columns.values:
             # also battenberg
             cnv_df = cnv_df[np.invert(np.isnan(cnv_df.battenberg_nMaj1_A.values))]
-            cnv_df['chr'] = map(str,cnv_df['chr'])
-            cnv_df['battenberg_nMaj1_A'] = map(float,cnv_df['battenberg_nMaj1_A'])
-            cnv_df['battenberg_nMin1_A'] = map(float,cnv_df['battenberg_nMin1_A'])
+            cnv_df['chr'] = list(map(str, cnv_df['chr']))
+            cnv_df['chr'] = cnv_df['chr'].map(str)
+            cnv_df['battenberg_nMaj1_A'] = cnv_df['battenberg_nMaj1_A'].map(float)
+            cnv_df['battenberg_nMin1_A'] = cnv_df['battenberg_nMaj1_A'].map(float)
 
-            gtypes = cnv_df['battenberg_nMaj1_A'].map(str) + ',' + \
-                     cnv_df['battenberg_nMin1_A'].map(str) + ',' + \
-                     cnv_df['battenberg_frac1_A'].map(str)
+            gtypes = cnv_df['battenberg_nMaj1_A'].map(str).values + ',' + \
+                     cnv_df['battenberg_nMin1_A'].map(str).values + ',' + \
+                     cnv_df['battenberg_frac1_A'].map(str).values
 
             # join subclonal genotypes
             subclonal = cnv_df['battenberg_frac1_A']!=1
             cnv_sc    = cnv_df[subclonal]
             gtypes[subclonal] = gtypes[subclonal] + '|' + \
-                                cnv_sc['battenberg_nMaj2_A'].map(str) + ',' + \
-                                cnv_sc['battenberg_nMin2_A'].map(str) + ',' + \
-                                cnv_sc['battenberg_frac2_A'].map(str)
+                                cnv_sc['battenberg_nMaj2_A'].map(str).values + ',' + \
+                                cnv_sc['battenberg_nMin2_A'].map(str).values + ',' + \
+                                cnv_sc['battenberg_frac2_A'].map(str).values
 
             cnv_df['gtype'] = gtypes
             cnv_df = cnv_df.rename(columns={'start': 'startpos', 'end': 'endpos'})
@@ -117,7 +118,9 @@ def load_cnvs(cnv_file):
             cnv_df = cnv_df[np.invert(np.isnan(cnv_df.major_cn.values))]
             cnv_df['chromosome'] = cnv_df.chromosome.map(str)
             cnv_df = cnv_df.rename(columns={'chromosome': 'chr', 'start': 'startpos', 'end': 'endpos'})
-            gtypes = cnv_df.major_cn.map(str) + ',' + cnv_df.minor_cn.map(str) + ',' + cnv_df.clonal_frequency.map(str)
+            gtypes = cnv_df.major_cn.map(str).values + ',' + \
+                     cnv_df.minor_cn.map(str).values + ',' + \
+                     cnv_df.clonal_frequency.map(str).values
             cnv_df['gtype'] = gtypes
             select_cols = ['chr','startpos','endpos','gtype']
             return cnv_df[select_cols]
@@ -127,7 +130,7 @@ def load_cnvs(cnv_file):
             cnv_df = cnv_df[np.invert(np.isnan(cnv_df.major_cn.values))]
             cnv_df['chromosome'] = cnv_df.chromosome.map(str)
             cnv_df = cnv_df.rename(columns={'chromosome': 'chr', 'start': 'startpos', 'end': 'endpos'})
-            gtypes = cnv_df.major_cn.map(str) + ',' + cnv_df.minor_cn.map(str) + ',1.0'
+            gtypes = cnv_df.major_cn.map(str).values + ',' + cnv_df.minor_cn.map(str).values + ',1.0'
             cnv_df['gtype'] = gtypes
             select_cols = ['chr','startpos','endpos','gtype']
             return cnv_df[select_cols]
@@ -135,8 +138,8 @@ def load_cnvs(cnv_file):
         else:
             # caveman input
             cnv_df = cnv_df[np.invert(np.isnan(cnv_df.tumour_total.values))]
-            major = cnv_df.tumour_total.map(int) - cnv_df.tumour_minor.map(int)
-            gtypes = major.map(str) + ',' + cnv_df.tumour_minor.map(str) + ',1.0'
+            major = cnv_df.tumour_total.map(int).values - cnv_df.tumour_minor.map(int).values
+            gtypes = major.map(str).values + ',' + cnv_df.tumour_minor.map(str).values + ',1.0'
             cnv_df['gtype'] = gtypes
             select_cols = ['chr','startpos','endpos','gtype']
             return cnv_df[select_cols]
@@ -149,11 +152,11 @@ def load_snvs_mutect_callstats(snvs):
     snv_df = pd.DataFrame(pd.read_csv(snvs,delimiter='\t',low_memory=False,dtype=None,comment="#"))
     snv_df = snv_df[snv_df['judgement']=='KEEP']
 
-    snv_out = {'chrom' : snv_df.contig.map(str),
-               'pos'   : snv_df.position.map(int),
+    snv_out = {'chrom' : snv_df.contig.map(str).values,
+               'pos'   : snv_df.position.map(int).values,
                'gtype' : '',
-               'ref'   : snv_df.t_ref_sum.map(float),
-               'var'   : snv_df.t_alt_sum.map(float)}
+               'ref'   : snv_df.t_ref_sum.map(float).values,
+               'var'   : snv_df.t_alt_sum.map(float).values}
 
     snv_out = pd.DataFrame(snv_out)
     snv_out = snv_out[['chrom','pos','gtype','ref','var']]

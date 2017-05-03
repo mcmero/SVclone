@@ -120,9 +120,10 @@ def exceeds_cn_limit(gtype, max_cn):
     of any clone exceeds the max_cn threshold
     '''
     if gtype=='': return False
-    gtype = map(methodcaller('split',','),gtype.split('|'))
+    gtype = gtype.split('|')
+    gtype = [x.split(',') for x in gtype]
     if len(gtype)==1:
-        gt = map(float, gtype[0])
+        gt = [float(x) for x in gtype[0]]
         return (gt[0] > max_cn or gt[1] > max_cn)
     else:
         return np.any(np.array([float(gt[0]) > max_cn or float(gt[1]) > max_cn for gt in gtype]))
@@ -133,8 +134,8 @@ def remove_zero_copynumbers(gtype):
     where the total copy-number is zero
     '''
     if gtype=='': return ''
-    gtypes_tmp = [x.split('|') for x in gtypes]
-    gtypes_tmp = [x.split(',') for x in gtypes]
+    gtype_tmp = gtype.split('|')
+    gtype_tmp = [x.split(',') for x in gtype_tmp]
     if len(gtype_tmp)==1:
         gt = [float(x) for x in gtype_tmp[0]]
         if (gt[0]==0 and gt[1]==0): 
@@ -144,11 +145,10 @@ def remove_zero_copynumbers(gtype):
         for gt in gtype_tmp:
             gt = [float(x) for x in gt]
             if (gt[0]!=0 or gt[1]!=0): 
-                new_gtype.append(gt)
+                gt = [str(x) for x in gt]
+                new_gtype.append(','.join(gt))
         if len(new_gtype) > 0:
-            new_gtype = [x for x in new_gtype]
-            new_gtype = [str(x) for x in new_gtype]
-            gtype = '|'.join([','.join(g) for g in new_gtype])
+            gtype = '|'.join(new_gtype)
         else:
             gtype = ''
     return gtype
@@ -192,7 +192,7 @@ def run_cnv_filter(df_flt, cnv, ploidy, neutral, filter_outliers, strict_cnv_fil
     filter based on either CNV neutral, or presence of CNV vals
     '''
     n_df = len(df_flt)
-    if len(cnv)>0 and neutral:
+    if len(cnv) > 0 and neutral:
         # filter out copy-aberrant SVs and outying norm read counts (>1-percentile)
         # major and minor copy-numbers must be 1
         is_neutral = []
@@ -220,7 +220,7 @@ def run_cnv_filter(df_flt, cnv, ploidy, neutral, filter_outliers, strict_cnv_fil
                 n_df = len(df_flt)
                 df_flt = filter_outlying_norm_wins(df_flt)
                 print('Filtered out %d SVs which had outlying depths' % (n_df - len(df_flt)))
-    elif len(cnv)>0:
+    elif len(cnv) > 0:
         if are_snvs:
             df_flt = df_flt.fillna('')
             df_flt['gtype'] = [remove_zero_copynumbers(x) for x in df_flt.gtype.values]
@@ -295,7 +295,13 @@ def run_cnv_filter(df_flt, cnv, ploidy, neutral, filter_outliers, strict_cnv_fil
 
 def match_snv_copy_numbers(snv_df, cnv_df):
     bp_chroms = np.unique(snv_df['chrom'].values)
-    bp_chroms = sorted(bp_chroms, key=lambda item: (int(item) if item.isdigit() else str(item)))
+
+    # sort chroms
+    bp_int_chrs = sorted([int(chrom) for chrom in bp_chroms if chrom.isdigit()])
+    bp_int_chrs = [str(chrom) for chrom in bp_int_chrs]
+    bp_other_chrs = sorted([chrom for chrom in bp_chroms if not chrom.isdigit()])
+    bp_chroms = bp_int_chrs + bp_other_chrs
+    #bp_chroms = sorted(bp_chroms, key=lambda item: (int(item) if item.isdigit() else str(item)))
 
     for bchr in bp_chroms:
         gtypes = []
