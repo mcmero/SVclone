@@ -17,6 +17,7 @@ import time
 import shutil
 import SVclone.SVprocess
 import pymc3 as pm
+import pymc as pm2
 
 from distutils.dir_util import copy_tree
 from collections import OrderedDict
@@ -141,7 +142,8 @@ def merge_clusters(clus_out_dir,clus_info,clus_merged,clus_members,merged_ids,su
             new_size = ci['size'] + cn['size']
 
             new_members = np.concatenate([clus_members[idx],clus_members[idx+1]])
-            trace, map_ = cluster.cluster(sup[new_members],dep[new_members],cn_states[new_members],len(new_members),sparams,cparams,clus_limit,phi_limit)
+            trace, map_ = cluster.cluster(sup[new_members],dep[new_members],cn_states[new_members],
+                                          len(new_members),sparams,cparams,clus_limit,phi_limit)
             #trace, map_ = trace["phi_k"][burn:]
             trace, map_ = trace["phi_k"]
 
@@ -267,7 +269,7 @@ def post_process_clusters(trace,sv_df,snv_df,clus_out_dir,sup,dep,norm,cn_states
     subclone_diff = cparams['subclone_diff']
     phi_limit     = cparams['phi_limit']
     merge_clusts  = cparams['merge_clusts']
-    map_          = cparams['use_map']
+    use_map       = cparams['use_map']
     cnv_pval      = cparams['clonal_cnv_pval']
     hpd_alpha     = cparams['hpd_alpha']
     adjust_phis   = cparams['adjust_phis']
@@ -357,7 +359,6 @@ def post_process_clusters(trace,sv_df,snv_df,clus_out_dir,sup,dep,norm,cn_states
     # cluster plotting
     if plot:
         plot_clusters(trace, clus_idx, clus_max_prob, sup, dep, clus_out_dir, cparams)
-        pm.traceplot(trace)
         plt.savefig('%s/traces.png' % clus_out_dir)
 
     # merge clusters
@@ -385,12 +386,12 @@ def post_process_clusters(trace,sv_df,snv_df,clus_out_dir,sup,dep,norm,cn_states
         cns, pvs = cluster.get_most_likely_cn_states(cn_states, sup, dep, phis, sparams['pi'], cnv_pval, norm)
         lls = []
         for si, di, pvi in zip(sup, dep, pvs):
-            lls.append(pm.binomial_like(si, di, pvi))
+            lls.append(pm2.binomial_like(si, di, pvi))
         svc_ic = -2 * np.sum(lls) + (npoints + nclus * clus_penalty) * np.log(npoints)
 
-        run_fit = pd.DataFrame([['svc_IC', svc_ic], ['BIC', map_.BIC], ['AIC', map_.AIC], ['AICc', map_.AICc],
-                                ['lnL', map_.lnL], ['logp', map_.logp], ['logp_at_max', map_.logp_at_max],
-                                ['param_len', map_.len], ['data_len', map_.data_len]])
+        run_fit = pd.DataFrame([['svc_IC', svc_ic],
+                                ['DIC', pm.stats.dic(model = map_, trace = trace)],
+                                ['WAIC', pm.stats.waic(model = map_, trace = trace)[0]]])
 
     if len(snv_df)>0:
         snv_pos = ['chrom','pos']

@@ -133,7 +133,7 @@ def write_out_files(df, clus_info, clus_members, df_probs, clus_cert, clus_out_d
             var_states = cn_states[idx]
             tot_opts = ','.join(list(map(str,[int(x[1]) for x in var_states])))
             var_opts = ','.join(list(map(str,[int(round(x[1]*x[2])) for x in var_states])))
-            probs =  cluster.get_probs(var_states, sup[idx], dep[idx], phis[idx], pi)
+            probs =  cluster.get_probs(var_states, sup[idx], dep[idx], phis[idx], pi, norm[idx])
             
             mult_new_row = np.array([(chr1, pos1, dir1, chr2, pos2, dir2, sc_cn,
                                      int(round(freq*sc_cn)), tot_opts, var_opts, probs)], dtype=mult_dtype)
@@ -160,7 +160,7 @@ def write_out_files(df, clus_info, clus_members, df_probs, clus_cert, clus_out_d
             var_states = cn_states[idx]
             tot_opts = ','.join(list(map(str,[int(x[1]) for x in var_states])))
             var_opts = ','.join(list(map(str,[int(round(x[1]*x[2])) for x in var_states])))
-            probs =  cluster.get_probs(var_states, sup[idx], dep[idx], phis[idx], pi)
+            probs =  cluster.get_probs(var_states, sup[idx], dep[idx], phis[idx], pi, norm[idx])
 
             mult_new_row = np.array([(chrom, pos, sc_cn, int(round(freq*sc_cn)), tot_opts, var_opts, probs)],
                     dtype=mult_dtype)
