@@ -117,7 +117,7 @@ def filter_clusters(scs, clus_th, Nvar, sup, dep, norm, cn_states, purity):
 
     return scs, orig_scs, best_clus_list, clus_probs, phis
 
-def reclassify_filtered_out_vars(scs, orig_scs, probs, ccert, fsup, fdep, fnorm, fcn_states, purity):
+def reclassify_vars(scs, orig_scs, probs, ccert, fsup, fdep, fnorm, fcn_states, purity, reclassify_all):
     '''
     reclassify minor cluster variants if filtered out
     '''
@@ -129,11 +129,19 @@ def reclassify_filtered_out_vars(scs, orig_scs, probs, ccert, fsup, fdep, fnorm,
     for i in clus_fo:
         probs = probs.drop('cluster%d' % i, 1)
 
+    ccert_old = ccert.copy()
     mla = ccert.most_likely_assignment.values
     which_reclass = np.where(np.array([cv in clus_fo for cv in mla]))[0]
+    if reclassify_all:
+        which_reclass = ccert.index.values
+
     if len(which_reclass) > 0:
-        not_reclass = np.array([ccidx not in which_reclass for ccidx in ccert.index.values])
-        print('Reassigning %d variants from filtered out clusters' % len(which_reclass))
+        #not_reclass = np.array([ccidx not in which_reclass for ccidx in ccert.index.values])
+        if reclassify_all:
+            print('Reassigning all %d variants' % len(which_reclass))
+        else:
+            print('Reassigning %d variants from filtered out clusters' % len(which_reclass))
+
         for i in which_reclass:
             # find most likely cluster for variant
             lls, ll_probs = get_ll_probs(fsup[i], fdep[i], fnorm[i], fcn_states[i], purity, scs)
@@ -148,9 +156,15 @@ def reclassify_filtered_out_vars(scs, orig_scs, probs, ccert, fsup, fdep, fnorm,
 
             # update cluster proportion
             ccert = ccert.set_value(i, 'average_ccf', scs.phi.values[best_clus_pos])
-            tmp = ccert.loc[not_reclass]
-            lo_val = tmp[tmp.most_likely_assignment==new_clus][hpd_lo].values[0]
-            hi_val = tmp[tmp.most_likely_assignment==new_clus][hpd_hi].values[0]
+            #TODO: fix issue with missing hpd CI fields (in coclustering may not be present in this ccert)
+            # should be in output for subclonal_structure
+            lo_val = float('nan')
+            hi_val = float('nan')
+            try:
+                lo_val = ccert_old[ccert_old.most_likely_assignment==new_clus][hpd_lo].values[0]
+                hi_val = ccert_old[ccert_old.most_likely_assignment==new_clus][hpd_hi].values[0]
+            except IndexError:
+                pass
             ccert = ccert.set_value(i, hpd_lo, lo_val)
             ccert = ccert.set_value(i, hpd_hi, hi_val)
 
@@ -205,7 +219,7 @@ def collate_variant_output(var_df, var_filt_df, Nvar, ccert, probs, clus_probs, 
 
     return(df, ccert, probs)
 
-def post_assign_vars(var_df, var_filt_df, rundir, sample, sparams, cparams, clus_th, snvs = False):
+def post_assign_vars(var_df, var_filt_df, rundir, sample, sparams, cparams, clus_th, rc_all, snvs = False):
     pa_outdir = '%s_post_assign/' % rundir
     if not os.path.exists(pa_outdir):
         os.makedirs(pa_outdir)
@@ -272,9 +286,9 @@ def post_assign_vars(var_df, var_filt_df, rundir, sample, sparams, cparams, clus
     scs, orig_scs, best_clus_list, clus_probs, phis = filter_clusters(scs, clus_th, Nvar, \
                                                         sup, dep, norm, cn_states, purity)
 
-    if len(scs) != len(orig_scs) and len(var_filt_df) > 0:
-        scs, probs, ccert = reclassify_filtered_out_vars(scs, orig_scs, probs, ccert, \
-                                                         fsup, fdep, fnorm, fcn_states, purity)
+    if (len(scs) != len(orig_scs) and len(var_filt_df) > 0) or rc_all:
+        scs, probs, ccert = reclassify_vars(scs, orig_scs, probs, ccert, \
+                                            fsup, fdep, fnorm, fcn_states, purity, rc_all)
 
     # increment variant cluster counts with new variants assigned
     clusts = scs.clus_id.values
@@ -378,6 +392,7 @@ def run_post_assign(args):
     gl_th     = int(Config.get('FilterParameters', 'germline_threshold'))
     cp_th     = float(Config.get('PostAssignParameters', 'clus_percent_threshold'))
     ca_th     = int(Config.get('PostAssignParameters', 'clus_absolute_threshold'))
+    rc_all    = string_to_bool(Config.get('PostAssignParameters', 'reclassify_all'))
     clus_th   = {'percent': cp_th, 'absolute': ca_th}
 
     if out != '' and not os.path.exists(out):
@@ -490,13 +505,13 @@ def run_post_assign(args):
         sv_to_assign = filt.adjust_sv_read_counts(sv_to_assign, purity, ploidy, 0, rlen, Config)
 
         post_assign_vars(sv_to_assign, sv_filt_df, rundir, sample, sample_params,
-                         cluster_params, clus_th)
+                         cluster_params, clus_th, rc_all)
 
     if len(snv_df) > 0:
         snv_to_assign = get_var_to_assign(snv_df, snv_filt_df, snvs = True)
 
         post_assign_vars(snv_to_assign, snv_filt_df, rundir, sample, sample_params,
-                         cluster_params, clus_th, snvs = True)
+                         cluster_params, clus_th, rc_all, snvs = True)
 
     if len(sv_df) > 0 and len(snv_df) > 0:
         amend_coclus_results(rundir, sample, sample_params)
