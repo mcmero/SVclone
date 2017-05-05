@@ -526,8 +526,8 @@ for (run in runs) {
         colnames(sv_clust)[2] <- varname
         tabout <- sv_clust[order(as.numeric(sv_clust[,3]),decreasing=TRUE),]
         sc_tab <- tableGrob(tabout, rows=c())
-        plot4 <- plot_hist('./', id, snvs, run, varclass = TRUE)
-        if (map & length(grep('post', run))==0) {
+        plot4 <- plot_hist('./', id, snvs, run, varclass = TRUE, post = post)
+        if (map & !post) {
             height <- 7+round(nrow(tabout)*0.2)
             pdf(outname, height=height, width=9)
             grid.arrange(sc_tab, ic_tab,
