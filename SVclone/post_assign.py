@@ -117,7 +117,30 @@ def filter_clusters(scs, clus_th, Nvar, sup, dep, norm, cn_states, purity):
 
     return scs, orig_scs, best_clus_list, clus_probs, phis
 
-def reclassify_vars(scs, orig_scs, probs, ccert, fsup, fdep, fnorm, fcn_states, purity, reclassify_all):
+def get_sv_ll_probs(sup, dep, norm_cn, cns, purity, scs, af):
+
+    cns1, cns2 = cns[0], cns[1]
+    dep1, dep2 = ((dep[0] - sup) * af) + sup, ((dep[1] - sup) * af) + sup
+    
+    if len(cns1) > 0 and len(cns2) > 0:
+        lls0, ll_probs0 = get_ll_probs(sup, dep1, norm_cn, cns1, purity, scs)
+        lls1, ll_probs1 = get_ll_probs(sup, dep2, norm_cn, cns2, purity, scs)
+
+        max_lls = np.array([max(lls0), max(lls1)])
+        side = np.where(max_lls == max(max_lls))[0][0]
+        
+        lls = lls0 if side == 0 else lls1
+        ll_probs = ll_probs0 if side == 0 else ll_probs1
+    elif len(cns1) > 1:
+        lls, ll_probs = get_ll_probs(sup, dep1, norm_cn, cns1, purity, scs)
+        side = 0
+    else:
+        lls, ll_probs = get_ll_probs(sup, dep2, norm_cn, cns2, purity, scs)
+        side = 1
+
+    return lls, ll_probs, side
+
+def reclassify_vars(scs, orig_scs, probs, ccert, fsup, fdep, fNvar, fcn_states, fnorm_cn, purity, reclassify_all, af):
     '''
     reclassify minor cluster variants if filtered out
     '''
@@ -132,19 +155,26 @@ def reclassify_vars(scs, orig_scs, probs, ccert, fsup, fdep, fnorm, fcn_states, 
     ccert_old = ccert.copy()
     mla = ccert.most_likely_assignment.values
     which_reclass = np.where(np.array([cv in clus_fo for cv in mla]))[0]
+
     if reclassify_all:
         which_reclass = ccert.index.values
-
+    
+    sides = np.empty(0, dtype=int)
     if len(which_reclass) > 0:
-        #not_reclass = np.array([ccidx not in which_reclass for ccidx in ccert.index.values])
         if reclassify_all:
+            for idx in scs.index.values:
+                scs = scs.set_value(idx, 'size', 0)
             print('Reassigning all %d variants' % len(which_reclass))
         else:
             print('Reassigning %d variants from filtered out clusters' % len(which_reclass))
 
         for i in which_reclass:
             # find most likely cluster for variant
-            lls, ll_probs = get_ll_probs(fsup[i], fdep[i], fnorm[i], fcn_states[i], purity, scs)
+            if len(af) > 0:
+                lls, ll_probs, side = get_sv_ll_probs(fsup[i], fdep[i], fnorm_cn[i], fcn_states[i], purity, scs, af[i])
+                sides = np.append(sides, side)
+            else:
+                lls, ll_probs = get_ll_probs(fsup[i], fdep[i], fnorm_cn[i], fcn_states[i], purity, scs)
 
             # pos refers to index position, while array_idx is the array's index (this may differ)
             best_clus_pos = np.where(np.max(lls)==lls)[0][0]
@@ -178,8 +208,8 @@ def reclassify_vars(scs, orig_scs, probs, ccert, fsup, fdep, fnorm, fcn_states, 
 
             # increment subclonal cluster counts with newly assignment variant
             scs = scs.set_value(best_clus_array_idx, 'size', scs['size'].values[best_clus_pos]+1)
-
-    return(scs, probs, ccert)
+    
+    return(scs, probs, ccert, sides)
 
 def collate_variant_output(var_df, var_filt_df, Nvar, ccert, probs, clus_probs, phis, scs, best_clus_list, snvs):
     lolim = 0 if snvs else 1
@@ -219,7 +249,7 @@ def collate_variant_output(var_df, var_filt_df, Nvar, ccert, probs, clus_probs, 
 
     return(df, ccert, probs)
 
-def post_assign_vars(var_df, var_filt_df, rundir, sample, sparams, cparams, clus_th, rc_all, snvs = False):
+def post_assign_vars(var_df, var_filt_df, rundir, sample, sparams, cparams, clus_th, rc_all, cdefs, snvs = False):
     pa_outdir = '%s_post_assign/' % rundir
     if not os.path.exists(pa_outdir):
         os.makedirs(pa_outdir)
@@ -232,8 +262,8 @@ def post_assign_vars(var_df, var_filt_df, rundir, sample, sparams, cparams, clus
     mean_cov = sparams['mean_cov']
 
     scs, ccert, probs, fit = load_data.get_run_output(rundir, sample, purity, snvs)
-    sup,   dep,  cn_states,  Nvar,  norm = None, None, None, None, None
-    fsup, fdep, fcn_states, fNvar, fnorm = None, None, None, None, None
+    sup,   dep,  cn_states,  Nvar,  norm_cn = None, None, None, None, None
+    fsup, fdep, fcn_states, fNvar, fnorm_cn = None, None, None, None, None
 
     # convert ccert to CCF values (expected input for write output function
     hpd_lo = 'HPD_lo'
@@ -266,29 +296,61 @@ def post_assign_vars(var_df, var_filt_df, rundir, sample, sparams, cparams, clus
 
     if snvs:
         if len(var_df) > 0:
-            sup, dep, cn_states, Nvar, norm = load_data.get_snv_vals(var_df, male, cparams)
+            sup, dep, cn_states, Nvar, norm_cn = load_data.get_snv_vals(var_df, male, cparams)
         if len(var_filt_df) > 0:
-            fsup, fdep, fcn_states, fNvar, fnorm = load_data.get_snv_vals(var_filt_df, male, cparams)
+            fsup, fdep, fcn_states, fNvar, fnorm_cn = load_data.get_snv_vals(var_filt_df, male, cparams)
     else:
         if len(var_df) > 0:
-            sup, dep, cn_states, Nvar, norm = load_data.get_sv_vals(var_df, adjusted, male, cparams)
+            sup, dep, cn_states, Nvar, norm_cn = load_data.get_sv_vals(var_df, adjusted, male, cparams)
         if len(var_filt_df) > 0:
-            fsup, fdep, fcn_states, fNvar, fnorm = load_data.get_sv_vals(var_filt_df, adjusted, male, cparams)
+            fsup, fdep, fcn_states, fNvar, fnorm_cn = load_data.get_sv_vals(var_filt_df, adjusted, male, cparams)
 
     if Nvar:
         no_cn_state = np.array([len(cn)==0 for cn in cn_states])
         if np.any(no_cn_state):
             keep = np.invert(no_cn_state)
-            sup, dep, norm, cn_states = sup[keep], dep[keep], np.array(norm)[keep], cn_states[keep]
+            sup, dep, norm_cn, cn_states = sup[keep], dep[keep], np.array(norm)[keep], cn_states[keep]
             var_df = var_df[keep]
             Nvar = Nvar - sum(no_cn_state)
 
     scs, orig_scs, best_clus_list, clus_probs, phis = filter_clusters(scs, clus_th, Nvar, \
-                                                        sup, dep, norm, cn_states, purity)
+                                                        sup, dep, norm_cn, cn_states, purity)
 
-    if (len(scs) != len(orig_scs) and len(var_filt_df) > 0) or rc_all:
-        scs, probs, ccert = reclassify_vars(scs, orig_scs, probs, ccert, \
-                                            fsup, fdep, fnorm, fcn_states, purity, rc_all)
+    if (len(scs) != len(orig_scs) and len(var_filt_df) > 0) or (rc_all and len(var_filt_df) > 0):
+        if not snvs:
+            var_df_side0 = var_filt_df.copy()
+            var_df_side1 = var_filt_df.copy()
+
+            var_df_side0.preferred_side = 0
+            var_df_side1.preferred_side = 1
+
+            fdep_side0 = var_filt_df.norm1.map(float).values + fsup
+            fdep_side1 = var_filt_df.norm2.map(float).values + fsup
+            fdep_sides  = zip(fdep_side0, fdep_side1)
+            combos = var_filt_df.apply(cluster.get_sv_allele_combos, axis=1, args=(cparams,)).values
+            
+            classes = var_filt_df.classification.values
+            dna_gain_class = cdefs['dna_gain_class']
+            dna_loss_class = cdefs['dna_loss_class']
+            af = [1. - (float(purity)/ploidy) if sv_class in dna_gain_class else 1. for sv_class in classes]
+            scs, probs, ccert, sides = reclassify_vars(scs, orig_scs, probs, ccert, fsup, fdep_sides,
+                                                       fNvar, combos, fnorm_cn, purity, rc_all, af)
+            
+            # correct fnorm, fdep, fcn_states based on new side selection
+            fdep = np.array([norm1 if side == 0 else norm2 for norm1, norm2, side in zip(fdep_side0, fdep_side1, sides)])
+            fnorm = (fdep - fsup) * af
+            fdep  = fnorm + fsup
+            fcn_states = [cn[side] for cn,side in zip(combos, sides)]
+            fcn_states = pd.DataFrame([[sv] for sv in fcn_states])[0].values
+
+            var_filt_df.preferred_side = sides
+            var_filt_df.adjusted_norm  = fnorm
+            var_filt_df.adjusted_depth = fdep
+            var_filt_df.adjusted_vaf   = fsup / fdep
+        else:
+            scs, probs, ccert, sides  = reclassify_vars(scs, orig_scs, probs, ccert, 
+                                                fsup, fdep, fNvar, fcn_states, fnorm_cn,
+                                                purity, rc_all, [])
 
     # increment variant cluster counts with new variants assigned
     clusts = scs.clus_id.values
@@ -306,10 +368,10 @@ def post_assign_vars(var_df, var_filt_df, rundir, sample, sparams, cparams, clus
                                                   clus_probs, phis, scs, best_clus_list, snvs)
         sup = np.append(fsup, sup) if len(var_filt_df) > 0 else sup
         dep = np.append(fdep, dep) if len(var_filt_df) > 0 else dep
-        norm = np.append(fnorm, norm) if len(var_filt_df) > 0 else norm
+        norm_cn = np.append(fnorm_cn, norm_cn) if len(var_filt_df) > 0 else norm
         cn_states = np.append(fcn_states, cn_states) if len(var_filt_df) > 0 else cn_states
     else:
-        sup, dep, norm, cn_states = fsup, fdep, fnorm, fcn_states
+        sup, dep, norm_cn, cn_states = fsup, fdep, fnorm_cn, fcn_states
         df = var_filt_df
 
     # retrieve traces for input to write_output func
@@ -332,7 +394,7 @@ def post_assign_vars(var_df, var_filt_df, rundir, sample, sparams, cparams, clus
     clus_members = np.array([np.where(ccert.most_likely_assignment.values==i)[0] for i in scs.clus_id.values])
     write_output.write_out_files(df, scs, clus_members, probs, ccert,
                                  pa_outdir, sample, purity, sup, dep,
-                                 norm, cn_states, fit, False, cnv_pval, z_phi, are_snvs = snvs)
+                                 norm_cn, cn_states, fit, False, cnv_pval, z_phi, are_snvs = snvs)
 
 def amend_coclus_results(rundir, sample, sparams):
     '''
@@ -394,6 +456,10 @@ def run_post_assign(args):
     ca_th     = int(Config.get('PostAssignParameters', 'clus_absolute_threshold'))
     rc_all    = string_to_bool(Config.get('PostAssignParameters', 'reclassify_all'))
     clus_th   = {'percent': cp_th, 'absolute': ca_th}
+
+    dna_gain_class = Config.get('SVclasses', 'dna_gain_class').split(',')
+    dna_loss_class = Config.get('SVclasses', 'dna_loss_class').split(',')
+    cdefs   = {'dna_gain_class': dna_gain_class, 'dna_loss_class': dna_loss_class}
 
     if out != '' and not os.path.exists(out):
         raise ValueError('Specified output directory does not exist!')
@@ -505,13 +571,13 @@ def run_post_assign(args):
         sv_to_assign = filt.adjust_sv_read_counts(sv_to_assign, purity, ploidy, 0, rlen, Config)
 
         post_assign_vars(sv_to_assign, sv_filt_df, rundir, sample, sample_params,
-                         cluster_params, clus_th, rc_all)
+                         cluster_params, clus_th, rc_all, cdefs)
 
     if len(snv_df) > 0:
         snv_to_assign = get_var_to_assign(snv_df, snv_filt_df, snvs = True)
 
         post_assign_vars(snv_to_assign, snv_filt_df, rundir, sample, sample_params,
-                         cluster_params, clus_th, rc_all, snvs = True)
+                         cluster_params, clus_th, rc_all, cdefs, snvs = True)
 
     if len(sv_df) > 0 and len(snv_df) > 0:
         amend_coclus_results(rundir, sample, sample_params)

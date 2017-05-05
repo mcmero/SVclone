@@ -53,10 +53,13 @@ ccfs         = '%s_vaf_ccf.txt' % sample
 Config = ConfigParser.ConfigParser()
 Config.read(cfg)
 
-max_cn   = int(Config.get('BamParameters', 'max_cn'))
-mean_cov = int(Config.get('BamParameters', 'mean_cov'))
-sc_len   = int(Config.get('SVcountParameters', 'sc_len'))
-threshold = int(Config.get('SVcountParameters', 'threshold'))
+max_cn         = int(Config.get('BamParameters', 'max_cn'))
+mean_cov       = int(Config.get('BamParameters', 'mean_cov'))
+sc_len         = int(Config.get('SVcountParameters', 'sc_len'))
+threshold      = int(Config.get('SVcountParameters', 'threshold'))
+dna_gain_class = Config.get('SVclasses', 'dna_gain_class').split(',')
+dna_loss_class = Config.get('SVclasses', 'dna_loss_class').split(',')
+cdefs   = {'dna_gain_class': dna_gain_class, 'dna_loss_class': dna_loss_class}
 min_dep = 8
 
 consens_dtype = [('bp1_ca_right', int), ('bp1_ca_left', int), \
@@ -273,7 +276,8 @@ class test(unittest.TestCase):
         self.assertTrue(len(sv_to_assign) == (len(sv_df) - len(sv_filt_df)))
 
         sv_to_assign = run_filter.adjust_sv_read_counts(sv_to_assign, pi, ploidy, 0, rlen, Config)
-        post_assign.post_assign_vars(sv_to_assign, sv_filt_df, rundir, sample, sample_params, cluster_params, clus_th)
+        post_assign.post_assign_vars(sv_to_assign, sv_filt_df, rundir, sample, sample_params, 
+                                     cluster_params, clus_th, True, cdefs)
 
         sv1 = pd.read_csv('%s/run0_post_assign/%s' % (outdir, ass_prob_tbl),
                           delimiter='\t', dtype=None, header=0, low_memory=False)
@@ -302,7 +306,7 @@ class test(unittest.TestCase):
 
         snv_to_assign = post_assign.get_var_to_assign(snv_df, snv_filt_df, snvs = True)
         post_assign.post_assign_vars(snv_to_assign, snv_filt_df, rundir, sample, sample_params, cluster_params,
-                                     clus_th, snvs = True)
+                                     clus_th, True, cdefs, snvs = True)
 
         snv1 = pd.read_csv('%s/run0_post_assign/snvs/%s' % (outdir, ass_prob_tbl),
                            delimiter='\t', dtype=None, header=0, low_memory=False)
