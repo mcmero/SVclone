@@ -121,14 +121,14 @@ def get_sv_ll_probs(sup, dep, norm_cn, cns, purity, scs, af):
 
     cns1, cns2 = cns[0], cns[1]
     dep1, dep2 = ((dep[0] - sup) * af) + sup, ((dep[1] - sup) * af) + sup
-    
+
     if len(cns1) > 0 and len(cns2) > 0:
         lls0, ll_probs0 = get_ll_probs(sup, dep1, norm_cn, cns1, purity, scs)
         lls1, ll_probs1 = get_ll_probs(sup, dep2, norm_cn, cns2, purity, scs)
 
         max_lls = np.array([max(lls0), max(lls1)])
         side = np.where(max_lls == max(max_lls))[0][0]
-        
+
         lls = lls0 if side == 0 else lls1
         ll_probs = ll_probs0 if side == 0 else ll_probs1
     elif len(cns1) > 1:
@@ -158,7 +158,7 @@ def reclassify_vars(scs, orig_scs, probs, ccert, fsup, fdep, fNvar, fcn_states, 
 
     if reclassify_all:
         which_reclass = ccert.index.values
-    
+
     sides = np.empty(0, dtype=int)
     if len(which_reclass) > 0:
         if reclassify_all:
@@ -208,7 +208,7 @@ def reclassify_vars(scs, orig_scs, probs, ccert, fsup, fdep, fNvar, fcn_states, 
 
             # increment subclonal cluster counts with newly assignment variant
             scs = scs.set_value(best_clus_array_idx, 'size', scs['size'].values[best_clus_pos]+1)
-    
+
     return(scs, probs, ccert, sides)
 
 def collate_variant_output(var_df, var_filt_df, Nvar, ccert, probs, clus_probs, phis, scs, best_clus_list, snvs):
@@ -328,14 +328,16 @@ def post_assign_vars(var_df, var_filt_df, rundir, sample, sparams, cparams, clus
             fdep_side1 = var_filt_df.norm2.map(float).values + fsup
             fdep_sides  = zip(fdep_side0, fdep_side1)
             combos = var_filt_df.apply(cluster.get_sv_allele_combos, axis=1, args=(cparams,)).values
-            
+
             classes = var_filt_df.classification.values
             dna_gain_class = cdefs['dna_gain_class']
             dna_loss_class = cdefs['dna_loss_class']
-            af = [1. - (float(purity)/ploidy) if sv_class in dna_gain_class else 1. for sv_class in classes]
+            af = [1.] * len(var_filt_df)
+            if adjusted:
+                af = [1. - (float(purity)/ploidy) if sv_class in dna_gain_class else 1. for sv_class in classes]
             scs, probs, ccert, sides = reclassify_vars(scs, orig_scs, probs, ccert, fsup, fdep_sides,
                                                        fNvar, combos, fnorm_cn, purity, rc_all, af)
-            
+
             # correct fnorm, fdep, fcn_states based on new side selection
             fdep = np.array([norm1 if side == 0 else norm2 for norm1, norm2, side in zip(fdep_side0, fdep_side1, sides)])
             fnorm = (fdep - fsup) * af
@@ -348,7 +350,7 @@ def post_assign_vars(var_df, var_filt_df, rundir, sample, sparams, cparams, clus
             var_filt_df.adjusted_depth = fdep
             var_filt_df.adjusted_vaf   = fsup / fdep
         else:
-            scs, probs, ccert, sides  = reclassify_vars(scs, orig_scs, probs, ccert, 
+            scs, probs, ccert, sides  = reclassify_vars(scs, orig_scs, probs, ccert,
                                                 fsup, fdep, fNvar, fcn_states, fnorm_cn,
                                                 purity, rc_all, [])
 
@@ -391,6 +393,10 @@ def post_assign_vars(var_df, var_filt_df, rundir, sample, sparams, cparams, clus
     df.to_csv(var_outfile, sep='\t', index=False, na_rep='')
 
     print('Writing output to %s for %s' % (pa_outdir, vartype))
+    #reindex all relevant DFs
+    df.index    = range(len(df))
+    ccert.index = range(len(ccert))
+    probs.index = range(len(probs))
     clus_members = np.array([np.where(ccert.most_likely_assignment.values==i)[0] for i in scs.clus_id.values])
     write_output.write_out_files(df, scs, clus_members, probs, ccert,
                                  pa_outdir, sample, purity, sup, dep,
