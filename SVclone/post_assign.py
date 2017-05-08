@@ -85,14 +85,11 @@ def fix_subsampling_discrepancy(var_df, var_filt_df, filt_ids, ccert_ids):
     var_df = var_df[to_assign]
     return(var_df, var_filt_df)
 
-def filter_clusters(scs, clus_th, Nvar, sup, dep, norm, cn_states, purity):
+
+def filter_clusters(scs, clus_th):
     '''
     filter out clusters of low proportion
     '''
-
-    best_clus_list = np.array([])
-    clus_probs = np.array([])
-
     percent_filt = (scs['size']/sum(scs['size'])).values > clus_th['percent']
     abs_filt     = scs['size'].values > clus_th['absolute']
     orig_scs     = scs.copy()
@@ -102,20 +99,7 @@ def filter_clusters(scs, clus_th, Nvar, sup, dep, norm, cn_states, purity):
         scs = orig_scs
         print("WARNING: all clusters fail minimum size requirements! No cluster filtering has been performed.")
 
-    if len(scs) > 1 and Nvar > 0:
-        for i in range(Nvar):
-            lls, ll_probs = get_ll_probs(sup[i], dep[i], norm[i], cn_states[i], purity, scs)
-            clus_probs = np.concatenate([clus_probs, [ll_probs]], axis=0) if len(clus_probs)>0 else np.array([ll_probs])
-            best_clus = np.where(np.max(lls)==lls)[0][0]
-            best_clus_list = np.append(best_clus_list, [best_clus])
-    elif Nvar > 0:
-        best_clus_list = [0] * Nvar
-        clus_probs     = np.array([[1.]] * Nvar)
-
-    best_clus_list = np.array(map(int, best_clus_list))
-    phis = scs.phi.values[best_clus_list] if Nvar > 0 else None
-
-    return scs, orig_scs, best_clus_list, clus_probs, phis
+    return(scs, orig_scs)
 
 def get_sv_ll_probs(sup, dep, norm_cn, cns, purity, scs, af):
 
@@ -138,7 +122,51 @@ def get_sv_ll_probs(sup, dep, norm_cn, cns, purity, scs, af):
         lls, ll_probs = get_ll_probs(sup, dep2, norm_cn, cns2, purity, scs)
         side = 1
 
-    return lls, ll_probs, side
+    return(lls, ll_probs, side)
+
+def assign_snvs(scs, Nvar, sup, dep, norm_cn, cn_states, purity):
+    '''
+    Assign post-assign SNVs to most liklely clusters
+    '''
+    best_clus_list = np.array([])
+    clus_probs = np.array([])
+
+    if len(scs) > 1 and Nvar > 0:
+        for i in range(Nvar):
+            lls, ll_probs = get_ll_probs(sup[i], dep[i], norm_c-c 001/001bM_p0.6_001gM_p0.4_subclones.txtn[i], cn_states[i], purity, scs)
+            clus_probs = np.concatenate([clus_probs, [ll_probs]], axis=0) if len(clus_probs)>0 else np.array([ll_probs])
+            best_clus = np.where(np.max(lls)==lls)[0][0]
+            best_clus_list = np.append(best_clus_list, [best_clus])
+    elif Nvar > 0:
+        best_clus_list = [0] * Nvar
+        clus_probs     = np.array([[1.]] * Nvar)
+
+    best_clus_list = np.array(map(int, best_clus_list))
+    phis = scs.phi.values[best_clus_list] if Nvar > 0 else None
+
+    return(best_clus_list, clus_probs, phis)
+
+def assign_svs(scs, sup, dep, combos, norm_cn, purity, af):
+    '''
+    Assign post-assign SVs to most liklely clusters
+    '''
+    Nvar = len(sup)
+    best_clus_list = np.array([])
+    clus_probs = np.array([])
+
+    sides = np.empty(0, dtype=int)
+    for i in range(Nvar):
+        lls, ll_probs, side = get_sv_ll_probs(sup[i], dep[i], norm_cn[i], combos[i], purity, scs, af[i])
+        sides = np.append(sides, side)
+
+        clus_probs = np.concatenate([clus_probs, [ll_probs]], axis=0) if len(clus_probs) > 0 else np.array([ll_probs])
+        best_clus = np.where(np.max(lls)==lls)[0][0]
+        best_clus_list = np.append(best_clus_list, [best_clus])
+
+    best_clus_list = np.array(map(int, best_clus_list))
+    phis = scs.phi.values[best_clus_list] if Nvar > 0 else None
+
+    return(best_clus_list, clus_probs, phis, sides)
 
 def reclassify_vars(scs, orig_scs, probs, ccert, fsup, fdep, fNvar, fcn_states, fnorm_cn, purity, reclassify_all, af):
     '''
@@ -249,6 +277,46 @@ def collate_variant_output(var_df, var_filt_df, Nvar, ccert, probs, clus_probs, 
 
     return(df, ccert, probs)
 
+def get_sv_dual_end_data(sv_df, sup, cdefs, purity, ploidy, cparams, adjusted):
+    '''
+    Get required SV info for both break-ends for SV cluster re-assignment
+    '''
+    var_df_side0 = sv_df.copy()
+    var_df_side1 = sv_df.copy()
+    var_df_side0.preferred_side = 0
+    var_df_side1.preferred_side = 1
+
+    dep_side0 = sv_df.norm1.map(float).values + sup
+    dep_side1 = sv_df.norm2.map(float).values + sup
+    dep_sides  = zip(dep_side0, dep_side1)
+    combos = sv_df.apply(cluster.get_sv_allele_combos, axis=1, args=(cparams,)).values
+
+    classes = sv_df.classification.values
+    dna_gain_class = cdefs['dna_gain_class']
+    dna_loss_class = cdefs['dna_loss_class']
+    af = [1.] * len(sv_df)
+    if adjusted:
+        af = [1. - (float(purity)/ploidy) if sv_class in dna_gain_class else 1. for sv_class in classes]
+
+    return(dep_sides, combos, af)
+
+def update_sv_df_sides(sv_df, sides, sup, dep_sides, combos, af):
+    '''
+    Correct dep, cn_states and df based on new side selection
+    '''
+    dep = np.array([ds[0] if side == 0 else ds[1] for ds, side in zip(dep_sides, sides)])
+    norm = (dep - sup) * af
+    dep  = norm + sup
+    cn_states = [cn[side] for cn, side in zip(combos, sides)]
+    cn_states = pd.DataFrame([[sv] for sv in cn_states])[0].values
+
+    sv_df.preferred_side = sides
+    sv_df.adjusted_norm  = norm
+    sv_df.adjusted_depth = dep
+    sv_df.adjusted_vaf   = sup / dep
+
+    return sv_df, dep, cn_states
+
 def post_assign_vars(var_df, var_filt_df, rundir, sample, sparams, cparams, clus_th, rc_all, cdefs, snvs = False):
     pa_outdir = '%s_post_assign/' % rundir
     if not os.path.exists(pa_outdir):
@@ -313,42 +381,22 @@ def post_assign_vars(var_df, var_filt_df, rundir, sample, sparams, cparams, clus
             var_df = var_df[keep]
             Nvar = Nvar - sum(no_cn_state)
 
-    scs, orig_scs, best_clus_list, clus_probs, phis = filter_clusters(scs, clus_th, Nvar, \
-                                                        sup, dep, norm_cn, cn_states, purity)
+    best_clus_list = np.empty(0)
+    scs, orig_scs = filter_clusters(scs, clus_th)
+    if len(var_df) > 0:
+        if snvs:
+            best_clus_list, clus_probs, phis = assign_snvs(scs, Nvar, sup, dep, norm_cn, cn_states, purity)
+        else:
+            dep_sides, combos, af = get_sv_dual_end_data(var_df, sup, cdefs, purity, ploidy, cparams, adjusted)
+            best_clus_list, clus_probs, phis, sides = assign_svs(scs, sup, dep_sides, combos, norm_cn, purity, af)
+            var_df, dep, cn_states = update_sv_df_sides(var_df, sides, sup, dep_sides, combos, af)
 
     if (len(scs) != len(orig_scs) and len(var_filt_df) > 0) or (rc_all and len(var_filt_df) > 0):
         if not snvs:
-            var_df_side0 = var_filt_df.copy()
-            var_df_side1 = var_filt_df.copy()
-
-            var_df_side0.preferred_side = 0
-            var_df_side1.preferred_side = 1
-
-            fdep_side0 = var_filt_df.norm1.map(float).values + fsup
-            fdep_side1 = var_filt_df.norm2.map(float).values + fsup
-            fdep_sides  = zip(fdep_side0, fdep_side1)
-            combos = var_filt_df.apply(cluster.get_sv_allele_combos, axis=1, args=(cparams,)).values
-
-            classes = var_filt_df.classification.values
-            dna_gain_class = cdefs['dna_gain_class']
-            dna_loss_class = cdefs['dna_loss_class']
-            af = [1.] * len(var_filt_df)
-            if adjusted:
-                af = [1. - (float(purity)/ploidy) if sv_class in dna_gain_class else 1. for sv_class in classes]
+            fdep_sides, combos, af = get_sv_dual_end_data(var_filt_df, fsup, cdefs, purity, ploidy, cparams, adjusted)
             scs, probs, ccert, sides = reclassify_vars(scs, orig_scs, probs, ccert, fsup, fdep_sides,
                                                        fNvar, combos, fnorm_cn, purity, rc_all, af)
-
-            # correct fnorm, fdep, fcn_states based on new side selection
-            fdep = np.array([norm1 if side == 0 else norm2 for norm1, norm2, side in zip(fdep_side0, fdep_side1, sides)])
-            fnorm = (fdep - fsup) * af
-            fdep  = fnorm + fsup
-            fcn_states = [cn[side] for cn,side in zip(combos, sides)]
-            fcn_states = pd.DataFrame([[sv] for sv in fcn_states])[0].values
-
-            var_filt_df.preferred_side = sides
-            var_filt_df.adjusted_norm  = fnorm
-            var_filt_df.adjusted_depth = fdep
-            var_filt_df.adjusted_vaf   = fsup / fdep
+            var_filt_df, fdep, fcn_states = update_sv_df_sides(var_filt_df, sides, fsup, fdep_sides, combos, af)
         else:
             scs, probs, ccert, sides  = reclassify_vars(scs, orig_scs, probs, ccert,
                                                 fsup, fdep, fNvar, fcn_states, fnorm_cn,
