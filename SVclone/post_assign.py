@@ -133,7 +133,7 @@ def assign_snvs(scs, Nvar, sup, dep, norm_cn, cn_states, purity):
 
     if len(scs) > 1 and Nvar > 0:
         for i in range(Nvar):
-            lls, ll_probs = get_ll_probs(sup[i], dep[i], norm_c-c 001/001bM_p0.6_001gM_p0.4_subclones.txtn[i], cn_states[i], purity, scs)
+            lls, ll_probs = get_ll_probs(sup[i], dep[i], norm_cn[i], cn_states[i], purity, scs)
             clus_probs = np.concatenate([clus_probs, [ll_probs]], axis=0) if len(clus_probs)>0 else np.array([ll_probs])
             best_clus = np.where(np.max(lls)==lls)[0][0]
             best_clus_list = np.append(best_clus_list, [best_clus])
