@@ -72,18 +72,22 @@ def get_ll_probs(s, d, n, cn, purity, scs):
 
     return lls, ll_probs
 
-def fix_subsampling_discrepancy(var_df, var_filt_df, filt_ids, ccert_ids):
+def fix_variant_number_discrepancy(var_df, var_filt_df, filt_ids, ccert_ids, ccert, snvs):
     n_to_assign = len(var_df)
     var_df = pd.concat([var_df, var_filt_df])
     var_in_ccert = np.array([var_id in ccert_ids for var_id in filt_ids])
 
     var_filt_df = var_filt_df[var_in_ccert]
+    filt_ids = get_var_ids(var_filt_df, snvs)
+    ccert_in_df = np.array([cc_id in filt_ids for cc_id in ccert_ids])
+    ccert = ccert[ccert_in_df]
+
     to_assign = np.concatenate([ np.array([True] * n_to_assign, dtype=bool),
                                  np.invert(var_in_ccert) ])
 
     var_df.index = range(len(var_df))
     var_df = var_df[to_assign]
-    return(var_df, var_filt_df)
+    return(var_df, var_filt_df, ccert)
 
 
 def filter_clusters(scs, clus_th):
@@ -115,7 +119,7 @@ def get_sv_ll_probs(sup, dep, norm_cn, cns, purity, scs, af):
 
         lls = lls0 if side == 0 else lls1
         ll_probs = ll_probs0 if side == 0 else ll_probs1
-    elif len(cns1) > 1:
+    elif len(cns1) > 0:
         lls, ll_probs = get_ll_probs(sup, dep1, norm_cn, cns1, purity, scs)
         side = 0
     else:
@@ -345,10 +349,13 @@ def post_assign_vars(var_df, var_filt_df, rundir, sample, sparams, cparams, clus
     filt_ids = get_var_ids(var_filt_df, snvs)
     ccert_ids = get_var_ids(ccert, snvs)
 
-    if len(ccert) != len(var_filt_df) and snvs:
+    if len(ccert) != len(var_filt_df):
         # discrepancy due to subsampling
-        var_df, var_filt_df = fix_subsampling_discrepancy(var_df, var_filt_df, filt_ids, ccert_ids)
-        filt_ids = get_var_ids(var_filt_df, snvs)
+        var_df, var_filt_df, ccert = fix_variant_number_discrepancy(var_df, var_filt_df, filt_ids, ccert_ids, ccert, snvs)
+        filt_ids          = get_var_ids(var_filt_df, snvs)
+        ccert_ids         = get_var_ids(ccert, snvs)
+        var_filt_df.index = range(len(var_filt_df))
+        ccert.index       = range(len(ccert))
 
     if len(ccert) != len(var_filt_df):
         raise ValueError('''Number of filtered variants does not match cluster output,
