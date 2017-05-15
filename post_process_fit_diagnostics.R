@@ -1,12 +1,9 @@
-<<<<<<< HEAD
-=======
 ############################################################################################################################
 # SVclone output post processing
 #
 # Draw some helpful plots to interpret SVclone output
 # plots run summary, IC and SNV/SV histograms
 ############################################################################################################################
->>>>>>> master
 
 args <- commandArgs(trailingOnly = TRUE)
 
@@ -276,17 +273,6 @@ plot_hist <- function(wd, base_name, snvs, pick_run='best', varclass=FALSE, vaf=
                 geom_histogram(alpha=0.3,position='identity',binwidth=0.05) + xlab('CCF')
         }
     }
-<<<<<<< HEAD
-    
-    # cluster stability metric plot
-    pdf(paste(id, '_cluster_stability_heatmap.pdf',sep=''),height=6)
-    cols <- colorRampPalette(brewer.pal(9,'Blues'))(30)
-    heatmap.2(results, trace='none', Rowv=F, Colv=F, dendrogram='none', col=cols)
-    dev.off()
-
-    results <- cbind(rownames(results), results)
-    write.table(results, paste(id,'_cluster_stability.csv', sep=''), sep=',', quote=F, row.names=F)
-=======
 
     var_hist <- var_hist + theme_minimal() + xlim(0,2) + ggtitle(pick_run) + ylab('') +
         scale_fill_brewer(palette = 'Set1', name = plotvar) +
@@ -303,7 +289,6 @@ plot_hist <- function(wd, base_name, snvs, pick_run='best', varclass=FALSE, vaf=
         }
     }
     return(var_hist)
->>>>>>> master
 }
 
 # gg_color_hue <- function(n) {
@@ -355,7 +340,6 @@ dev.off()
 ############################################################################################
 
 if (length(args)>2 & map) {
-<<<<<<< HEAD
     print('Plotting fit metrics...')
     ic_table <- NULL
     for (run in runs) {
@@ -380,8 +364,6 @@ if (length(args)>2 & map) {
 #     min_aic$run <- 'min_AIC'
 #     ic_table <- rbind(ic_table, min_aic)
 
-    write.table(ic_table, paste(id,'_ic_metrics.csv', sep=''), sep=',', quote=F, row.names=F)
-=======
     #print('Plotting AIC & BIC metrics...')
     ic_table <- NULL
     for (run in runs) {
@@ -442,7 +424,6 @@ if (length(args)>2 & map) {
     ic_table <- rbind(ic_table, min_svcic)
 
     write.table(ic_table, paste(id,'_ic_metrics.csv', sep=''), sep=',', quote=F, row.names=F, na = '')
->>>>>>> master
 }
 
 ############################################################################################
@@ -675,31 +656,6 @@ if (!grepl('^--', bbf) & file.exists(bbf)) {
 
         pdat <- list(pdat, pdat2)
     }
-<<<<<<< HEAD
-        
-    plot2 <- ggQQ(dat)
-    
-    #attach table for convenience, also add BIC/AIC
-    tabout <- sv_clust[order(as.numeric(sv_clust[,3]),decreasing=TRUE),]
-    sc_tab <- tableGrob(tabout, rows=c())
-    if (map) {
-        ic <- read.table(paste(run, '/', snv_dir, id, '_fit.txt', sep=''), 
-                     sep='\t', header=F, stringsAsFactors = F)
-        colnames(ic) <- c('IC', 'value')
-        #ic <- data.frame(t(ic)); colnames(ic) <- c('BIC','AIC'); ic <- ic[-1,]
-        #ic <- data.frame(t(ic)); colnames(ic) <- c('DIC'); ic <- ic[-1,]
-        ic_tab <- tableGrob(ic, rows=c())
-        
-        height <- 7+round(nrow(tabout)*0.2)
-        pdf(paste(id, run, 'fit.pdf',sep='_'), height=height)
-        grid.arrange(arrangeGrob(sc_tab, ic_tab, nrow=1), plot1, plot2, ncol=1)
-        dev.off()
-    } else {
-        height <- 7+round(nrow(tabout)*0.2)
-        pdf(paste(id, run, 'fit.pdf',sep='_'), height=height)
-        grid.arrange(sc_tab, plot1, plot2, ncol=1)
-        dev.off()
-=======
     colours <- c('#0000FF80','#FF000080','darkgreen','#0000FF40','#FF000040','#00FF0040')
 
     run <- 'run0'; if (map) {run <- best_run}
@@ -731,7 +687,6 @@ if (!grepl('^--', bbf) & file.exists(bbf)) {
             }
         }
         circos.genomicDensity(psnvs, col=colours, overlap=FALSE)
->>>>>>> master
     }
     circos.genomicTrackPlotRegion(pdat,ylim=c(0,6),
                                   panel.fun=function(region,value,...){
