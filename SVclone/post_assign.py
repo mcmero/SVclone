@@ -75,9 +75,10 @@ def get_ll_probs(s, d, n, cn, purity, scs):
 def fix_variant_number_discrepancy(var_df, var_filt_df, filt_ids, ccert_ids, ccert, snvs):
     n_to_assign = len(var_df)
     var_df = pd.concat([var_df, var_filt_df])
-    var_in_ccert = np.array([var_id in ccert_ids for var_id in filt_ids])
 
+    var_in_ccert = np.array([var_id in ccert_ids for var_id in filt_ids])
     var_filt_df = var_filt_df[var_in_ccert]
+
     filt_ids = get_var_ids(var_filt_df, snvs)
     ccert_in_df = np.array([cc_id in filt_ids for cc_id in ccert_ids])
     ccert = ccert[ccert_in_df]
@@ -349,7 +350,10 @@ def post_assign_vars(var_df, var_filt_df, rundir, sample, sparams, cparams, clus
     filt_ids = get_var_ids(var_filt_df, snvs)
     ccert_ids = get_var_ids(ccert, snvs)
 
-    if len(ccert) != len(var_filt_df):
+    vid_in_ccert = np.array([vid in ccert_ids for vid in filt_ids])
+    ccert_in_vid = np.array([ccid in filt_ids for ccid in ccert_ids])
+
+    if not (np.all(vid_in_ccert) and np.all(ccert_in_vid)):
         # discrepancy due to subsampling
         var_df, var_filt_df, ccert = fix_variant_number_discrepancy(var_df, var_filt_df, filt_ids, ccert_ids, ccert, snvs)
         filt_ids          = get_var_ids(var_filt_df, snvs)

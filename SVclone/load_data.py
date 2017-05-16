@@ -59,6 +59,14 @@ def load_svs(sv_file):
 def load_cnvs(cnv_file):
     cnv = pd.read_csv(cnv_file,delimiter='\t',dtype=None)
     cnv_df = pd.DataFrame(cnv)
+    if len(cnv_df) == 0:
+        print('WARNING: Copy-number file contains no records.')
+        cnv_df['chr'] = ''
+        cnv_df['startpos'] = float('nan')
+        cnv_df['endpos'] = float('nan')
+        cnv_df['gtype'] = ''
+        return cnv_df
+
     if len(cnv_df.columns)==1:
         # assume caveman csv file
         col_names = ['chr','startpos','endpos','norm_total','norm_minor','tumour_total','tumour_minor']
