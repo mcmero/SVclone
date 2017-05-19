@@ -631,6 +631,8 @@ def run(args):
             snv_df = load_data.load_snvs_mutect_callstats(snvs)
         elif snv_format == 'consensus':
             snv_df = load_data.load_snvs_consensus(snvs)
+        elif snv_format == 'multisnv':
+            snv_df = load_data.load_snvs_multisnv(snvs, sample)
         snv_df = run_simple_snv_filter(snv_df, min_dep, blist, filter_chrs, valid_chrs)
 
     if svs!="":

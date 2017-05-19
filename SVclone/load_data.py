@@ -167,6 +167,38 @@ def load_snvs_mutect_callstats(snvs):
     snv_out = snv_out[['chrom','pos','gtype','ref','var']]
     return snv_out
 
+def load_snvs_multisnv(snvs, sample):
+    snv_dtype = [('chrom','S50'),('pos',int),('gtype','S50'),('ref',float),('var',float)]
+    snv_df = np.empty([0,5],dtype=snv_dtype)
+
+    vcf_reader = vcf.Reader(filename=snvs)
+    samples = vcf_reader.samples
+    if sample not in samples:
+        raise Exception('VCF SNV file is of invalid format: sample %s not present in VCF samples.' % sample)
+
+    for record in vcf_reader:
+        if record.FILTER is not None:
+            if len(record.FILTER)>0:
+                continue
+
+        allele_counts = record.genotype(sample)['BCOUNT']
+        tumor_reads = {
+            'A': allele_counts[0],
+            'C': allele_counts[1],
+            'G': allele_counts[2],
+            'T': allele_counts[3],
+        }
+
+        ref_reads     = tumor_reads[record.REF]
+        variant_reads = tumor_reads[str(record.ALT[0])]
+        total_reads   = ref_reads + variant_reads
+
+        if variant_reads != 0:
+            tmp = np.array((record.CHROM, record.POS, '', ref_reads, variant_reads), dtype=snv_dtype)
+            snv_df = np.append(snv_df, tmp)
+
+    return pd.DataFrame(snv_df)
+
 def load_snvs_consensus(snvs):
     vcf_reader = vcf.Reader(filename=snvs)
     snv_dtype = [('chrom','S50'),('pos',int),('gtype','S50'),('ref',float),('var',float)]
