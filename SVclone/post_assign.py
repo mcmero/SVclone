@@ -388,7 +388,7 @@ def post_assign_vars(var_df, var_filt_df, rundir, sample, sparams, cparams, clus
         no_cn_state = np.array([len(cn)==0 for cn in cn_states])
         if np.any(no_cn_state):
             keep = np.invert(no_cn_state)
-            sup, dep, norm_cn, cn_states = sup[keep], dep[keep], np.array(norm)[keep], cn_states[keep]
+            sup, dep, norm_cn, cn_states = sup[keep], dep[keep], np.array(norm_cn)[keep], cn_states[keep]
             var_df = var_df[keep]
             Nvar = Nvar - sum(no_cn_state)
 
@@ -449,6 +449,8 @@ def post_assign_vars(var_df, var_filt_df, rundir, sample, sparams, cparams, clus
     z_phi = np.concatenate([z_phi, z_phi_add])
 
     var_outfile = '%s/../%s_filtered_%s_post_assign.tsv' % (rundir, sample, vartype.lower())
+    if snvs:
+        df = df.drop('support', 1)
     df.to_csv(var_outfile, sep='\t', index=False, na_rep='')
 
     print('Writing output to %s for %s' % (pa_outdir, vartype))
@@ -593,6 +595,8 @@ def run_post_assign(args):
             snv_df = load_data.load_snvs_mutect_callstats(snv_file)
         elif snv_format == 'consensus':
             snv_df = load_data.load_snvs_consensus(snv_file)
+        elif snv_format == 'multisnv':
+            snv_df = load_data.load_snvs_multisnv(snv_file, sample)
 
     if sv_file != "":
         sv_df = load_data.load_svs(sv_file)
