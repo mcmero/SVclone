@@ -219,8 +219,6 @@ def get_adjusted_phis(clus_info, center_trace, cparams):
     Fixes potential label-switching problems by re-ordering phi traces from
     smallest to largest then assigning phis in the order of the unadjusted phis
     '''
-    #burn          = cparams['burn']
-    #thin          = cparams['thin']
     hpd_alpha     = cparams['hpd_alpha']
 
     clus_idx = clus_info.clus_id.values
@@ -288,16 +286,25 @@ def post_process_clusters(mcmc,sv_df,snv_df,clus_out_dir,sup,dep,norm,cn_states,
 
     center_trace = mcmc.trace("phi_k")[:]
     phis = np.array([mean_confidence_interval(center_trace[:,cid], hpd_alpha) for cid in clus_idx])
-    if adjust_phis:
-        # fix potential label switching problems
-        print('Correcting phi traces...')
-        phis = get_adjusted_phis(clus_info, center_trace, cparams)
+    original_phis = phis.copy()
+    adjusted_phis = get_adjusted_phis(clus_info, center_trace, cparams)
 
     hpd_lo = '_'.join([str(int(100-(100*hpd_alpha))), 'HPD', 'lo'])
     hpd_hi = '_'.join([str(int(100-(100*hpd_alpha))), 'HPD', 'hi'])
-    clus_info['phi'] = phis[:,0]
+
+    phis = adjusted_phis if adjust_phis else phis
+    clus_info['phi']  = phis[:,0]
     clus_info[hpd_lo] = phis[:,1]
     clus_info[hpd_hi] = phis[:,2]
+
+    if adjust_phis:
+        clus_info['phi_unadjusted']  = original_phis[:,0]
+        clus_info['%s_unadjusted'%hpd_lo] = original_phis[:,1]
+        clus_info['%s_unadjusted'%hpd_hi] = original_phis[:,2]
+    else:
+        clus_info['phi_adjusted']  = adjusted_phis[:,0]
+        clus_info['%s_adjusted'%hpd_lo] = adjusted_phis[:,1]
+        clus_info['%s_adjusted'%hpd_hi] = adjusted_phis[:,2]
 
     clus_ids = clus_info.clus_id.values
     clus_members = np.array([np.where(np.array(clus_max_prob)==i)[0] for i in clus_ids])
@@ -487,7 +494,7 @@ def pick_best_run(n_runs, out, sample, ccf_reject, cocluster, fit_metric, cluste
         clus_struct = pd.read_csv(struct_file, delimiter='\t', dtype=None, header=0)
 
         if len(clus_struct) > 1:
-            var_props = clus_struct.n_ssms.map(float).values/sum(clus_struct.n_ssms)
+            var_props = clus_struct.n_variants.map(float).values/sum(clus_struct.n_variants)
             clus_struct = clus_struct[var_props > 0.01] #filter out very small clusters
             if len(clus_struct) > 1:
                 break

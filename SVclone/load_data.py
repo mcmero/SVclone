@@ -431,7 +431,9 @@ def get_run_output(rundir, sample, purity, snvs=False):
         raise ValueError('No subclonal structure file exists!')
 
     # have to rename columns for function compatibility
-    rename_cols =  {'cluster': 'clus_id', 'n_ssms': 'size', 'CCF': 'phi'}
+    rename_cols =  {'cluster': 'clus_id', 'n_variants': 'size', 'CCF': 'phi'}
+    if 'n_ssms' in scs.columns.values:
+        rename_cols =  {'cluster': 'clus_id', 'n_ssms': 'size', 'CCF': 'phi'}
     scs = scs.rename(columns = rename_cols)
     scs = scs.drop('proportion', 1)
 

@@ -483,7 +483,8 @@ def amend_coclus_results(rundir, sample, sparams):
     scs['CCF'] = scs.phi.values
     scs['phi'] = scs.phi.values * purity
     scs = scs[['clus_id','size','phi','CCF']]
-    rename_cols =  {'clus_id': 'cluster', 'size': 'n_ssms', 'phi': 'proportion'}
+
+    rename_cols =  {'clus_id': 'cluster', 'size': 'n_variants', 'phi': 'proportion'}
     scs = scs.rename(columns = rename_cols)
 
     scs.to_csv('%s/%s_subclonal_structure.txt' % (pa_outdir, sample), sep='\t', index=False)

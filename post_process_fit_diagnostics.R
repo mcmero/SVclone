@@ -173,7 +173,8 @@ get_run_info <- function(wd, base_name, run, snvs = FALSE, post = FALSE) {
     if (snvs) {snv_pref <- 'snvs/'}
     scs_file <-  paste(wd, '/', run, '/', snv_pref, base_name, '_subclonal_structure.txt', sep = '')
     scs <- read.table(scs_file, sep = '\t', header = T)
-    # scs <- scs[scs$n_ssms>3,]
+    colnames(scs)[2] <- 'n_ssms'
+    scs <- scs[,c('cluster', 'n_ssms', 'proportion', 'CCF')]
     scs <- scs[order(scs$CCF, decreasing=T), ]
     scs$new_cluster <- 1:nrow(scs)
 
@@ -328,7 +329,7 @@ clusts <- NULL
 for (run in runs) {
     sv_clust <- read.table(paste(run, '/', snv_dir, id, '_subclonal_structure.txt', sep=''),
                            header=T, sep='\t', stringsAsFactors=F)
-    clusts <- rbind(clusts, data.frame(run=run, n_ssms=sv_clust$n_ssms, cluster=sv_clust$cluster))
+    clusts <- rbind(clusts, data.frame(run=run, n_ssms=sv_clust[,2], cluster=sv_clust$cluster))
 }
 
 pdf(paste(id, '_cluster_hist.pdf',sep=''),height=4, width=max(3,length(runs)*0.6))

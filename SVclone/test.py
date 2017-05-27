@@ -47,7 +47,7 @@ fit          = '%s_fit.txt' % sample
 ml_cn        = '%s_most_likely_copynumbers.txt' % sample
 mult         = '%s_multiplicity.txt' % sample
 sc_str       = '%s_subclonal_structure.txt' % sample
-n_clus       = 'number_of_clusters.txt'
+n_clus       = '%s_number_of_clusters.txt' % sample
 ccfs         = '%s_vaf_ccf.txt' % sample
 
 Config = ConfigParser.ConfigParser()
@@ -193,7 +193,7 @@ class test(unittest.TestCase):
         #self.assertTrue(len(sv4) == 9)
         self.assertTrue(len(sv5) == len(sv_df))
         self.assertTrue(len(sv6) == len(sv_df))
-        self.assertTrue(len(sv7.columns) == 4)
+        self.assertTrue(len(sv7.columns) == 9)
         self.assertTrue(len(sv8) == 1)
         self.assertTrue(len(sv9) == len(sv_df))
         self.assertTrue(len(snv1) == len(snv_df))
@@ -201,7 +201,7 @@ class test(unittest.TestCase):
         self.assertTrue(len(snv3) == len(snv_df))
         self.assertTrue(len(snv5) == len(snv_df))
         self.assertTrue(len(snv6) == len(snv_df))
-        self.assertTrue(len(snv7.columns) == 4)
+        self.assertTrue(len(snv7.columns) == 9)
         self.assertTrue(len(snv8) == 1)
         self.assertTrue(len(snv9) == len(snv_df))
 
