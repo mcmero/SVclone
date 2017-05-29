@@ -34,15 +34,16 @@ def get_var_to_assign(var_df, var_filt_df, snvs = False):
 
     n = int(len(var_df))
     if snvs:
-        var_df['support'] = map(float, var_df['var'].values)
+        var_df['support'] = [x for x in map(float, var_df['var'].values)]
+
     var_df = var_df[var_df.support.values > 0]
     n_filt_out = int(n - len(var_df))
     if n_filt_out > 0:
         print('Filtered out %d %s with no read support' % (n_filt_out, vartype))
 
     if not snvs:
-        var_df['gtype1'] = np.array(map(filt.remove_zero_copynumbers, var_df.gtype1.values))
-        var_df['gtype2'] = np.array(map(filt.remove_zero_copynumbers, var_df.gtype2.values))
+        var_df['gtype1'] = np.array([x for x in map(filt.remove_zero_copynumbers, var_df.gtype1.values)])
+        var_df['gtype2'] = np.array([x for x in map(filt.remove_zero_copynumbers, var_df.gtype2.values)])
 
         n = int(len(var_df))
         var_df = var_df[np.logical_or(var_df.gtype1.values!='', var_df.gtype2.values!='')]
@@ -112,7 +113,7 @@ def filter_clusters(scs, clus_th, Nvar, sup, dep, norm, cn_states, purity):
         best_clus_list = [0] * Nvar
         clus_probs     = np.array([[1.]] * Nvar)
 
-    best_clus_list = np.array(map(int, best_clus_list))
+    best_clus_list = np.array([x for x in map(int, best_clus_list)])
     phis = scs.phi.values[best_clus_list] if Nvar > 0 else None
 
     return scs, orig_scs, best_clus_list, clus_probs, phis
@@ -421,7 +422,7 @@ def run_post_assign(args):
     if os.path.exists(snv_filt_file):
         snv_filt_df = pd.read_csv(snv_filt_file,delimiter='\t',dtype=None,header=0,low_memory=False)
         snv_filt_df = pd.DataFrame(snv_filt_df).fillna('')
-        snv_filt_df['support'] = map(float, snv_filt_df['var'].values)
+        snv_filt_df['support'] = [x for x in map(float, snv_filt_df['var'].values)]
 
     if len(sv_filt_df) == 0 and len(snv_filt_df) == 0:
         raise ValueError('Output directory filtered variant files do not exist or are empty!')
@@ -466,7 +467,7 @@ def run_post_assign(args):
             print('Matching copy-numbers for SNVs...')
             snv_df = filt.match_snv_copy_numbers(snv_df,cnv_df)
             n = len(snv_df)
-            snv_df['gtype'] = np.array(map(filt.remove_zero_copynumbers, snv_df.gtype.values))
+            snv_df['gtype'] = np.array([x for x in map(filt.remove_zero_copynumbers, snv_df.gtype.values)])
             snv_df = snv_df[snv_df.gtype != '']
             print('Filtered out %d SNVs with no copy-numbers' % (n-len(snv_df)))
     else:
