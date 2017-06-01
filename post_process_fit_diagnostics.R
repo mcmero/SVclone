@@ -485,6 +485,7 @@ for (run in runs) {
         sv_clust$SNVs <- sv_clust$n_ssms-sv_clust$SVs
         colnames(sv_clust)[2] <- 'variants'
         tabout <- sv_clust[order(as.numeric(sv_clust[,3]),decreasing=TRUE),]
+        tabout <- tabout[,c('cluster', 'SNVs', 'SVs', 'proportion', 'CCF')]
         sc_tab <- tableGrob(tabout, rows=c())
 
         plot4 <- ggplot(snv, aes(x=CCF, y=adjusted_vaf,
@@ -526,6 +527,7 @@ for (run in runs) {
         if(snvs){varname<-'SNVs'}
         colnames(sv_clust)[2] <- varname
         tabout <- sv_clust[order(as.numeric(sv_clust[,3]),decreasing=TRUE),]
+        tabout <- tabout[,c('cluster', varname, 'proportion', 'CCF')]
         sc_tab <- tableGrob(tabout, rows=c())
         plot4 <- plot_hist('./', id, snvs, run, varclass = TRUE, post = post)
         if (map & !post) {
