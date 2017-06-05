@@ -1,6 +1,6 @@
 # README #
 
-This package is used to cluster structural variants of similar cancer cell fraction (CCF). SVclone is divided into five components: annotate, count, filter, cluster and post-assign. The annotate step infers directionality of each breakpoint (if not supplied), recalibrates breakpoint position to the soft-clip boundary and subsequently classifies SVs using a rule-based approach. The count step counts the variant and non-variant reads from breakpoint locations. Both the annotate and count steps utilise BAM-level information. The filter step removes SVs based on a number of adjustable parameters and prepares the variants for clustering. SNVs can also be added at this step as well as CNV information, which is matched to SV and SNV loci. Any variants that were filtered out, or left out due to sub-sampling can be added back using the post-assign step, which assigns each variant (which contains a >0 VAF and matching copy-number state, at minimum) to the most likely cluster (obtained from the clsuter step). Post-processing scripts are also included to aid in visualising the clustering results. 
+This package is used to cluster structural variants of similar cancer cell fraction (CCF). SVclone is divided into five components: annotate, count, filter, cluster and post-assign. The annotate step infers directionality of each breakpoint (if not supplied), recalibrates breakpoint position to the soft-clip boundary and subsequently classifies SVs using a rule-based approach. The count step counts the variant and non-variant reads from breakpoint locations. Both the annotate and count steps utilise BAM-level information. The filter step removes SVs based on a number of adjustable parameters and prepares the variants for clustering. SNVs can also be added at this step as well as CNV information, which is matched to SV and SNV loci. Any variants that were filtered out, or left out due to sub-sampling can be added back using the post-assign step, which assigns each variant (which contains a >0 VAF and matching copy-number state, at minimum) to the most likely cluster (obtained from the clsuter step). Post-processing scripts are also included to aid in visualising the clustering results.
 
 ### How do I get set up? ###
 
@@ -16,16 +16,61 @@ Cluster/post-assign steps:
 
 * [Numpy](http://www.numpy.org/) - install for python 2
 * [Pandas](http://pandas.pydata.org/)
-* [PyMC](https://github.com/pymc-devs/pymc)
+* [scikit-learn](http://scikit-learn.org/stable/install.html)
+* [PyMC](https://pymc-devs.github.io/pymc/INSTALL.html)
 * [ipython](https://pypi.python.org/pypi/ipython)
+* [ipdb](https://pypi.python.org/pypi/ipdb)
 * [matplotlib](http://matplotlib.org/)
 * [SciPy](https://http://www.scipy.org/)
 
-Install like so:
+If you have admin rights and/or are running in a python virtual environment. You can run the following to install all required packages. (Note that pymc requires a Fortram compiler to be installed.)
 
+    pip install numpy
+    pip install pandas
+    pip install scipy
+    pip install scikit-learn
+    pip install pysam
+    pip install pyvcf
+    pip install ipython
+    pip install ipdb
+    pip install matplotlib
+    pip install pymc
+
+You can add --user if local install is required with pip.
+Then install SVclone and run the example:
+
+    curl -O https://github.com/mcmero/SVclone/archive/0.2.1.tar.gz
+    tar -xvzf 0.2.1.tar.gz
+
+    cd SVclone
     python setup.py install
 
-Adding --user if a local install is required. 
+    chmod u+x run_example.sh
+    ./run_example.sh
+
+Add --user to the setup step for a local install.
+
+Running the R post-processing scripts requires the following packages:
+
+* [combinat](https://cran.r-project.org/web/packages/combinat/index.html)
+* [RColorBrewer](https://cran.r-project.org/web/packages/RColorBrewer/index.html)
+* [gplots](https://cran.r-project.org/web/packages/gplots/index.html)
+* [ggplot2](https://cran.r-project.org/web/packages/ggplot2/index.html)
+* [gridExtra](https://cran.r-project.org/web/packages/gridExtra/index.html)
+* [reshape](https://cran.r-project.org/web/packages/reshape/index.html)
+* [gtools](https://cran.rstudio.com/web/packages/gtools/index.html)
+* [plyr](https://cran.rstudio.com/web/packages/plyr/index.html)
+
+Run the following in R to install:
+
+    install.packages('combinat')
+    install.packages('RColorBrewer')
+    install.packages('gplots')
+    install.packages('ggplot2')
+    install.packages('gridExtra')
+    install.packages('reshape')
+    install.packages('gtools')
+    install.packages('plyr')
 
 ### Example data ###
 
@@ -35,7 +80,7 @@ Example data is provided to test your SVclone installation. Run as:
 
 ### Annotate step ###
 
-An indexed whole-genome sequencing BAM and a list of paired breakpoints from an SV caller of choice is required. This step is required for clustering of SVs, however, classifiation and directionality information from your choice of SV caller can be used rather than being inferred. 
+An indexed whole-genome sequencing BAM and a list of paired breakpoints from an SV caller of choice is required. This step is required for clustering of SVs, however, classifiation and directionality information from your choice of SV caller can be used rather than being inferred.
 
     ./SVclone.py annotate -i <sv_input> -b <indexed_bamfile> -s <sample_name>
 
@@ -58,7 +103,7 @@ chr1	pos1	dir1	chr2	pos2	dir2	classification
 22	21395573		+	22	21395746	+	INV
 ```
 
-A blacklist can also be supplied at this step to not process areas to remove SVs where any of its breakpoints fall into one of these areas. 
+A blacklist can also be supplied at this step to not process areas to remove SVs where any of its breakpoints fall into one of these areas.
 
 #### Annotate Output ####
 
@@ -74,7 +119,7 @@ The above input example also corresponds with the output of this step (output to
 
 * -o or --out <directory> : output directory to create files. Default: the sample name.
 * -cgf or --config <config.ini> : SVclone configuration file with additional parameters (svclone_config.ini is the default).
-* --sv_format <vcf, simple, socrates> : input format of SV calls, VCF by default, but may also be simple (see above) or from the SV caller Socrates. 
+* --sv_format <vcf, simple, socrates> : input format of SV calls, VCF by default, but may also be simple (see above) or from the SV caller Socrates.
 * --blacklist <file.bed> : Takes a list of intervals in BED format. Skip processing of any break-pairs where either SV break-end overlaps an interval specified in the supplied bed file. Using something like the [DAC blacklist](https://www.encodeproject.org/annotations/ENCSR636HFF/) is recommended.
 
 ### Count step ###
@@ -136,7 +181,7 @@ The filter step outputs the file <out>/<sample>_filtered_svs.tsv and/or <out>/<s
 * norm_mean: average of norm1 and norm2
 * gtype: copy-number state at the locus: "major, minor, CNV fraction" for example, "1,1,1.0". May be subclonal if battenberg input is supplied e.g. "1,1,0.7|2,1,0.3".
 * adjusted_norm: selected normal locus with adjusted normal read counts (in case of DNA-gain).
-* adjusted_support: total adjusted supporting read count. 
+* adjusted_support: total adjusted supporting read count.
 * adjusted_depth: adjusted_norm + adjusted_support
 * preferred_side: which side the support/CNV state comes from
 * raw_mean_vaf: support / (mean(norm1, norm2) + support)
@@ -198,12 +243,12 @@ SVclone creates output based on the PCAWG output specification. This includes (p
 * <sample>_assignment_probability_table.txt: probability of each variant's assignment to each cluster, based on number of times the proportion that a variant occurs in a particular cluster over all MCMC iterations.
 * <sample>_cluster_certainty.txt: each variant's most likely assignment to a particular cluster and corresponding average proportion (CCF x purity).
 * <sample>_fit.txt: each IC metric's score, plus some extra metrics from PyMC (lnL, logp etc.).
-* <sample>_subclonal_structure: clusters found, the number of variants per cluster, the proportion and CCF. 
+* <sample>_subclonal_structure: clusters found, the number of variants per cluster, the proportion and CCF.
 
 And a few more files unique to SVclone:
 
 * <sample>_vaf_ccf.txt: variants with raw mean VAF, adjusted VAF (see filter step output), variant CCF derived from the trace, the transformed variant CCF and the cluster mean CCF/proportion.
-* <sample>_most_likely_copynumbers.txt: contains the output from the PCAWG copynumber output format, plus the variants gtypes, pv (probability of sampling a variant read) and the pv deviance from VAF (high deviance suggests low CCF confidence for the variant). 
+* <sample>_most_likely_copynumbers.txt: contains the output from the PCAWG copynumber output format, plus the variants gtypes, pv (probability of sampling a variant read) and the pv deviance from VAF (high deviance suggests low CCF confidence for the variant).
 * phi_trace.txt.gz: dump of the phi trace
 * z_trace.txt.gz: dump of the z trace.
 * alpha_trace.txt.gz: dump of the alpha trace (if alpha is not fixed).
@@ -218,14 +263,14 @@ And a few more files unique to SVclone:
 * -o or --out : output directory (sample name by default)
 * -cgf or --config <config.ini>: SVclone configuration file with additional parameters (svclone_config.ini is the default).
 * --params <params.txt> : Parameters file from processing step containing read information. If not supplied, the default search path is <out>/<sample>_params.txt'
-* --snvs <filtered_snvs> : SNVs output from filter step (automatically detected if present). 
+* --snvs <filtered_snvs> : SNVs output from filter step (automatically detected if present).
 * --map : use maximum a-posteriori fitting (may significantly increase runtime).
 * --cocluster : cluster SVs and SNVs together.
 * --no_adjust : do not adjust read counts based on different classes of SV events.
 * --subsample <integer> : (SNVs only); subsample N variants from total filtered input.
 * --ss_seed (only valid if using subsampling) integer seed, can be set to ensure subsampling is replicable.
-* --seeds <one integer per run, comma separated> : set a random seed per run in order to replicate pyMC runs. 
-* --XX and --XY : overwrite the config file genotype with XX or XY. 
+* --seeds <one integer per run, comma separated> : set a random seed per run in order to replicate pyMC runs.
+* --XX and --XY : overwrite the config file genotype with XX or XY.
 
 ### Post-assigning SVs ###
 
@@ -240,7 +285,7 @@ Additionally, the run directory may be specified:
 
 #### Post-assign output ####
 
-Post-assign creates the same output structure as in the cluster step. One minor difference: in the assignment_probabilities file output, we use a transformed likelihood to estimate probability of a variant belonging to a particular cluster, rather than a probability based on the MCMC chain (which does not exist for a post-assigned variant). 
+Post-assign creates the same output structure as in the cluster step. One minor difference: in the assignment_probabilities file output, we use a transformed likelihood to estimate probability of a variant belonging to a particular cluster, rather than a probability based on the MCMC chain (which does not exist for a post-assigned variant).
 
 #### Configuration file ####
 

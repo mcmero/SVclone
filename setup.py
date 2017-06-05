@@ -1,7 +1,7 @@
 from setuptools import setup
 
 setup(name='SVclone',
-      version='0.1.1',
+      version='0.2.1',
       description='Cluster structural variants of subclonal origin',
       url='https://github.com/mcmero/SVclone',
       author='Marek Cmero',
