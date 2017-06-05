@@ -323,7 +323,7 @@ def post_process_clusters(mcmc,sv_df,snv_df,clus_out_dir,sup,dep,norm,cn_states,
     clus_info.index = range(len(clus_info))
 
     print('\n\n')
-    print(clus_info)
+    print(clus_info[['clus_id', 'size', 'phi']])
     print('Compiling and writing output...')
 
     dump_out_dir = clus_out_dir
@@ -443,7 +443,6 @@ def cluster_and_process(sv_df, snv_df, run, out_dir, sample_params, cluster_para
         norm = np.append(norm, sv_norm)
         cn_states = pd.concat([pd.DataFrame(cn_states),pd.DataFrame(sv_cn_states)])[0].values
         Nvar = Nvar + sv_Nvar
-        print("Coclustering %d SVs & %d SNVs..." % (len(sv_df), len(snv_df)))
         mcmc, map_ = cluster.cluster(sup, dep, cn_states, Nvar, sample_params,
                                      cluster_params, cluster_params['phi_limit'], norm)
         post_process_clusters(mcmc, sv_df, snv_df, clus_out_dir, sup, dep, norm, cn_states,
@@ -455,7 +454,6 @@ def cluster_and_process(sv_df, snv_df, run, out_dir, sample_params, cluster_para
             if not os.path.exists('%s/snvs'%clus_out_dir):
                 os.makedirs('%s/snvs'%clus_out_dir)
             sup, dep, cn_states, Nvar, norm = load_data.get_snv_vals(snv_df, male, cluster_params)
-            print('Clustering %d SNVs...' % len(snv_df))
             mcmc, map_ = cluster.cluster(sup, dep, cn_states, Nvar, sample_params,
                                          cluster_params, cluster_params['phi_limit'], norm)
             post_process_clusters(mcmc, pd.DataFrame(), snv_df, clus_out_dir, sup, dep, norm,
@@ -463,7 +461,6 @@ def cluster_and_process(sv_df, snv_df, run, out_dir, sample_params, cluster_para
         if len(sv_df) > 0:
             sup, dep, cn_states, Nvar, norm = load_data.get_sv_vals(sv_df,
                                                 cluster_params['adjusted'], male, cluster_params)
-            print('Clustering %d SVs...' % len(sv_df))
             mcmc, map_ = cluster.cluster(sup, dep, cn_states, Nvar, sample_params,
                                          cluster_params, cluster_params['phi_limit'], norm)
             post_process_clusters(mcmc, sv_df, pd.DataFrame(), clus_out_dir, sup, dep, norm,
@@ -500,6 +497,8 @@ def pick_best_run(n_runs, out, sample, ccf_reject, cocluster, fit_metric, cluste
                 break
 
         if clus_struct.CCF[0] > ccf_reject:
+            print('Successfully finished clustering! Best run:')
+            print(clus_struct[['cluster', 'n_variants', 'proportion', 'CCF']])
             break
         else:
             min_ic = -1
@@ -515,6 +514,7 @@ def pick_best_run(n_runs, out, sample, ccf_reject, cocluster, fit_metric, cluste
 
             f = open('%s/run%s.txt' % (best_run_dest, min_ic), 'w')
             f.close()
+
         elif are_snvs:
             print('Selecting run %d as best run for SNVs' % min_ic)
             best_run = '%s/run%d/snvs' % (out, min_ic)
@@ -639,6 +639,14 @@ def run_clustering(args):
     cocluster = cluster_params['cocluster']
     fit_metric = output_params['fit_metric']
     cluster_penalty = output_params['cluster_penalty']
+
+    if cocluster:
+        print("Coclustering %d SVs & %d SNVs..." % (len(sv_df), len(snv_df)))
+    else:
+        if len(snv_df) > 0:
+            print("Clustering %d SNVs..." % len(snv_df))
+        if len(sv_df) > 0:
+            print("Clustering %d SVs..." % len(sv_df))
 
     if threads == 1:
         for run in range(n_runs):

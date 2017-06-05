@@ -690,3 +690,4 @@ if (!grepl('^--', bbf) & file.exists(bbf)) {
     }
     dev.off()
 }
+print('Finished plotting diagnostic plots!')

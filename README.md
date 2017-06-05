@@ -4,6 +4,8 @@ This package is used to cluster structural variants of similar cancer cell fract
 
 ### How do I get set up? ###
 
+Download and install [Python 2.7](https://www.python.org/downloads/). (Has been tested with [Python 2.7.5](https://www.python.org/download/releases/2.7.5/), but should work with later releases.)
+
 Ensure you have the following dependencies installed:
 
 Annotate/count steps:
@@ -23,34 +25,24 @@ Cluster/post-assign steps:
 * [matplotlib](http://matplotlib.org/)
 * [SciPy](https://http://www.scipy.org/)
 
-If you have admin rights and/or are running in a python virtual environment. You can run the following to install all required packages. (Note that pymc requires a Fortram compiler to be installed.)
+If you have admin rights and/or are running in a python virtual environment. You can run the following to install all required packages:
 
-    pip install numpy
-    pip install pandas
-    pip install scipy
-    pip install scikit-learn
-    pip install pysam
-    pip install pyvcf
-    pip install ipython
-    pip install ipdb
-    pip install matplotlib
-    pip install pymc
+    pip install -r requirements.txt
 
-You can add --user if local install is required with pip.
+(Note that pymc requires a Fortram compiler to be installed.)
+
 Then install SVclone and run the example:
 
     curl -O https://github.com/mcmero/SVclone/archive/0.2.1.tar.gz
     tar -xvzf 0.2.1.tar.gz
 
     cd SVclone
-    python setup.py install
+    python setup.py install --user
 
     chmod u+x run_example.sh
     ./run_example.sh
 
-Add --user to the setup step for a local install.
-
-Running the R post-processing scripts requires the following packages:
+Install [R](https://www.r-project.org/) to run the post-processing script. Running the script requires the following packages:
 
 * [combinat](https://cran.r-project.org/web/packages/combinat/index.html)
 * [RColorBrewer](https://cran.r-project.org/web/packages/RColorBrewer/index.html)
@@ -61,7 +53,7 @@ Running the R post-processing scripts requires the following packages:
 * [gtools](https://cran.rstudio.com/web/packages/gtools/index.html)
 * [plyr](https://cran.rstudio.com/web/packages/plyr/index.html)
 
-Run the following in R to install:
+Run the following in R to install these dependencies:
 
     install.packages('combinat')
     install.packages('RColorBrewer')

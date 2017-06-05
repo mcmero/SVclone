@@ -393,7 +393,7 @@ def get_sv_read_counts(row,bam,rparams,out,split_reads,span_reads,anom_reads):
     rc['anomalous'] = len(anomalous)
     anom_reads = np.append(anom_reads,anomalous)
 
-    print('processed %d reads at loc1; %d reads at loc2' % (len(loc1_reads),len(loc2_reads)))
+    #print('processed %d reads at loc1; %d reads at loc2' % (len(loc1_reads),len(loc2_reads)))
     return rc, split_reads, span_reads, anom_reads
 
 def get_params(cfg,bam,sample,out):
@@ -527,7 +527,7 @@ def extract_sv_info(svin, bam, rparams, outname):
             print('skipping %s (%s)' % (sv_str, svc))
             continue
 
-        print('processing %s'%sv_str)
+        #print('processing %s'%sv_str)
         sv_rc, split_reads, span_reads, anom_reads = \
                 get_sv_read_counts(row,bam,rparams,out,split_reads,span_reads,anom_reads)
 

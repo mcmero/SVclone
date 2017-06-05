@@ -40,7 +40,6 @@ def write_out_files(df, clus_info, clus_members, df_probs, clus_cert, clus_out_d
 
     clus_info['CCF'] = clus_info.phi.values
     clus_info['phi'] = clus_info.phi.values*pi #convert to proportions
-    #clus_info = clus_info[['clus_id','size','phi','CCF']]
     rename_cols =  {'clus_id': 'cluster', 'size': 'n_variants', 'phi': 'proportion'}
     clus_info = clus_info.rename(columns = rename_cols)
 
