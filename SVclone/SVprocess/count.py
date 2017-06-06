@@ -14,8 +14,7 @@ from operator import methodcaller
 
 from . import bamtools
 from . import svDetectFuncs as svd
-from . import load_data
-from . import dtypes
+from . import svp_dtypes as dtypes
 
 def read_to_array(x,bamf):
     chrom = bamf.getrname(x.reference_id)

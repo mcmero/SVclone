@@ -7,7 +7,7 @@ import ConfigParser
 import os
 
 from . import cluster
-from SVprocess import load_data as svp_load
+from SVprocess import svp_load_data as svp_load
 
 def get_normal_copynumber(chrom, male):
     if male and (chrom == 'X' or chrom == 'chrX'):

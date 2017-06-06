@@ -8,7 +8,7 @@ import subprocess
 from unittest import TestCase
 from SVprocess import bamtools
 from SVprocess import annotate
-from SVprocess import load_data
+from SVprocess import svp_load_data as load_data
 from SVprocess import count
 from SVclone import load_data as svc_load
 from SVclone import run_filter

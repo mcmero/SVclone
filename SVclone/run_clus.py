@@ -25,7 +25,7 @@ from pymc.utils import hpd
 from . import cluster
 from . import load_data
 from . import write_output
-from SVprocess import load_data as svp_load
+from SVprocess import svp_load_data as svp_load
 
 import numpy as np
 from numpy import loadtxt

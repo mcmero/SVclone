@@ -14,7 +14,7 @@ from . import load_data
 from . import run_filter as filt
 from . import dtypes
 from . import write_output
-from SVprocess import load_data as svp_load
+from SVprocess import svp_load_data as svp_load
 
 def get_var_ids(var_df, snvs):
     var_ids = np.array([])
