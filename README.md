@@ -4,43 +4,13 @@ This package is used to cluster structural variants of similar cancer cell fract
 
 ### How do I get set up? ###
 
-Download and install [Python 2.7](https://www.python.org/downloads/). (Has been tested with [Python 2.7.5](https://www.python.org/download/releases/2.7.5/), but should work with later releases.)
+SVclone runs on Linux and OS X. A Windows installation is currently not possible due to Windows incompatibility of the [PySam](http://pysam.readthedocs.org/en/latest/) package.
 
-Ensure you have the following dependencies installed:
+If you do not have numpy and SciPy installed, the easiest way to install the prerequisites is to install [Anaconda2](https://www.continuum.io/downloads) for Python 2.7. Then, install pymc:
 
-Annotate/count steps:
-
-* [Numpy](http://www.numpy.org/) - install for python 2
-* [PySam](http://pysam.readthedocs.org/en/latest/)
-* [PyVCF](https://pyvcf.readthedocs.org/en/latest/)
-
-Cluster/post-assign steps:
-
-* [Numpy](http://www.numpy.org/) - install for python 2
-* [Pandas](http://pandas.pydata.org/)
-* [scikit-learn](http://scikit-learn.org/stable/install.html)
-* [PyMC](https://pymc-devs.github.io/pymc/INSTALL.html)
-* [ipython](https://pypi.python.org/pypi/ipython)
-* [ipdb](https://pypi.python.org/pypi/ipdb)
-* [matplotlib](http://matplotlib.org/)
-* [SciPy](https://http://www.scipy.org/)
-
-If you have admin rights and/or are running in a python virtual environment. You can run the following to install all required packages:
-
-    pip install -r requirements.txt
+    conda install pymc
 
 (Note that pymc requires a Fortram compiler to be installed.)
-
-Then install SVclone and run the example:
-
-    curl -O https://github.com/mcmero/SVclone/archive/0.2.1.tar.gz
-    tar -xvzf 0.2.1.tar.gz
-
-    cd SVclone
-    python setup.py install --user
-
-    chmod u+x run_example.sh
-    ./run_example.sh
 
 Install [R](https://www.r-project.org/) to run the post-processing script. Running the script requires the following packages:
 
@@ -63,6 +33,42 @@ Run the following in R to install these dependencies:
     install.packages('reshape')
     install.packages('gtools')
     install.packages('plyr')
+
+Then install SVclone and run the test example to check whether the install has been successful:
+
+    curl -O https://github.com/mcmero/SVclone/archive/0.2.1.tar.gz
+    tar -xvzf 0.2.1.tar.gz
+
+    cd SVclone
+    pip install -r requirements.txt
+    python setup.py install
+
+    chmod u+x run_example.sh
+    ./run_example.sh
+
+If you have admin rights and/or are running in a [python virtual environment](http://python-guide-pt-br.readthedocs.io/en/latest/dev/virtualenvs/) you should encounter no issues, otherwise you may need to add --user when installing:
+
+    pip install -r requirements.txt --user
+    python setup.py install --user
+
+Below is a full list of Python dependencies:
+
+Annotate/count steps:
+
+* [Numpy](http://www.numpy.org/) - install for python 2
+* [PySam](http://pysam.readthedocs.org/en/latest/)
+* [PyVCF](https://pyvcf.readthedocs.org/en/latest/)
+
+Cluster/post-assign steps:
+
+* [Numpy](http://www.numpy.org/) - install for python 2
+* [Pandas](http://pandas.pydata.org/)
+* [scikit-learn](http://scikit-learn.org/stable/install.html)
+* [PyMC](https://pymc-devs.github.io/pymc/INSTALL.html)
+* [ipython](https://pypi.python.org/pypi/ipython)
+* [ipdb](https://pypi.python.org/pypi/ipdb)
+* [matplotlib](http://matplotlib.org/)
+* [SciPy](https://http://www.scipy.org/)
 
 ### Example data ###
 
