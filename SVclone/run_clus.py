@@ -134,7 +134,7 @@ def merge_clusters(clus_out_dir,clus_info,clus_merged,clus_members,merged_ids,su
             trace = mcmc.trace("phi_k")[:]
 
             phis = mean_confidence_interval(trace,cparams['hpd_alpha'])
-            clus_merged.loc[idx] = np.array([ci.clus_id,new_size,phis[0],phis[1],phis[2]])
+            clus_merged.loc[idx] = np.array([ci.clus_id,new_size,phis[0],phis[1],phis[2],phis[0],phis[1],phis[2]])
             clus_members[idx] = new_members
 
             to_del.append(idx+1)
