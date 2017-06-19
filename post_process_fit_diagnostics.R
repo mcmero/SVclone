@@ -464,6 +464,7 @@ for (run in runs) {
     # attach table for convenience, also add BIC/AIC
     sv_clust <- read.table(paste(run, '/', snv_dir, id, '_subclonal_structure.txt', sep=''),
                            header=T, sep='\t', stringsAsFactors=F)
+    colnames(sv_clust)[2] <- 'n_ssms'
 
     ic_tab <- NULL
     if (map & length(grep('post', run))==0) {
