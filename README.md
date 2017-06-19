@@ -6,8 +6,8 @@ This package is used to cluster structural variants of similar cancer cell fract
 
 Assuming [Anaconda2](https://www.continuum.io/downloads) (or [Python 2.7.\*](https://www.python.org/downloads/) with [Numpy](http://www.numpy.org/), [SciPy](https://http://www.scipy.org/) and [PyMC](https://pymc-devs.github.io/pymc/INSTALL.html)) are installed, a quick install can be run as follows:
 
-    curl -O https://github.com/mcmero/SVclone/archive/0.2.1.tar.gz
-    tar -xvzf 0.2.1.tar.gz
+    curl -O https://github.com/mcmero/SVclone/archive/0.2.2.tar.gz
+    tar -xvzf 0.2.2.tar.gz
 
     cd SVclone
     pip install -r requirements.txt
