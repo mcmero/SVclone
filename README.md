@@ -25,8 +25,8 @@ NOTE: installing [R](https://www.r-project.org/) is required to run the post-pro
 
 You can check the following output plots:
 
-    * tumour_p80\_DEL/tumour_p80_DEL_run_summary.pdf
-    * tumour_p80_DEL/tumour_p80_DEL_run\*.pdf
+    * tumour_p80_DEL/tumour_p80_DEL_run_summary.pdf
+    * tumour_p80_DEL/tumour_p80_DEL_run*.pdf
     * tumour_p80_DEL/tumour_p80_DEL_best_run_svs_post_assign_best_fit.pdf
 
 You can also test the simulated SNV data by running (this will take longer than running SVs only): 
