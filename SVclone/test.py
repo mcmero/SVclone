@@ -53,8 +53,8 @@ ccfs         = '%s_vaf_ccf.txt' % sample
 Config = ConfigParser.ConfigParser()
 Config.read(cfg)
 
-max_cn         = int(Config.get('BamParameters', 'max_cn'))
-mean_cov       = int(Config.get('BamParameters', 'mean_cov'))
+max_cn         = float(Config.get('BamParameters', 'max_cn'))
+mean_cov       = float(Config.get('BamParameters', 'mean_cov'))
 sc_len         = int(Config.get('SVcountParameters', 'sc_len'))
 threshold      = int(Config.get('SVcountParameters', 'threshold'))
 dna_gain_class = Config.get('SVclasses', 'dna_gain_class').split(',')

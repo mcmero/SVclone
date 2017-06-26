@@ -403,13 +403,12 @@ def get_params(cfg,bam,sample,out):
     if len(cfg_file)==0:
         raise ValueError('No configuration file found')
 
-    max_cn       = int(Config.get('BamParameters', 'max_cn'))
-    mean_cov     = int(Config.get('BamParameters', 'mean_cov'))
+    max_cn       = float(Config.get('BamParameters', 'max_cn'))
+    mean_cov     = float(Config.get('BamParameters', 'mean_cov'))
     sc_len       = int(Config.get('SVcountParameters', 'sc_len'))
     threshold    = int(Config.get('SVcountParameters', 'threshold'))
     norm_overlap = int(Config.get('SVcountParameters', 'norm_overlap'))
 
-    mean_cov     = int(Config.get('BamParameters', 'mean_cov'))
     rlen         = int(Config.get('BamParameters', 'read_len'))
     insert_mean  = float(Config.get('BamParameters', 'insert_mean'))
     insert_std   = float(Config.get('BamParameters', 'insert_std'))
