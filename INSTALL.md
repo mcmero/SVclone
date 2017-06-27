@@ -18,6 +18,7 @@ Install [R](https://www.r-project.org/) to run the post-processing script. Runni
 * [reshape](https://cran.r-project.org/web/packages/reshape/index.html)
 * [gtools](https://cran.rstudio.com/web/packages/gtools/index.html)
 * [plyr](https://cran.rstudio.com/web/packages/plyr/index.html)
+* [circlize](https://cran.r-project.org/web/packages/circlize/index.html)
 
 Run the following in R to install these dependencies:
 
@@ -29,6 +30,7 @@ Run the following in R to install these dependencies:
     install.packages('reshape')
     install.packages('gtools')
     install.packages('plyr')
+    install.packages('circlize')
 
 Then install SVclone and run the test example to check whether the install has been successful:
 
