@@ -96,7 +96,7 @@ def filter_clusters(scs, clus_th):
     filter out clusters of low proportion
     '''
     percent_filt = (scs['size']/sum(scs['size'])).values > clus_th['percent']
-    abs_filt     = scs['size'].values > clus_th['absolute']
+    abs_filt     = scs['size'].values >= clus_th['absolute']
     orig_scs     = scs.copy()
     scs          = scs[np.logical_and(percent_filt, abs_filt)]
 
