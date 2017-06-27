@@ -615,6 +615,12 @@ if (!grepl('^--', bbf) & file.exists(bbf)) {
         bb <- bb[,1:8]
         colnames(bb) <- c('chr', 'startpos', 'endpos', 'total_cn', 'nMaj1_A', 'nMin1_A', 'star', 'level')
         bb$nMaj2_A <- NA; bb$nMin2_A <- NA
+    } else if (ncol(bb)==1) {
+        # ASCAT caveman format
+        bb <- read.delim(bbf, sep=',', stringsAsFactors = F, header = F)
+        colnames(bb) <- c('ID','chr','startpos','endpos','norm_total','norm_minor','total_cn','nMin1_A')
+        bb$nMaj1_A <- bb$total_cn - bb$nMin1_A
+        bb$nMaj2_A <- NA; bb$nMin2_A <- NA
     }
 
     clon <- bb[is.na(bb$nMaj2_A),]
