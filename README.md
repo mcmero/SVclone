@@ -4,16 +4,33 @@ This package is used to cluster structural variants of similar cancer cell fract
 
 ### How do I get set up? ###
 
-Assuming [Anaconda2](https://www.continuum.io/downloads) (or [Python 2.7.\*](https://www.python.org/downloads/) with [Numpy](http://www.numpy.org/), [SciPy](https://http://www.scipy.org/) and [PyMC](https://pymc-devs.github.io/pymc/INSTALL.html)) are installed, a quick install can be run as follows:
+Install [Anaconda2](https://www.continuum.io/downloads) (or [Python 2.7.\*](https://www.python.org/downloads/) with [Numpy](http://www.numpy.org/), [SciPy](https://http://www.scipy.org/).
 
-    curl -O https://github.com/mcmero/SVclone/archive/0.2.2.tar.gz
-    tar -xvzf 0.2.2.tar.gz
+Make sure [EasyInstall](http://peak.telecommunity.com/DevCenter/EasyInstall) installed and that you have sufficient administrator privileges. [PyMC](https://pymc-devs.github.io/pymc/INSTALL.html)) can be install as follows:
 
+    easy_install pymc
+
+Now run the following:
+
+    git clone git@github.com:mcmero/SVclone.git
     cd SVclone
+
     pip install -r requirements.txt
     python setup.py install
 
-Check the INSTALL.md file for full instructions.
+Install [R](https://www.r-project.org/) and the following dependencies:
+
+    install.packages('combinat')
+    install.packages('RColorBrewer')
+    install.packages('gplots')
+    install.packages('ggplot2')
+    install.packages('gridExtra')
+    install.packages('reshape')
+    install.packages('gtools')
+    install.packages('plyr')
+    install.packages('circlize')
+
+If you run into issues, check the INSTALL.md file for full instructions.
 
 ### Example data ###
 
@@ -29,7 +46,7 @@ You can check the following output plots:
     * tumour_p80_DEL/tumour_p80_DEL_run*.pdf
     * tumour_p80_DEL/tumour_p80_DEL_best_run_svs_post_assign_best_fit.pdf
 
-You can also test the simulated SNV data by running (this will take longer than running SVs only): 
+You can also test the simulated SNV data by running (this will take longer than running SVs only):
 
     ./run_coclus_example.sh
 
