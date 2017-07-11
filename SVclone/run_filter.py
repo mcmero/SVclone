@@ -138,13 +138,13 @@ def remove_zero_copynumbers(gtype):
     gtype_tmp = [x.split(',') for x in gtype_tmp]
     if len(gtype_tmp)==1:
         gt = [float(x) for x in gtype_tmp[0]]
-        if (gt[0]==0 and gt[1]==0): 
+        if (gt[0]==0 and gt[1]==0):
             gtype = ''
     else:
         new_gtype = []
         for gt in gtype_tmp:
             gt = [float(x) for x in gt]
-            if (gt[0]!=0 or gt[1]!=0): 
+            if (gt[0]!=0 or gt[1]!=0):
                 gt = [str(x) for x in gt]
                 new_gtype.append(','.join(gt))
         if len(new_gtype) > 0:
@@ -209,7 +209,7 @@ def run_cnv_filter(df_flt, cnv, ploidy, neutral, filter_outliers, strict_cnv_fil
                 dep_ranges = get_outlier_ranges(depths)
                 df_flt = df_flt[np.logical_and(depths>dep_ranges[0],depths<dep_ranges[1])]
                 print('Filtered out %d SNVs which had outlying depths' % (n_df - len(df_flt)))
-        else: 
+        else:
             gt1_is_neutral = [is_clonal_neutral(x) for x in df_flt.gtype1.values]
             gt2_is_neutral = [is_clonal_neutral(x) for x in df_flt.gtype2.values]
             is_neutral = np.logical_and(gt1_is_neutral,gt2_is_neutral)
@@ -337,7 +337,7 @@ def match_copy_numbers(var_df, cnv_df, strict_cnv_filt, sv_offset, bp_fields=['c
     var_df[dir_field]       = [str(x) for x in var_df[dir_field].values]
     var_df[class_field]     = [str(x) for x in var_df[class_field].values]
     var_df[other_pos_field] = [int(x) for x in var_df[other_pos_field].values]
-    
+
     bp_chroms = np.unique(var_df[chrom_field].values)
     bp_chroms = sorted(bp_chroms, key=lambda item: (int(item.partition(' ')[0]) \
                         if item[0].isdigit() else float('inf'), item))
@@ -560,10 +560,16 @@ def sort_by_loc(snv_df):
     '''
     sorts the SNV dataframe by chromosome then position
     '''
+    loc = ['%s_%d' % x for x in zip(snv_df.chrom, snv_df.pos)]
 
-    loc = ['%s_%s' % x for x in zip(snv_df.chrom, snv_df.pos)]
-    sortloc = sorted(loc, key=lambda item: (int(item.partition('_')[0])
-                        if item[0].isdigit() else str(item[0]), int(item.partition('_')[2])))
+    loc_int_chrs = [li for li in loc if li.partition('_')[0].isdigit()]
+    sortloc_int = sorted(loc_int_chrs, key=lambda item: (int(item.partition('_')[0]), int(item.partition('_')[2])))
+
+    loc_in_other = [li for li in loc if not li.partition('_')[0].isdigit()]
+    sortloc_other = sorted(loc_in_other, key=lambda item: (str(item.partition('_')[0]), int(item.partition('_')[2])))
+
+    sortloc = sortloc_int + sortloc_other
+
     snv_df.index = loc
     snv_df = snv_df.loc[sortloc]
     snv_df = snv_df.drop_duplicates()
