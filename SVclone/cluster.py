@@ -298,7 +298,7 @@ def cluster(sup,dep,cn_states,Nvar,sparams,cparams,phi_limit,norm,recluster=Fals
             # ^ some fmin optimization methods initialise this array with -ve numbers
         most_lik_cn_states, pvs = \
                 get_most_likely_cn_states(cn_states, sup, dep, phi_k[z], purity, pval_cutoff, norm)
-        return pvs
+        return np.array(pvs)-0.00000001
 
     cbinom = pm.Binomial('cbinom', dep, p_var, observed=True, value=sup)
     if fixed:
