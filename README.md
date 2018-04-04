@@ -6,9 +6,11 @@ This package is used to cluster structural variants of similar cancer cell fract
 
 Install [Anaconda2](https://www.continuum.io/downloads) (or [Python 2.7.\*](https://www.python.org/downloads/) with [Numpy](http://www.numpy.org/) and [SciPy](https://http://www.scipy.org/)).
 
-Make sure [EasyInstall](http://peak.telecommunity.com/DevCenter/EasyInstall) is installed and that you have sufficient administrator privileges. [PyMC](https://pymc-devs.github.io/pymc/INSTALL.html) can be install as follows:
+Make sure [EasyInstall](http://peak.telecommunity.com/DevCenter/EasyInstall) is installed and that you have sufficient administrator privileges. [PyMC](https://pymc-devs.github.io/pymc/INSTALL.html) can be installed as follows:
 
     easy_install pymc
+
+Note that PyMC requires a fortran compiler (such as gcc or gfortran) to be installed. 
 
 Now run the following:
 
