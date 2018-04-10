@@ -7,11 +7,11 @@ import pysam
 import os
 import re
 
-from . import load_data
+from . import svp_load_data
 from . import count
 from . import svDetectFuncs as svd
 from . import bamtools
-from . import dtypes
+from . import svp_dtypes as dtypes
 
 def classify_event(sv, sv_id, svd_prev_result, prev_sv):
     svd_result = svd.detect(prev_sv, svd_prev_result, sv)
@@ -509,8 +509,8 @@ def preproc_svs(args):
     if len(cfg_file)==0:
         raise ValueError('No configuration file found')
 
-    max_cn       = int(Config.get('BamParameters', 'max_cn'))
-    mean_cov     = int(Config.get('BamParameters', 'mean_cov'))
+    max_cn       = float(Config.get('BamParameters', 'max_cn'))
+    mean_cov     = float(Config.get('BamParameters', 'mean_cov'))
     rlen         = int(Config.get('BamParameters', 'read_len'))
     insert_mean  = int(Config.get('BamParameters', 'insert_mean'))
     insert_std   = int(Config.get('BamParameters', 'insert_std'))
@@ -538,17 +538,17 @@ def preproc_svs(args):
     svs = np.empty(0)
     print('Loading SV calls...')
     if sv_format == 'vcf':
-        svs = load_data.load_input_vcf(svin, class_field, use_dir)
+        svs = svp_load_data.load_input_vcf(svin, class_field, use_dir)
     elif sv_format == 'simple':
-        svs = load_data.load_input_simple(svin, use_dir, class_field)
+        svs = svp_load_data.load_input_simple(svin, use_dir, class_field)
     elif sv_format == 'socrates':
-        svs = load_data.load_input_socrates(svin, use_dir, min_mapq, filt_repeats, Config)
+        svs = svp_load_data.load_input_socrates(svin, use_dir, min_mapq, filt_repeats, Config)
     else:
         raise ValueError('Valid input format not specified.')
 
     blist = np.empty(0)
     if blist_file != '':
-        blist = load_data.load_blacklist(blist_file)
+        blist = svp_load_data.load_blacklist(blist_file)
 
     consens_dtype = [('ca_right1', int), ('ca_left1', int), \
                         ('ca_right2', int), ('ca_left2', int)]

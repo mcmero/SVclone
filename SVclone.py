@@ -101,9 +101,9 @@ filter_parser.add_argument("--snvs",dest="snvs",default="",type=str,
                     help="SNVs in VCF format to (optionally) compare the clustering with SVs.")
 
 filter_parser.add_argument("--snv_format",dest="snv_format",
-                    choices=['sanger','mutect','mutect_callstats','consensus'],default="sanger",
-                    help='''Supplied SNV VCF is in the following input format: sanger (default), mutect, consensus
-                    (PCAWG) or mutect_callstats (non-VCF).''')
+                    choices=['sanger','mutect','mutect_callstats','consensus','multisnv'],default="sanger",
+                    help='''Supplied SNV VCF is in the following input format: sanger (default), mutect,
+                    consensus (PCAWG) or mutect_callstats (non-VCF).''')
 
 filter_parser.add_argument("-o","--out",dest="out",default="",
                     help='''Output directory. Default: sample name.''')
@@ -183,7 +183,7 @@ post_assign_parser.add_argument("--snvs",dest="snv_file",default="",
                     help="SNVs VCF. Must specify snv_format (default: sanger)")
 
 post_assign_parser.add_argument("--snv_format",dest="snv_format",
-                    choices=['sanger','mutect','mutect_callstats','consensus'],default="sanger",
+                    choices=['sanger','mutect','mutect_callstats','consensus', 'multisnv'],default="sanger",
                     help='''Supplied SNV VCF is in the following input format: sanger (default), mutect, consensus
                     (PCAWG) or mutect_callstats (non-VCF).''')
 

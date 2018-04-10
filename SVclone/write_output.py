@@ -40,8 +40,7 @@ def write_out_files(df, clus_info, clus_members, df_probs, clus_cert, clus_out_d
 
     clus_info['CCF'] = clus_info.phi.values
     clus_info['phi'] = clus_info.phi.values*pi #convert to proportions
-    clus_info = clus_info[['clus_id','size','phi','CCF']]
-    rename_cols =  {'clus_id': 'cluster', 'size': 'n_ssms', 'phi': 'proportion'}
+    rename_cols =  {'clus_id': 'cluster', 'size': 'n_variants', 'phi': 'proportion'}
     clus_info = clus_info.rename(columns = rename_cols)
 
     if smc_het:
@@ -50,7 +49,7 @@ def write_out_files(df, clus_info, clus_members, df_probs, clus_cert, clus_out_d
         with open(out_file, 'w') as outf:
             outf.write('%f\n' % purity)
         with open('%s/smc_1B_number_of_clusters.txt' % clus_out_dir,'w') as outf:
-            outf.write('%d\n' % len(clus_info))
+            utf.write('%d\n' % len(clus_info))
 
         # convert cluster numbers to clean 1..n sequence
         smc_clus_info = clus_info.copy()
@@ -64,11 +63,11 @@ def write_out_files(df, clus_info, clus_members, df_probs, clus_cert, clus_out_d
         smc_cert.to_csv('%s/smc_2A_mutations_to_clusters.txt' % clus_out_dir, sep='\t', index=False, header=False)
 
         smc_clus_info.cluster = smc_clus_info.new_clus
-        smc_clus_info = smc_clus_info[['cluster', 'n_ssms', 'proportion']]
+        smc_clus_info = smc_clus_info[['cluster', 'n_variants', 'proportion']]
         smc_clus_info.to_csv('%s/smc_1C_cluster_structure.txt' % clus_out_dir, sep='\t', index=False, header=False)
 
     clus_info.to_csv('%s/%s_subclonal_structure.txt' % (clus_out_dir, sample), sep='\t', index=False)
-    with open('%s/number_of_clusters.txt' % clus_out_dir,'w') as outf:
+    with open('%s/%s_number_of_clusters.txt' % (clus_out_dir, sample),'w') as outf:
         outf.write("sample\tclusters\n")
         outf.write('%s\t%d\n'%(sample, len(clus_info)))
 

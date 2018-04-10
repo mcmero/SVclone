@@ -1,7 +1,6 @@
 import numpy as np
 import pandas as pd
 import pymc3 as pm
-import pymc as pm2
 
 import math
 import ipdb
@@ -15,6 +14,14 @@ from sklearn.cluster import KMeans
 from operator import methodcaller
 theano.config.exception_verbosity = 'high'
 theano.config.warn.round = False
+
+def binomial_like(x, n, p):
+    '''
+    calculate binomial log-likelihood
+    '''
+    l = math.factorial(n) / (math.factorial(x) * math.factorial(n - x))
+    l = l * p ** x * (1 - p) ** (n - x)
+    return(np.log(l))
 
 def add_copynumber_combos(combos, var_maj, var_min, ref_cn, frac, cparams):
     '''
@@ -104,17 +111,17 @@ def calc_lik_with_clonal(combo, si, di, phi_i, pi, ni):
     # calculate with given phi
     # (lls currently uses precision fudge factor to get around 0 probability errors when pv = 1)
     pvs = np.array([get_pv(phi_i, c, pi, ni) for c in combo])
-    lls = np.array([pm2.binomial_like(si, di, pvs[i]) for i,c in enumerate(combo)])-0.00000001
+    lls = np.array([binomial_like(si, di, pvs[i]) for i,c in enumerate(combo)])-0.00000001
 
     # calculate with clonal phi
     pvs_cl = np.array([get_pv(np.array(1), c, pi, ni) for c in combo])
-    lls_cl = np.array([pm2.binomial_like(si, di, pvs_cl[i]) for i,c in enumerate(combo)])-0.00000001
+    lls_cl = np.array([binomial_like(si, di, pvs_cl[i]) for i,c in enumerate(combo)])-0.00000001
 
     return np.array([[pvs, lls], [pvs_cl, lls_cl]])
 
 def calc_lik(combo, si, di, phi_i, pi, ni):
     pvs = np.array([get_pv(phi_i, c, pi, ni) for c in combo])
-    lls = np.array([pm2.binomial_like(si, di, pvs[i]) for i,c in enumerate(combo)])-0.00000001
+    lls = np.array([binomial_like(si, di, pvs[i]) for i,c in enumerate(combo)])-0.00000001
     return np.array([pvs, lls])
 
 def get_probs(var_states,s,d,phi,pi,norm):

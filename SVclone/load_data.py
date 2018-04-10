@@ -7,7 +7,7 @@ import configparser
 import os
 
 from . import cluster
-from SVclone.SVprocess import load_data as svp_load
+from SVclone.SVprocess import svp_load_data as svp_load
 
 def get_normal_copynumber(chrom, male):
     if male and (chrom == 'X' or chrom == 'chrX'):
@@ -59,6 +59,14 @@ def load_svs(sv_file):
 def load_cnvs(cnv_file):
     cnv = pd.read_csv(cnv_file,delimiter='\t',dtype=None)
     cnv_df = pd.DataFrame(cnv)
+    if len(cnv_df) == 0:
+        print('WARNING: Copy-number file contains no records.')
+        cnv_df['chr'] = ''
+        cnv_df['startpos'] = float('nan')
+        cnv_df['endpos'] = float('nan')
+        cnv_df['gtype'] = ''
+        return cnv_df
+
     if len(cnv_df.columns)==1:
         # assume caveman csv file
         col_names = ['chr','startpos','endpos','norm_total','norm_minor','tumour_total','tumour_minor']
@@ -161,6 +169,38 @@ def load_snvs_mutect_callstats(snvs):
     snv_out = pd.DataFrame(snv_out)
     snv_out = snv_out[['chrom','pos','gtype','ref','var']]
     return snv_out
+
+def load_snvs_multisnv(snvs, sample):
+    snv_dtype = [('chrom','S50'),('pos',int),('gtype','S50'),('ref',float),('var',float)]
+    snv_df = np.empty([0,5],dtype=snv_dtype)
+
+    vcf_reader = vcf.Reader(filename=snvs)
+    samples = vcf_reader.samples
+    if sample not in samples:
+        raise Exception('VCF SNV file is of invalid format: sample %s not present in VCF samples.' % sample)
+
+    for record in vcf_reader:
+        if record.FILTER is not None:
+            if len(record.FILTER)>0:
+                continue
+
+        allele_counts = record.genotype(sample)['BCOUNT']
+        tumor_reads = {
+            'A': allele_counts[0],
+            'C': allele_counts[1],
+            'G': allele_counts[2],
+            'T': allele_counts[3],
+        }
+
+        ref_reads     = tumor_reads[record.REF]
+        variant_reads = tumor_reads[str(record.ALT[0])]
+        total_reads   = ref_reads + variant_reads
+
+        if variant_reads != 0:
+            tmp = np.array((record.CHROM, record.POS, '', ref_reads, variant_reads), dtype=snv_dtype)
+            snv_df = np.append(snv_df, tmp)
+
+    return pd.DataFrame(snv_df)
 
 def load_snvs_consensus(snvs):
     vcf_reader = vcf.Reader(filename=snvs)
@@ -396,7 +436,9 @@ def get_run_output(rundir, sample, purity, snvs=False):
         raise ValueError('No subclonal structure file exists!')
 
     # have to rename columns for function compatibility
-    rename_cols =  {'cluster': 'clus_id', 'n_ssms': 'size', 'CCF': 'phi'}
+    rename_cols =  {'cluster': 'clus_id', 'n_variants': 'size', 'CCF': 'phi'}
+    if 'n_ssms' in scs.columns.values:
+        rename_cols =  {'cluster': 'clus_id', 'n_ssms': 'size', 'CCF': 'phi'}
     scs = scs.rename(columns = rename_cols)
     scs = scs.drop('proportion', 1)
 

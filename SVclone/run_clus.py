@@ -17,18 +17,17 @@ import time
 import shutil
 import SVclone.SVprocess
 import pymc3 as pm
-import pymc as pm2
+import scipy as sp
 
 from distutils.dir_util import copy_tree
 from collections import OrderedDict
 from IPython.core.pylabtools import figsize
 from pymc3 import traceplot
-from pymc.utils import hpd
 
 from . import cluster
 from . import load_data
 from . import write_output
-from SVclone.SVprocess import load_data as svp_load
+from SVclone.SVprocess import svp_load_data as svp_load
 
 import numpy as np
 from numpy import loadtxt
@@ -110,11 +109,9 @@ def index_max(values):
 
 def mean_confidence_interval(phi_trace, alpha):
     n = len(phi_trace)
-    m = np.mean(phi_trace)
-    #m, se = np.mean(phi_trace), np.std(phi_trace,ddof=1)/(np.sqrt(n))
-    #h = se * sp.stats.t._ppf((1+(1-alpha))/2., n-1)
-    phi_hpd = hpd(phi_trace, alpha)
-    return round(m,4), round(phi_hpd[0],4), round(phi_hpd[1],4) #round(m-h,4), round(m+h,4)
+    m, se = np.mean(phi_trace), np.std(phi_trace,ddof=1)/(np.sqrt(n))
+    h = se * sp.stats.t._ppf((1+(1-alpha))/2., n-1)
+    return round(m,4), round(m-h,4), round(m+h,4)
 
 def merge_clusters(clus_out_dir,clus_info,clus_merged,clus_members,merged_ids,sup,dep,norm,cn_states,sparams,cparams):
     clus_limit = cparams['clus_limit']
@@ -148,7 +145,7 @@ def merge_clusters(clus_out_dir,clus_info,clus_merged,clus_members,merged_ids,su
             trace, map_ = trace["phi_k"]
 
             phis = mean_confidence_interval(trace,cparams['hpd_alpha'])
-            clus_merged.loc[idx] = np.array([ci.clus_id,new_size,phis[0],phis[1],phis[2]])
+            clus_merged.loc[idx] = np.array([ci.clus_id,new_size,phis[0],phis[1],phis[2],phis[0],phis[1],phis[2]])
             clus_members[idx] = new_members
 
             to_del.append(idx+1)
@@ -233,8 +230,6 @@ def get_adjusted_phis(clus_info, center_trace, cparams):
     Fixes potential label-switching problems by re-ordering phi traces from
     smallest to largest then assigning phis in the order of the unadjusted phis
     '''
-    #burn          = cparams['burn']
-    #thin          = cparams['thin']
     hpd_alpha     = cparams['hpd_alpha']
 
     clus_idx = clus_info.clus_id.values
@@ -309,16 +304,25 @@ def post_process_clusters(trace,sv_df,snv_df,clus_out_dir,sup,dep,norm,cn_states
     #center_trace = center_trace[range(0, len(center_trace), thin)]
 
     phis = np.array([mean_confidence_interval(center_trace[:,cid], hpd_alpha) for cid in clus_idx])
-    if adjust_phis:
-        # fix potential label switching problems
-        print('Correcting phi traces...')
-        phis = get_adjusted_phis(clus_info, center_trace, cparams)
+    original_phis = phis.copy()
+    adjusted_phis = get_adjusted_phis(clus_info, center_trace, cparams)
 
     hpd_lo = '_'.join([str(int(100-(100*hpd_alpha))), 'HPD', 'lo'])
     hpd_hi = '_'.join([str(int(100-(100*hpd_alpha))), 'HPD', 'hi'])
-    clus_info['phi'] = phis[:,0]
+
+    phis = adjusted_phis if adjust_phis else phis
+    clus_info['phi']  = phis[:,0]
     clus_info[hpd_lo] = phis[:,1]
     clus_info[hpd_hi] = phis[:,2]
+
+    if adjust_phis:
+        clus_info['phi_unadjusted']  = original_phis[:,0]
+        clus_info['%s_unadjusted'%hpd_lo] = original_phis[:,1]
+        clus_info['%s_unadjusted'%hpd_hi] = original_phis[:,2]
+    else:
+        clus_info['phi_adjusted']  = adjusted_phis[:,0]
+        clus_info['%s_adjusted'%hpd_lo] = adjusted_phis[:,1]
+        clus_info['%s_adjusted'%hpd_hi] = adjusted_phis[:,2]
 
     clus_ids = clus_info.clus_id.values
     clus_members = np.array([np.where(np.array(clus_max_prob)==i)[0] for i in clus_ids])
@@ -337,7 +341,7 @@ def post_process_clusters(trace,sv_df,snv_df,clus_out_dir,sup,dep,norm,cn_states
     clus_info.index = range(len(clus_info))
 
     print('\n\n')
-    print(clus_info)
+    print(clus_info[['clus_id', 'size', 'phi']])
     print('Compiling and writing output...')
 
     dump_out_dir = clus_out_dir
@@ -386,7 +390,7 @@ def post_process_clusters(trace,sv_df,snv_df,clus_out_dir,sup,dep,norm,cn_states
         cns, pvs = cluster.get_most_likely_cn_states(cn_states, sup, dep, phis, sparams['pi'], cnv_pval, norm)
         lls = []
         for si, di, pvi in zip(sup, dep, pvs):
-            lls.append(pm2.binomial_like(si, di, pvi))
+            lls.append(cluster.binomial_like(si, di, pvi))
         svc_ic = -2 * np.sum(lls) + (npoints + nclus * clus_penalty) * np.log(npoints)
 
         run_fit = pd.DataFrame([['svc_IC', svc_ic],
@@ -460,7 +464,6 @@ def cluster_and_process(sv_df, snv_df, run, out_dir, sample_params, cluster_para
         norm = np.append(norm, sv_norm)
         cn_states = pd.concat([pd.DataFrame(cn_states),pd.DataFrame(sv_cn_states)])[0].values
         Nvar = Nvar + sv_Nvar
-        print("Coclustering %d SVs & %d SNVs..." % (len(sv_df), len(snv_df)))
         mcmc, map_ = cluster.cluster(sup, dep, cn_states, Nvar, sample_params,
                                      cluster_params, cluster_params['phi_limit'], norm)
         post_process_clusters(mcmc, sv_df, snv_df, clus_out_dir, sup, dep, norm, cn_states,
@@ -472,7 +475,6 @@ def cluster_and_process(sv_df, snv_df, run, out_dir, sample_params, cluster_para
             if not os.path.exists('%s/snvs'%clus_out_dir):
                 os.makedirs('%s/snvs'%clus_out_dir)
             sup, dep, cn_states, Nvar, norm = load_data.get_snv_vals(snv_df, male, cluster_params)
-            print('Clustering %d SNVs...' % len(snv_df))
             mcmc, map_ = cluster.cluster(sup, dep, cn_states, Nvar, sample_params,
                                          cluster_params, cluster_params['phi_limit'], norm)
             post_process_clusters(mcmc, pd.DataFrame(), snv_df, clus_out_dir, sup, dep, norm,
@@ -480,7 +482,6 @@ def cluster_and_process(sv_df, snv_df, run, out_dir, sample_params, cluster_para
         if len(sv_df) > 0:
             sup, dep, cn_states, Nvar, norm = load_data.get_sv_vals(sv_df,
                                                 cluster_params['adjusted'], male, cluster_params)
-            print('Clustering %d SVs...' % len(sv_df))
             mcmc, map_ = cluster.cluster(sup, dep, cn_states, Nvar, sample_params,
                                          cluster_params, cluster_params['phi_limit'], norm)
             post_process_clusters(mcmc, sv_df, pd.DataFrame(), clus_out_dir, sup, dep, norm,
@@ -511,12 +512,14 @@ def pick_best_run(n_runs, out, sample, ccf_reject, cocluster, fit_metric, cluste
         clus_struct = pd.read_csv(struct_file, delimiter='\t', dtype=None, header=0)
 
         if len(clus_struct) > 1:
-            var_props = clus_struct.n_ssms.map(float).values/sum(clus_struct.n_ssms)
+            var_props = clus_struct.n_variants.map(float).values/sum(clus_struct.n_variants)
             clus_struct = clus_struct[var_props > 0.01] #filter out very small clusters
             if len(clus_struct) > 1:
                 break
 
         if clus_struct.CCF[0] > ccf_reject:
+            print('Successfully finished clustering! Best run:')
+            print(clus_struct[['cluster', 'n_variants', 'proportion', 'CCF']])
             break
         else:
             min_ic = -1
@@ -532,6 +535,7 @@ def pick_best_run(n_runs, out, sample, ccf_reject, cocluster, fit_metric, cluste
 
             f = open('%s/run%s.txt' % (best_run_dest, min_ic), 'w')
             f.close()
+
         elif are_snvs:
             print('Selecting run %d as best run for SNVs' % min_ic)
             best_run = '%s/run%d/snvs' % (out, min_ic)
@@ -656,6 +660,14 @@ def run_clustering(args):
     cocluster = cluster_params['cocluster']
     fit_metric = output_params['fit_metric']
     cluster_penalty = output_params['cluster_penalty']
+
+    if cocluster:
+        print("Coclustering %d SVs & %d SNVs..." % (len(sv_df), len(snv_df)))
+    else:
+        if len(snv_df) > 0:
+            print("Clustering %d SNVs..." % len(snv_df))
+        if len(sv_df) > 0:
+            print("Clustering %d SVs..." % len(sv_df))
 
     if threads == 1:
         for run in range(n_runs):

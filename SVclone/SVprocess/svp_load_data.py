@@ -2,7 +2,7 @@ import vcf
 import numpy as np
 import os
 from collections import OrderedDict
-from . import dtypes
+from . import svp_dtypes as dtypes
 
 def remove_duplicates(svs):
     for idx,row in enumerate(svs):

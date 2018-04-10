@@ -14,8 +14,7 @@ from operator import methodcaller
 
 from . import bamtools
 from . import svDetectFuncs as svd
-from . import load_data
-from . import dtypes
+from . import svp_dtypes as dtypes
 
 def read_to_array(x,bamf):
     chrom = bamf.getrname(x.reference_id)
@@ -394,7 +393,7 @@ def get_sv_read_counts(row,bam,rparams,out,split_reads,span_reads,anom_reads):
     rc['anomalous'] = len(anomalous)
     anom_reads = np.append(anom_reads,anomalous)
 
-    print('processed %d reads at loc1; %d reads at loc2' % (len(loc1_reads),len(loc2_reads)))
+    #print('processed %d reads at loc1; %d reads at loc2' % (len(loc1_reads),len(loc2_reads)))
     return rc, split_reads, span_reads, anom_reads
 
 def get_params(cfg,bam,sample,out):
@@ -405,13 +404,12 @@ def get_params(cfg,bam,sample,out):
     if len(cfg_file)==0:
         raise ValueError('No configuration file found')
 
-    max_cn       = int(Config.get('BamParameters', 'max_cn'))
-    mean_cov     = int(Config.get('BamParameters', 'mean_cov'))
+    max_cn       = float(Config.get('BamParameters', 'max_cn'))
+    mean_cov     = float(Config.get('BamParameters', 'mean_cov'))
     sc_len       = int(Config.get('SVcountParameters', 'sc_len'))
     threshold    = int(Config.get('SVcountParameters', 'threshold'))
     norm_overlap = int(Config.get('SVcountParameters', 'norm_overlap'))
 
-    mean_cov     = int(Config.get('BamParameters', 'mean_cov'))
     rlen         = int(Config.get('BamParameters', 'read_len'))
     insert_mean  = float(Config.get('BamParameters', 'insert_mean'))
     insert_std   = float(Config.get('BamParameters', 'insert_std'))
@@ -569,7 +567,7 @@ def extract_sv_info(svin, bam, rparams, outname):
             print('skipping %s (%s)' % (sv_str, svc))
             continue
 
-        print('processing %s'%sv_str)
+        #print('processing %s'%sv_str)
         sv_rc, split_reads, span_reads, anom_reads = \
                 get_sv_read_counts(row,bam,rparams,out,split_reads,span_reads,anom_reads)
 

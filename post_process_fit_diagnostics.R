@@ -173,7 +173,8 @@ get_run_info <- function(wd, base_name, run, snvs = FALSE, post = FALSE) {
     if (snvs) {snv_pref <- 'snvs/'}
     scs_file <-  paste(wd, '/', run, '/', snv_pref, base_name, '_subclonal_structure.txt', sep = '')
     scs <- read.table(scs_file, sep = '\t', header = T)
-    # scs <- scs[scs$n_ssms>3,]
+    colnames(scs)[2] <- 'n_ssms'
+    scs <- scs[,c('cluster', 'n_ssms', 'proportion', 'CCF')]
     scs <- scs[order(scs$CCF, decreasing=T), ]
     scs$new_cluster <- 1:nrow(scs)
 
@@ -328,7 +329,7 @@ clusts <- NULL
 for (run in runs) {
     sv_clust <- read.table(paste(run, '/', snv_dir, id, '_subclonal_structure.txt', sep=''),
                            header=T, sep='\t', stringsAsFactors=F)
-    clusts <- rbind(clusts, data.frame(run=run, n_ssms=sv_clust$n_ssms, cluster=sv_clust$cluster))
+    clusts <- rbind(clusts, data.frame(run=run, n_ssms=sv_clust[,2], cluster=sv_clust$cluster))
 }
 
 pdf(paste(id, '_cluster_hist.pdf',sep=''),height=4, width=max(3,length(runs)*0.6))
@@ -487,6 +488,7 @@ for (run in runs) {
     # attach table for convenience, also add BIC/AIC
     sv_clust <- read.table(paste(run, '/', snv_dir, id, '_subclonal_structure.txt', sep=''),
                            header=T, sep='\t', stringsAsFactors=F)
+    colnames(sv_clust)[2] <- 'n_ssms'
 
     ic_tab <- NULL
     if (map & length(grep('post', run))==0) {
@@ -508,6 +510,7 @@ for (run in runs) {
         sv_clust$SNVs <- sv_clust$n_ssms-sv_clust$SVs
         colnames(sv_clust)[2] <- 'variants'
         tabout <- sv_clust[order(as.numeric(sv_clust[,3]),decreasing=TRUE),]
+        tabout <- tabout[,c('cluster', 'SNVs', 'SVs', 'proportion', 'CCF')]
         sc_tab <- tableGrob(tabout, rows=c())
 
         plot4 <- ggplot(snv, aes(x=CCF, y=adjusted_vaf,
@@ -521,37 +524,28 @@ for (run in runs) {
                   axis.text.y = element_text(size = 14)) +
             geom_point(size=1) + xlim(0,2) + ylim(0,1) + ylab('VAF') + theme_minimal()
         plot5 <- plot_hist('./', id, snvs = TRUE, pick_run = run, post = post)
-        plot6 <- plot_hist('./', id, snvs = FALSE, pick_run = run, vaf = TRUE, post = post)
+        plot6 <- plot_hist('./', id, snvs = TRUE, pick_run = run, vaf = TRUE, post = post)
         plot7 <- plot_hist('./', id, snvs = TRUE, pick_run = run, varclass = TRUE, post = post)
         plot8 <- plot_hist('./', id, snvs = FALSE, pick_run = run, varclass = TRUE, post = post)
 
-        if (map & length(grep('post', run))==0) {
-            height <- 12+round(nrow(tabout)*0.2)
-            pdf(outname, height=height, width=9)
-            grid.arrange(sc_tab, ic_tab,
-                         plot1 + ggtitle(paste(run, 'SVs')), plot5 + ggtitle('SNVs'),
-                         plot2 + ggtitle(paste(run, 'SVs')), plot6 + ggtitle('SNVs'),
-                         plot8 + ggtitle(paste(run, 'SVs')), plot7 + ggtitle(paste(run, 'SNVs')),
-                         plot3 + ggtitle(paste(run, 'SVs')), plot4 + ggtitle(paste(run, 'SNVs')), ncol=2)
-            dev.off()
-        } else {
-            height <- 12+round(nrow(tabout)*0.2)
-            pdf(outname, height=height, width=9)
-            grid.arrange(sc_tab, grid.rect(gp=gpar(col='white')),
-                         plot1 + ggtitle(paste(run, 'SVs')), plot5 + ggtitle('SNVs'),
-                         plot2 + ggtitle(paste(run, 'SVs')), plot6 + ggtitle('SNVs'),
-                         plot8 + ggtitle(paste(run, 'SVs')), plot7 + ggtitle(paste(run, 'SNVs')),
-                         plot3 + ggtitle(paste(run, 'SVs')), plot4 + ggtitle(paste(run, 'SNVs')), ncol=2)
-            dev.off()
-        }
+        if(!map | length(grep('post', run))>0) {ic_tab <- grid.rect(gp=gpar(col='white'))}
+        height <- 12+round(nrow(tabout)*0.2)
+        pdf(outname, height=height, width=9)
+        grid.arrange(sc_tab, ic_tab,
+                     plot1 + ggtitle(paste(run, 'SV CCFs')), plot5 + ggtitle('SNV CCFs'),
+                     plot2 + ggtitle('SV VAFs'), plot6 + ggtitle('SNV VAFs'),
+                     plot8 + ggtitle('SV CCFs by type'), plot7 + ggtitle('SNV CCFs all'),
+                     plot3 + ggtitle('SV CCF vs. VAF'), plot4 + ggtitle('SNV CCF vs. VAF'), ncol=2)
+        dev.off()
     } else {
         varname <- 'SVs'
         if(snvs){varname<-'SNVs'}
         colnames(sv_clust)[2] <- varname
         tabout <- sv_clust[order(as.numeric(sv_clust[,3]),decreasing=TRUE),]
+        tabout <- tabout[,c('cluster', varname, 'proportion', 'CCF')]
         sc_tab <- tableGrob(tabout, rows=c())
-        plot4 <- plot_hist('./', id, snvs, run, varclass = TRUE)
-        if (map & length(grep('post', run))==0) {
+        plot4 <- plot_hist('./', id, snvs, run, varclass = TRUE, post = post)
+        if (map & !post) {
             height <- 7+round(nrow(tabout)*0.2)
             pdf(outname, height=height, width=9)
             grid.arrange(sc_tab, ic_tab,
@@ -635,6 +629,12 @@ if (!grepl('^--', bbf) & file.exists(bbf)) {
         bb <- bb[,1:8]
         colnames(bb) <- c('chr', 'startpos', 'endpos', 'total_cn', 'nMaj1_A', 'nMin1_A', 'star', 'level')
         bb$nMaj2_A <- NA; bb$nMin2_A <- NA
+    } else if (ncol(bb)==1) {
+        # ASCAT caveman format
+        bb <- read.delim(bbf, sep=',', stringsAsFactors = F, header = F)
+        colnames(bb) <- c('ID','chr','startpos','endpos','norm_total','norm_minor','total_cn','nMin1_A')
+        bb$nMaj1_A <- bb$total_cn - bb$nMin1_A
+        bb$nMaj2_A <- NA; bb$nMin2_A <- NA
     }
 
     clon <- bb[is.na(bb$nMaj2_A),]
@@ -711,3 +711,4 @@ if (!grepl('^--', bbf) & file.exists(bbf)) {
     }
     dev.off()
 }
+print('Finished plotting diagnostic plots!')
