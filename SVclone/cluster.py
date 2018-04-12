@@ -107,7 +107,6 @@ def filter_cns(cn_states):
     return [list(map(float,cn)) for cn in cn_str]
 
 def calc_lik_with_clonal(combo, si, di, phi_i, pi, ni):
-
     # calculate with given phi
     # (lls currently uses precision fudge factor to get around 0 probability errors when pv = 1)
     pvs = np.array([get_pv(phi_i, c, pi, ni) for c in combo])
@@ -141,15 +140,17 @@ def index_of_max(lik_list):
     result = collections.defaultdict(list)
     for val, idx in enumerate(lik_list):
         result[idx] = val
-    return result[np.nanmax(lik_list)]
+    return result[np.max(lik_list)]
+    #return result[np.nanmax(lik_list)]
 
 def get_most_likely_pv(cn_lik):
-    if np.all(np.isnan(cn_lik[0])):
-        return 0.0000001
-    elif len(cn_lik[0]) > 0:
-        return cn_lik[0][index_of_max(cn_lik[1])]
-    else:
-        return 0.0000001
+    return cn_lik[0][index_of_max(cn_lik[1])]
+#    if np.all(np.isnan(cn_lik[0])):
+#        return 0.0000001
+#    elif len(cn_lik[0]) > 0:
+#        return cn_lik[0][index_of_max(cn_lik[1])]
+#    else:
+#        return 0.0000001
 
 def get_most_likely_cn(combo, cn_lik, pval_cutoff):
     '''
@@ -165,18 +166,19 @@ def get_most_likely_cn(combo, cn_lik, pval_cutoff):
         return empty_result
     elif len(combo) == 1:
         return combo[0]
-    elif np.all(np.isnan(ll_phi)) and np.all(np.isnan(ll_clonal)):
-        return empty_result
-    elif np.all(np.isnan(ll_phi)):
-        return combo[index_of_max(ll_clonal)]
+#    elif np.all(np.isnan(ll_phi)) and np.all(np.isnan(ll_clonal)):
+#        return empty_result
+#    elif np.all(np.isnan(ll_phi)):
+#        return combo[index_of_max(ll_clonal)]
     elif np.all(ll_phi == ll_clonal) or pval_cutoff == 0:
         return combo[index_of_max(ll_phi)]
 
     # log likelihood ratio test; null hypothesis = likelihood under phi
     # use clonal if best clonal solution significantly better than worst phi solution
-    #LLR   = 2 * (np.nanmax(ll_clonal) - np.nanmax(ll_phi))
-    LLR   = 2 * (np.nanmax(ll_clonal) - np.nanmin(ll_phi))
-    p_val = stats.chisqprob(LLR, 1) if not np.isnan(LLR) else 1
+    #LLR   = 2 * (np.nanmax(ll_clonal) - np.nnanmax(ll_phi))
+    LLR   = 2 * (np.max(ll_clonal) - np.max(ll_phi))
+    #p_val = stats.chisqprob(LLR, 1) if not np.isnan(LLR) else 1
+    p_val = stats.chisqprob(LLR, 1)
 
     if p_val < pval_cutoff:
         return combo[index_of_max(ll_clonal)]
@@ -239,7 +241,7 @@ def get_initialisation(nclus_init, Ndp, sparams, sup, dep, norm, cn_states, sens
 
     return z_init, phi_init
 
-def cluster(sup,dep,cn_states,Nvar,sparams,cparams,phi_limit,norm,recluster=False):
+def cluster(sup,dep,cn_states,Nvar,sparams,cparams,phi_limit,norm,threads=1,recluster=False):
     '''
     clustering model using Dirichlet Process
     '''
@@ -266,8 +268,8 @@ def cluster(sup,dep,cn_states,Nvar,sparams,cparams,phi_limit,norm,recluster=Fals
     #Ndp = Nvar
 
     # pymc3 prefers lists vs. nparrays? can't say for sure
-    sup = [int(si) for si in sup]
-    cn_states = list(cn_states)
+    #sup = [int(si) for si in sup]
+    #cn_states = list(cn_states)
 
     #phi_init = np.random.rand(Ndp) * phi_limit
     #phi_init = np.array([sens if x < sens else x for x in phi_init])
@@ -287,54 +289,60 @@ def cluster(sup,dep,cn_states,Nvar,sparams,cparams,phi_limit,norm,recluster=Fals
 #        except ValueError:
 #            pass
 
+    #@as_op(itypes=[t.dvector], otypes=[t.dvector])
+    def stick_breaking(h):
+        value = t.concatenate([[1], t.extra_ops.cumprod(1 - h)[:-1]])
+        return h * value
+        #value = [u * np.prod(1.0 - h[:i]) for i, u in enumerate(h)]
+        #value[-1] = 1-sum(value[:-1])
+        #return np.array(value)
+    stick_breaking.grad = lambda *x: x[0] #dummy gradient (otherwise fit function fails)
+
+    @theano.compile.ops.as_op(itypes=[t.lvector, t.dvector], otypes=[t.dvector])
+    def p_var(z, phi_k):
+        z = np.array([zi if zi < Ndp else np.random.randint(0, Ndp-1) for zi in z])
+        most_lik_cn_states, pvs = \
+               get_most_likely_cn_states(cn_states, sup, dep, phi_k[z], purity, pval_cutoff, norm)
+        return np.array(pvs)
+        #return np.array([0.25] * len(z))
+    p_var.grad = lambda *x: [t.cast(x[0][0], dtype='float64'), x[0][1]]
+
     model = pm.Model()
     with model:
         alpha = pm.Gamma('alpha', alpha=alpha, beta=beta, testval=alpha/beta)
         h = pm.Beta('h', alpha=1, beta=alpha, shape=Ndp, testval=1/(1+alpha))
         phi_k = pm.Uniform('phi_k', lower=sens, upper=phi_limit, shape=Ndp)#, testval=phi_init)
 
-        @as_op(itypes=[t.dvector], otypes=[t.dvector])
-        def stick_breaking(h=h):
-            value = [u * np.prod(1.0 - h[:i]) for i, u in enumerate(h)]
-            value[-1] = 1-sum(value[:-1])
-            return np.array(value)
-
-        stick_breaking.grad = lambda *x: x[0] #dummy gradient (otherwise fit function fails)
-        p = stick_breaking(h)
+        #p = stick_breaking(h)
+        p = pm.Deterministic('p', stick_breaking(h))
         z = pm.Categorical('z', p=p, testval=0, shape=Nvar)
 
-        @theano.compile.ops.as_op(itypes=[t.lvector, t.dvector], otypes=[t.dvector])
-        def p_var(z=z, phi_k=phi_k):
-            most_lik_cn_states, pvs = \
-                    get_most_likely_cn_states(cn_states, sup, dep, phi_k[z], purity, pval_cutoff, norm)
-            return np.array(pvs)
-
-        p_var.grad = lambda *x: [t.cast(x[0][0], dtype='float64'), x[0][1]]
-        pv = p_var(z, phi_k)
+        pv       = p_var(z, phi_k)
         #cbinom = pm.Binomial('cbinom', dep, pv, shape=Nvar, observed=sup)
 
         bb_scale = a_s
         bb_init  = dep/bb_scale/b_s
         bb_beta  = pm.Gamma('bb_beta', alpha=dep/bb_scale, beta=b_s, shape=Nvar, testval=bb_init)
-        cbbinom  = pm.BetaBinomial('cbbinom', alpha=-(bb_beta*pv)/(pv-1), beta=bb_beta, n=dep, observed=sup)
+        bb_alpha = -(bb_beta*pv)/(pv-1)
+        cbbinom  = pm.BetaBinomial('cbbinom', alpha=bb_alpha, beta=bb_beta, n=dep, observed=sup)
 
+#    with model:
+#        trace = pm.sample(n_iter)
     with model:
-
+        use_map = False
         if use_map:
             start = pm.find_MAP(fmin=optimize.fmin_cg)
 
-        Ndp_vals = [x for x in range(Ndp)]
-        #step1 = pm.Metropolis(vars=[alpha, h, p, phi_k, pv, bb_beta, cbbinom])
-        step1 = pm.Metropolis(vars=[alpha, h, p, phi_k])
+        step1 = pm.Metropolis(vars=[alpha, h, phi_k])
         #step2 = pm.CategoricalGibbsMetropolis(vars = [z])
-        step2 = pm.ElemwiseCategorical(vars=[z], values=[0, 1, 2, 3, 4, 5])
-        #step2 = pm.ElemwiseCategorical(vars=[z], values=[x for x in range(Ndp-1)])
+        #step2 = pm.ElemwiseCategorical(vars=[z], values=[0, 1, 2, 3, 4, 5])
+        step2 = pm.ElemwiseCategorical(vars=[z], values=[x for x in range(Ndp)])
         step3 = pm.Metropolis(vars=[pv, bb_beta, cbbinom])
         #step3 = pm.Metropolis(vars=[pv, cbinom])
 
         if use_map:
-            trace = pm.sample(n_iter, [step1, step2, step3], start)
+            trace = pm.sample(draws=n_iter, step=[step1, step2, step3], start=start, cores=threads)
         else:
-            trace = pm.sample(n_iter, [step1, step2, step3])
+            trace = pm.sample(draws=n_iter, step=[step1, step2, step3], cores=threads)
 
     return trace[burn::thin], model

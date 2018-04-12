@@ -113,7 +113,7 @@ def mean_confidence_interval(phi_trace, alpha):
     h = se * sp.stats.t._ppf((1+(1-alpha))/2., n-1)
     return round(m,4), round(m-h,4), round(m+h,4)
 
-def merge_clusters(clus_out_dir,clus_info,clus_merged,clus_members,merged_ids,sup,dep,norm,cn_states,sparams,cparams):
+def merge_clusters(clus_out_dir,clus_info,clus_merged,clus_members,merged_ids,sup,dep,norm,cn_states,sparams,cparams,threads):
     clus_limit = cparams['clus_limit']
     phi_limit = cparams['phi_limit']
     subclone_diff = cparams['subclone_diff']
@@ -140,7 +140,7 @@ def merge_clusters(clus_out_dir,clus_info,clus_merged,clus_members,merged_ids,su
 
             new_members = np.concatenate([clus_members[idx],clus_members[idx+1]])
             trace, map_ = cluster.cluster(sup[new_members],dep[new_members],cn_states[new_members],
-                                          len(new_members),sparams,cparams,clus_limit,phi_limit)
+                                          len(new_members),sparams,cparams,phi_limit,norm,threads,recluster=True)
             #trace, map_ = trace["phi_k"][burn:]
             trace, map_ = trace["phi_k"]
 
@@ -179,7 +179,7 @@ def merge_clusters(clus_out_dir,clus_info,clus_merged,clus_members,merged_ids,su
         return (clus_merged,clus_members,merged_ids)
     else:
         new_df = pd.DataFrame(columns=clus_merged.columns,index=clus_merged.index)
-        return merge_clusters(clus_out_dir,clus_merged,new_df,clus_members,merged_ids,sup,dep,norm,cn_states,sparams,cparams)
+        return merge_clusters(clus_out_dir,clus_merged,new_df,clus_members,merged_ids,sup,dep,norm,cn_states,sparams,cparams,threads)
 
 def merge_results(clus_merged, merged_ids, df_probs, ccert):
     # merge probability table
@@ -258,7 +258,7 @@ def get_per_variant_phi(z_trace, phi_trace):
 
     return z_phi.mean(axis=0)
 
-def post_process_clusters(trace,sv_df,snv_df,clus_out_dir,sup,dep,norm,cn_states,sparams,cparams,output_params,map_):
+def post_process_clusters(trace,sv_df,snv_df,clus_out_dir,sup,dep,norm,cn_states,sparams,cparams,output_params,map_,threads):
 
     merge_clusts  = cparams['merge_clusts']
     subclone_diff = cparams['subclone_diff']
@@ -369,7 +369,7 @@ def post_process_clusters(trace,sv_df,snv_df,clus_out_dir,sup,dep,norm,cn_states
     if len(clus_info)>1 and merge_clusts:
         clus_merged = pd.DataFrame(columns=clus_info.columns,index=clus_info.index)
         clus_merged, clus_members, merged_ids  = merge_clusters(clus_out_dir,clus_info,clus_merged,\
-                clus_members,[],sup,dep,norm,cn_states,sparams,cparams)
+                clus_members,[],sup,dep,norm,cn_states,sparams,cparams,threads)
 
         if len(clus_merged)!=len(clus_info):
             clus_info = clus_merged
@@ -393,9 +393,9 @@ def post_process_clusters(trace,sv_df,snv_df,clus_out_dir,sup,dep,norm,cn_states
             lls.append(cluster.binomial_like(si, di, pvi))
         svc_ic = -2 * np.sum(lls) + (npoints + nclus * clus_penalty) * np.log(npoints)
 
-        run_fit = pd.DataFrame([['svc_IC', svc_ic],
-                                ['DIC', pm.stats.dic(model = map_, trace = trace)],
-                                ['WAIC', pm.stats.waic(model = map_, trace = trace)[0]]])
+        run_fit = pd.DataFrame([['svc_IC', svc_ic]])
+                                #['DIC', pm.stats.dic(model = map_, trace = trace)],
+                                #['WAIC', pm.stats.waic(model = map_, trace = trace)[0]]])
 
     if len(snv_df)>0:
         snv_pos = ['chrom','pos']
@@ -444,7 +444,7 @@ def post_process_clusters(trace,sv_df,snv_df,clus_out_dir,sup,dep,norm,cn_states
                     sv_probs,sv_ccert,clus_out_dir,sparams['sample'],sparams['pi'],sv_sup,
                     sv_dep,sv_norm,sv_cn_states,run_fit,smc_het,cnv_pval,sv_z_phi)
 
-def cluster_and_process(sv_df, snv_df, run, out_dir, sample_params, cluster_params, output_params, seeds):
+def cluster_and_process(sv_df, snv_df, run, out_dir, sample_params, cluster_params, output_params, seeds, threads):
     male = cluster_params['male']
     np.random.seed(seeds[run])
     print('Random seed for run %d is %d' % (run, seeds[run]))
@@ -465,9 +465,9 @@ def cluster_and_process(sv_df, snv_df, run, out_dir, sample_params, cluster_para
         cn_states = pd.concat([pd.DataFrame(cn_states),pd.DataFrame(sv_cn_states)])[0].values
         Nvar = Nvar + sv_Nvar
         mcmc, map_ = cluster.cluster(sup, dep, cn_states, Nvar, sample_params,
-                                     cluster_params, cluster_params['phi_limit'], norm)
+                                     cluster_params, cluster_params['phi_limit'], norm, threads)
         post_process_clusters(mcmc, sv_df, snv_df, clus_out_dir, sup, dep, norm, cn_states,
-                          sample_params, cluster_params, output_params, map_)
+                          sample_params, cluster_params, output_params, map_, threads)
 
     elif len(sv_df) > 0 or len(snv_df) > 0:
         # no coclustering
@@ -476,16 +476,16 @@ def cluster_and_process(sv_df, snv_df, run, out_dir, sample_params, cluster_para
                 os.makedirs('%s/snvs'%clus_out_dir)
             sup, dep, cn_states, Nvar, norm = load_data.get_snv_vals(snv_df, male, cluster_params)
             mcmc, map_ = cluster.cluster(sup, dep, cn_states, Nvar, sample_params,
-                                         cluster_params, cluster_params['phi_limit'], norm)
+                                         cluster_params, cluster_params['phi_limit'], norm, threads)
             post_process_clusters(mcmc, pd.DataFrame(), snv_df, clus_out_dir, sup, dep, norm,
-                                  cn_states,sample_params, cluster_params, output_params, map_)
+                                  cn_states,sample_params, cluster_params, output_params, map_, threads)
         if len(sv_df) > 0:
             sup, dep, cn_states, Nvar, norm = load_data.get_sv_vals(sv_df,
                                                 cluster_params['adjusted'], male, cluster_params)
             mcmc, map_ = cluster.cluster(sup, dep, cn_states, Nvar, sample_params,
-                                         cluster_params, cluster_params['phi_limit'], norm)
+                                         cluster_params, cluster_params['phi_limit'], norm, threads)
             post_process_clusters(mcmc, sv_df, pd.DataFrame(), clus_out_dir, sup, dep, norm,
-                                  cn_states, sample_params, cluster_params, output_params, map_)
+                                  cn_states, sample_params, cluster_params, output_params, map_, threads)
 
     else:
         raise ValueError("No valid variants to cluster!")
@@ -669,36 +669,36 @@ def run_clustering(args):
         if len(sv_df) > 0:
             print("Clustering %d SVs..." % len(sv_df))
 
-    if threads == 1:
-        for run in range(n_runs):
-            snv_run_df = snv_df
-            if subsample > 0 and subsample < len(snv_df):
-                snv_run_df = subsample_snvs(snv_df, subsample, run, ss_seeds, sample, out)
-            cluster_and_process(sv_df,snv_run_df,run,out,sample_params,cluster_params,output_params,seeds)
-        # select the best run based on min BIC
-        if use_map and n_runs > 1:
-            if len(sv_df) > 0:
-                pick_best_run(n_runs, out, sample, ccf_reject, cocluster, fit_metric, cluster_penalty)
-            if len(snv_df) > 0 and not cocluster:
-                pick_best_run(n_runs, out, sample, ccf_reject, cocluster, fit_metric, cluster_penalty, are_snvs=True)
-    else:
-        conc_runs = max(1, n_runs / threads) if n_runs % threads == 0 else (n_runs / threads) + 1
-        for i in range(conc_runs):
-            jobs = []
-            for j in range(threads):
-                run = j + (i * threads)
-                if not run > n_runs-1:
-                    print("Thread %d; cluster run: %d" % (j, run))
-                    snv_run_df = snv_df
-                    if subsample > 0 and subsample < len(snv_df):
-                        snv_run_df = subsample_snvs(snv_df, subsample, run, ss_seeds, sample, out)
-                    process = multiprocessing.Process(target=cluster_and_process,args=(sv_df,snv_run_df,run,out,
-                                                      sample_params,cluster_params,output_params,seeds))
-                    jobs.append(process)
-            for j in jobs:
-                j.start()
-            for j in jobs:
-                j.join()
+#    if threads == 1:
+    for run in range(n_runs):
+        snv_run_df = snv_df
+        if subsample > 0 and subsample < len(snv_df):
+            snv_run_df = subsample_snvs(snv_df, subsample, run, ss_seeds, sample, out)
+        cluster_and_process(sv_df,snv_run_df,run,out,sample_params,cluster_params,output_params,seeds,threads)
+    # select the best run based on min BIC
+    if use_map and n_runs > 1:
+        if len(sv_df) > 0:
+            pick_best_run(n_runs, out, sample, ccf_reject, cocluster, fit_metric, cluster_penalty)
+        if len(snv_df) > 0 and not cocluster:
+            pick_best_run(n_runs, out, sample, ccf_reject, cocluster, fit_metric, cluster_penalty, are_snvs=True)
+#    else:
+#        conc_runs = max(1, n_runs / threads) if n_runs % threads == 0 else (n_runs / threads) + 1
+#        for i in range(conc_runs):
+#            jobs = []
+#            for j in range(threads):
+#                run = j + (i * threads)
+#                if not run > n_runs-1:
+#                    print("Thread %d; cluster run: %d" % (j, run))
+#                    snv_run_df = snv_df
+#                    if subsample > 0 and subsample < len(snv_df):
+#                        snv_run_df = subsample_snvs(snv_df, subsample, run, ss_seeds, sample, out)
+#                    process = multiprocessing.Process(target=cluster_and_process,args=(sv_df,snv_run_df,run,out,
+#                                                      sample_params,cluster_params,output_params,seeds))
+#                    jobs.append(process)
+#            for j in jobs:
+#                j.start()
+#            for j in jobs:
+#                j.join()
 
         while True:
             if not use_map or n_runs == 1:

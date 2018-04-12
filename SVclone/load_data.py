@@ -87,7 +87,7 @@ def load_cnvs(cnv_file):
             # join subclonal genotypes
             subclonal = cnv_df['frac1_A']!=1
             cnv_sc    = cnv_df[subclonal]
-            gtypes[subclonal] = gtypes[subclonal] + '|' + \
+            gtypes[subclonal] = gtypes[subclonal.values] + '|' + \
                                 cnv_sc['nMaj2_A'].map(str).values + ',' + \
                                 cnv_sc['nMin2_A'].map(str).values + ',' + \
                                 cnv_sc['frac2_A'].map(str).values
@@ -111,7 +111,7 @@ def load_cnvs(cnv_file):
             # join subclonal genotypes
             subclonal = cnv_df['battenberg_frac1_A']!=1
             cnv_sc    = cnv_df[subclonal]
-            gtypes[subclonal] = gtypes[subclonal] + '|' + \
+            gtypes[subclonal] = gtypes[subclonal.values] + '|' + \
                                 cnv_sc['battenberg_nMaj2_A'].map(str).values + ',' + \
                                 cnv_sc['battenberg_nMin2_A'].map(str).values + ',' + \
                                 cnv_sc['battenberg_frac2_A'].map(str).values
@@ -152,7 +152,7 @@ def load_cnvs(cnv_file):
             select_cols = ['chr','startpos','endpos','gtype']
             return cnv_df[select_cols]
 
-    except KeyError:
+    except:
         raise Exception('''CNV file column names not recognised.
         Check the input is a battenberg output file (with headers) or an ASCAT caveman CSV.''')
 
