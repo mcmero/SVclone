@@ -388,6 +388,8 @@ def post_process_clusters(trace,sv_df,snv_df,clus_out_dir,sup,dep,norm,cn_states
         # bic = -2 * map_.lnL + (1 + npoints + nclus * 2) + (nclus * clus_penalty) * np.log(npoints)
         phis = ccert.average_ccf.values
         cns, pvs = cluster.get_most_likely_cn_states(cn_states, sup, dep, phis, sparams['pi'], cnv_pval, norm)
+        cn_ll_combined = [cluster.calc_lik_with_clonal(cn_states[i],sup[i],dep[i],phis[i],sparams['pi'],norm[i]) for i in range(len(cn_states))]
+        cns = [cluster.get_most_likely_cn(cn_states[i],cn_lik,cnv_pval) for i, cn_lik in enumerate(cn_ll_combined)]
         lls = []
         for si, di, pvi in zip(sup, dep, pvs):
             lls.append(cluster.binomial_like(si, di, pvi))

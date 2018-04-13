@@ -91,6 +91,8 @@ def write_out_files(df, clus_info, clus_members, df_probs, clus_cert, clus_out_d
 
     phis = clus_cert.average_ccf.values
     cns, pvs = cluster.get_most_likely_cn_states(cn_states, sup, dep, phis, pi, cnv_pval, norm)
+    cn_ll_combined = [cluster.calc_lik_with_clonal(cn_states[i],sup[i],dep[i],phis[i],pi,norm[i]) for i in range(len(cn_states))]
+    cns = [cluster.get_most_likely_cn(cn_states[i],cn_lik,cnv_pval) for i, cn_lik in enumerate(cn_ll_combined)]
 
     for idx, var in df.iterrows():
         gtype1, gtype2 = None, None
