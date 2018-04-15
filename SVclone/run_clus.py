@@ -701,13 +701,13 @@ def run_clustering(args):
 #                j.start()
 #            for j in jobs:
 #                j.join()
-
-        while True:
-            if not use_map or n_runs == 1:
-                break
-            if np.all(np.array([not j.is_alive() for j in jobs])):
-                if len(sv_df) > 0:
-                    pick_best_run(n_runs, out, sample, ccf_reject, cocluster, fit_metric, cluster_penalty)
-                if len(snv_df) > 0 and not cocluster:
-                    pick_best_run(n_runs, out, sample, ccf_reject, cocluster, fit_metric, cluster_penalty, are_snvs=True)
-                break
+#
+#        while True:
+#            if not use_map or n_runs == 1:
+#                break
+#            if np.all(np.array([not j.is_alive() for j in jobs])):
+#                if len(sv_df) > 0:
+#                    pick_best_run(n_runs, out, sample, ccf_reject, cocluster, fit_metric, cluster_penalty)
+#                if len(snv_df) > 0 and not cocluster:
+#                    pick_best_run(n_runs, out, sample, ccf_reject, cocluster, fit_metric, cluster_penalty, are_snvs=True)
+#                break
