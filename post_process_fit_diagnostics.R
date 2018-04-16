@@ -5,6 +5,7 @@
 # plots run summary, IC and SNV/SV histograms
 ############################################################################################################################
 
+options(error = quote({dump.frames(to.file=TRUE); q()}))
 args <- commandArgs(trailingOnly = TRUE)
 
 if(length(args)==0 | args[1]=='-h') {
@@ -176,7 +177,7 @@ get_run_info <- function(wd, base_name, run, snvs = FALSE, post = FALSE) {
     colnames(scs)[2] <- 'n_ssms'
     scs <- scs[,c('cluster', 'n_ssms', 'proportion', 'CCF')]
     scs <- scs[order(scs$CCF, decreasing=T), ]
-    scs$new_cluster <- 1:nrow(scs)
+    # scs$new_cluster <- 1:nrow(scs)
 
     sv_df <- ''
     if (snvs) {
@@ -205,18 +206,19 @@ get_run_info <- function(wd, base_name, run, snvs = FALSE, post = FALSE) {
     dat$cn_frac <- apply(dat, 1, function(x){get_frac(x, snvs)})
     if(snvs) {dat$adjusted_vaf <- dat$var / (dat$ref + dat$var)}
     dat <- cbind(dat, CCF=adjust_vafs(dat, pur))
+    dat$cluster <- dat$most_likely_assignment
 
-    dat$cluster <- NA
-    for (j in 1:nrow(scs)) {
-        dat[dat$most_likely_assignment==scs$cluster[j], 'cluster'] <- scs$new_cluster[j]
-    }
+    # dat$cluster <- NA
+    # for (j in 1:nrow(scs)) {
+    #     dat[dat$most_likely_assignment==scs$cluster[j], 'cluster'] <- scs$cluster[j]
+    # }
     if (snvs) {
         dat$sv <- paste(dat$chr, dat$pos, sep='_')
     } else {
         dat$sv <- paste(dat$chr1, dat$pos1, dat$dir1, dat$chr2, dat$pos2, dat$dir2, sep=':')
     }
     dat <- dat[!duplicated(dat),]
-    scs$cluster <- scs$new_cluster
+    # scs$cluster <- scs$new_cluster
     scs <- scs[,1:4]
     scs$variant_proportion <- scs$n_ssms/sum(scs$n_ssms)
     return(list(dat,scs))
@@ -662,7 +664,7 @@ if (!grepl('^--', bbf) & file.exists(bbf)) {
     tmp <- get_run_info(wd, id, run, snvs)
     dat <- tmp[[1]]
     sv_clust <- tmp[[2]]
-    sv_clust$cluster <- sv_clust$cluster-1
+    # sv_clust$cluster <- sv_clust$cluster-1
 
     suppressMessages(require(circlize))
     pdf(paste(wd, '/', id, '_', run, '_circos.pdf', sep=''), height=12, width=12)
@@ -674,13 +676,12 @@ if (!grepl('^--', bbf) & file.exists(bbf)) {
                                sep='\t', header=T, stringsAsFactors=F)
         psnvs <- list()
         count <- 1
-        for(i in 1:nrow(sv_clust)) {
-            curr <- res_snvs[res_snvs$most_likely_assignment==sv_clust[i,1],]
-            if(nrow(curr)>1)
-            {
+        for(i in unique(res_snvs$most_likely_assignment)) {
+            curr <- res_snvs[res_snvs$most_likely_assignment%in%i,]
+            if(nrow(curr)>1) {
                 bed <- curr[,c(1,2)]
                 bed[,1] <- paste('chr',bed[,1],sep='')
-                bed <- cbind(bed,bed[,2]+1,as.numeric(sv_clust[i,3]))
+                bed <- cbind(bed,bed[,2]+1,as.numeric(sv_clust[sv_clust$cluster%in%i,3]))
                 colnames(bed) <- c('chr','start','end','value')
                 psnvs[[count]] <- bed
                 count <- count + 1

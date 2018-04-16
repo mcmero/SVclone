@@ -20,11 +20,11 @@ def get_var_ids(var_df, snvs):
     var_ids = np.array([])
 
     if snvs:
-        var_ids = zip(var_df.chrom.values, var_df.pos.values)
+        var_ids = list(zip(var_df.chrom.values, var_df.pos.values))
         var_ids = ['%s:%s' % (x,y) for x,y in var_ids]
     else:
-        var_ids = zip(var_df.chr1.values, var_df.pos1.values, var_df.dir1,
-                  var_df.chr2.values, var_df.pos2.values, var_df.dir2)
+        var_ids = list(zip(var_df.chr1.values, var_df.pos1.values, var_df.dir1,
+                  var_df.chr2.values, var_df.pos2.values, var_df.dir2))
         var_ids = ['%s:%s:%s:%s:%s:%s' % (x,y,z,a,b,c) for x,y,z,a,b,c in var_ids]
 
     return(var_ids)
@@ -169,7 +169,7 @@ def assign_svs(scs, sup, dep, combos, norm_cn, purity, af):
         best_clus = np.where(np.max(lls)==lls)[0][0]
         best_clus_list = np.append(best_clus_list, [best_clus])
 
-    best_clus_list = np.array(map(int, best_clus_list))
+    best_clus_list = np.array(list(map(int, best_clus_list)))
     phis = scs.phi.values[best_clus_list] if Nvar > 0 else None
 
     return(best_clus_list, clus_probs, phis, sides)
@@ -294,7 +294,7 @@ def get_sv_dual_end_data(sv_df, sup, cdefs, purity, ploidy, cparams, adjusted):
 
     dep_side0 = sv_df.norm1.map(float).values + sup
     dep_side1 = sv_df.norm2.map(float).values + sup
-    dep_sides  = zip(dep_side0, dep_side1)
+    dep_sides  = list(zip(dep_side0, dep_side1))
     combos = sv_df.apply(cluster.get_sv_allele_combos, axis=1, args=(cparams,)).values
 
     classes = sv_df.classification.values
