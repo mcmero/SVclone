@@ -39,8 +39,8 @@ def gen_new_colours(N):
     return RGB_tuples
 
 def plot_clusters(trace, clusters, assignments, sup, dep, clus_out_dir, cparams):
-    #traceplot(trace)
-    #plt.savefig('%s/pymc3_traceplot'%clus_out_dir)
+    traceplot(trace)
+    plt.savefig('%s/pymc3_traceplot'%clus_out_dir)
 
     center_trace = trace["phi_k"]
     #center_trace = trace["phi_k"][burn:]
@@ -382,17 +382,19 @@ def post_process_clusters(trace,sv_df,snv_df,clus_out_dir,sup,dep,norm,cn_states
     z_phi = get_per_variant_phi(z_trace, center_trace)
 
     # compile run fit statistics
+    bb = np.mean(trace['bb_beta'])
     run_fit = pd.DataFrame()
     if map_ is not None:
         nclus = len(clus_info)
         # bic = -2 * map_.lnL + (1 + npoints + nclus * 2) + (nclus * clus_penalty) * np.log(npoints)
         phis = ccert.average_ccf.values
-        cns, pvs = cluster.get_most_likely_cn_states(cn_states, sup, dep, phis, sparams['pi'], cnv_pval, norm)
-        cn_ll_combined = [cluster.calc_lik_with_clonal(cn_states[i],sup[i],dep[i],phis[i],sparams['pi'],norm[i]) for i in range(len(cn_states))]
-        cns = [cluster.get_most_likely_cn(cn_states[i],cn_lik,cnv_pval) for i, cn_lik in enumerate(cn_ll_combined)]
-        lls = []
-        for si, di, pvi in zip(sup, dep, pvs):
-            lls.append(cluster.binomial_like(si, di, pvi))
+        #cns, pvs = cluster.get_most_likely_cn_states(cn_states, sup, dep, phis, sparams['pi'], cnv_pval, norm)
+        als, pvs, cns, lls = cluster.get_most_likely_alpha_all(cn_states, sup, dep, phis, sparams['pi'], norm, bb)
+        #cn_ll_combined = [cluster.calc_lik_with_clonal(cn_states[i],sup[i],dep[i],phis[i],sparams['pi'],norm[i]) for i in range(len(cn_states))]
+        #cns = [cluster.get_most_likely_cn(cn_states[i],cn_lik,cnv_pval) for i, cn_lik in enumerate(cn_ll_combined)]
+        #lls = []
+        #for si, di, pvi in zip(sup, dep, pvs):
+        #    lls.append(cluster.binomial_like(si, di, pvi))
         svc_ic = -2 * np.sum(lls) + (npoints + nclus * clus_penalty) * np.log(npoints)
 
         run_fit = pd.DataFrame([['svc_IC', svc_ic]])
@@ -417,7 +419,7 @@ def post_process_clusters(trace,sv_df,snv_df,clus_out_dir,sup,dep,norm,cn_states
         snv_z_phi     = z_phi[:len(snv_df)]
         write_output.write_out_files(snv_df,clus_info.copy(),snv_members,
                 snv_probs,snv_ccert,clus_out_dir,sparams['sample'],sparams['pi'],snv_sup,
-                snv_dep,snv_norm,snv_cn_states,run_fit,smc_het,cnv_pval,snv_z_phi,are_snvs=True)
+                snv_dep,snv_norm,snv_cn_states,run_fit,smc_het,cnv_pval,snv_z_phi,bb,are_snvs=True)
 
     sv_probs = pd.DataFrame()
     sv_ccert = pd.DataFrame()
@@ -444,7 +446,7 @@ def post_process_clusters(trace,sv_df,snv_df,clus_out_dir,sup,dep,norm,cn_states
         sv_z_phi     = z_phi[lb:lb+len(sv_df)]
         write_output.write_out_files(sv_df,clus_info.copy(),sv_members,
                     sv_probs,sv_ccert,clus_out_dir,sparams['sample'],sparams['pi'],sv_sup,
-                    sv_dep,sv_norm,sv_cn_states,run_fit,smc_het,cnv_pval,sv_z_phi)
+                    sv_dep,sv_norm,sv_cn_states,run_fit,smc_het,cnv_pval,sv_z_phi,bb)
 
 def cluster_and_process(sv_df, snv_df, run, out_dir, sample_params, cluster_params, output_params, seeds, threads):
     male = cluster_params['male']
