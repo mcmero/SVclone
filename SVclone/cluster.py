@@ -37,7 +37,7 @@ def betabinomial_like(x, n, p, b):
     #b_ab = beta(a, b)
     #l = comb(n, x) * (beta(x + a, n - x + b) / b_ab) if b_ab != 0 else 1e-100
     l = comb(n, x) * (beta(x + a, n - x + b) / beta(a, b))
-    if type(l) == list or type(l) == np.array:
+    if type(l) == list or type(l) == np.ndarray:
         l = [1e-100 if np.isnan(li) else li for li in l]
     return(np.log(l))
 
@@ -218,27 +218,30 @@ def get_most_likely_cn(combo, cn_lik, pval_cutoff):
     else:
         return combo[index_of_max(ll_phi)]
 
-def get_most_likely_alpha(cn_states, s, d, phi, pi, norm, bb_beta):
+def get_most_likely_alpha(cn_states, s, d, phi, pi, norm, bb):
     pvs = [get_pvs(phi[i], cn, pi, norm[i]) for i,cn in enumerate(cn_states)]
-    lls = [betabinomial_like(s[i], d[i], np.array(p), float(bb_beta)) for i,p in enumerate(pvs)]
+    lls = [betabinomial_like(s[i], d[i], np.array(p), float(bb)) for i,p in enumerate(pvs)]
 
     most_likely_pv = [p[0] if len(l)==1 else p[np.where(l==np.max(l))[0][0]] for p,l in zip(pvs, lls)]
-    most_likely_alpha = (float(bb_beta) * (most_likely_pv * d)) / (d - (most_likely_pv * d))
+    exp_means = most_likely_pv * d
+    most_likely_alpha = - (exp_means * float(bb)) / (exp_means - d)
 
     return most_likely_alpha
 
-def get_most_likely_alpha_all(cn_states, s, d, phi, pi, norm, bb_beta):
+def get_most_likely_alpha_all(cn_states, s, d, phi, pi, norm, bb):
     pvs = [get_pvs(phi[i], cn, pi, norm[i]) for i,cn in enumerate(cn_states)]
-    lls = [betabinomial_like(s[i], d[i], np.array(p), float(bb_beta)) for i,p in enumerate(pvs)]
+    lls = [betabinomial_like(s[i], d[i], np.array(p), float(bb)) for i,p in enumerate(pvs)]
 
     best_lls = [np.max(l) for l in lls]
     most_likely_pv = [p[0] if len(l)==1 else p[np.where(l==np.max(l))[0][0]] for p,l in zip(pvs, lls)]
     most_likely_cn = [cn[0] if len(cn)==1 else cn[np.where(l==np.max(l))[0][0]] for cn,l in zip(cn_states, lls)]
-    most_likely_alpha = (float(bb_beta) * (most_likely_pv * d)) / (d - (most_likely_pv * d))
+
+    exp_means = most_likely_pv * d
+    most_likely_alpha = - (exp_means * float(bb)) / (exp_means - d)
 
     return most_likely_alpha, most_likely_pv, most_likely_cn, best_lls
 
-def get_most_likely_cn_states(cn_states, s, d, phi, pi, pval_cutoff, norm, bb_beta):
+def get_most_likely_cn_states(cn_states, s, d, phi, pi, pval_cutoff, norm, bb):
     '''
     Obtain the copy-number states which maximise the binomial likelihood
     of observing the supporting read depths at each variant location
@@ -246,7 +249,7 @@ def get_most_likely_cn_states(cn_states, s, d, phi, pi, pval_cutoff, norm, bb_be
     #cn_ll_combined = [calc_lik_with_clonal(cn_states[i],s[i],d[i],phi[i],pi,norm[i]) for i in range(len(cn_states))]
     #most_likely_cn = [get_most_likely_cn(cn_states[i],cn_lik,pval_cutoff) for i, cn_lik in enumerate(cn_ll_combined)]
 
-    cn_ll = [calc_lik(cn_states[i],s[i],d[i],phi[i],pi,norm[i],int(bb_beta)) for i in range(len(cn_states))]
+    cn_ll = [calc_lik(cn_states[i],s[i],d[i],phi[i],pi,norm[i],int(bb)) for i in range(len(cn_states))]
     most_likely_pv = [get_most_likely_pv(cn_lik) for cn_lik in cn_ll]
 
     #return most_likely_cn, most_likely_pv
@@ -367,7 +370,11 @@ def cluster(sup,dep,cn_states,Nvar,sparams,cparams,phi_limit,norm,threads=1,recl
     with model:
         alpha = pm.Gamma('alpha', alpha=alpha, beta=beta, testval=alpha/beta)
         h = pm.Beta('h', alpha=1, beta=alpha, shape=Ndp, testval=1/(1+alpha))
-        phi_k = pm.Uniform('phi_k', lower=sens, upper=phi_limit, shape=Ndp)#, testval=1)
+
+        phi_init = np.random.rand(Ndp) * phi_limit
+        phi_init = np.array([sens if x < sens else x for x in phi_init])
+        phi_init[0] = phi_limit # first phi (default assigned) is clonal
+        phi_k = pm.Uniform('phi_k', lower=sens, upper=phi_limit, shape=Ndp, testval=phi_init)
 
         #p = stick_breaking(h)
         p = pm.Deterministic('p', stick_breaking(h))
