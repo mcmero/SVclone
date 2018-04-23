@@ -407,7 +407,7 @@ def get_params_cluster_step(sample, cfg, out, pp_file, param_file, XX, XY):
                        'clonal_cnv_pval': cnv_pval, 'adjust_phis': adjust_phis, 'sv_to_sim': sv_to_sim,
                        'threads': threads, 'ccf_reject': ccf_reject, 'nclus_init': nclus_init,
                        'restrict_cnss': restrict_cnss, 'merge_iter': merge_iter, 'merge_burn': merge_burn, 
-                       'precision': precision}
+                       'precision': precision, 'bb_beta': shape/float(scale)}
     output_params  = { 'plot': plot, 'smc_het': smc_het, 'cluster_penalty': cluster_penalty, 'fit_metric': fit_metric }
 
     return sample_params, cluster_params, output_params

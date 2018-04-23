@@ -351,6 +351,7 @@ def post_process_clusters(trace,sv_df,snv_df,clus_out_dir,sup,dep,norm,cn_states
     trace_out = '%s/' % (dump_out_dir)
     write_output.dump_trace(center_trace, trace_out+'phi_trace.txt')
     write_output.dump_trace(z_trace, trace_out+'z_trace.txt')
+    write_output.dump_trace(trace['bb_beta'], trace_out+'bb_beta_trace.txt')
 
     try:
         #alpha_trace = trace['alpha'][burn:]
