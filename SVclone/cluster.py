@@ -218,6 +218,23 @@ def get_most_likely_cn(combo, cn_lik, pval_cutoff):
     else:
         return combo[index_of_max(ll_phi)]
 
+def get_most_likely_pvs(cn_states, s, d, phi, pi, norm, bb):
+    pvs = [get_pvs(phi[i], cn, pi, norm[i]) for i,cn in enumerate(cn_states)]
+    lls = [betabinomial_like(s[i], d[i], np.array(p), float(bb)) for i,p in enumerate(pvs)]
+    most_likely_pvs = [p[0] if len(l)==1 else p[np.where(l==np.max(l))[0][0]] for p,l in zip(pvs, lls)]
+
+    return most_likely_pvs
+
+def get_most_likely_pvs_all(cn_states, s, d, phi, pi, norm, bb):
+    pvs = [get_pvs(phi[i], cn, pi, norm[i]) for i,cn in enumerate(cn_states)]
+    lls = [betabinomial_like(s[i], d[i], np.array(p), float(bb)) for i,p in enumerate(pvs)]
+
+    best_lls = [np.max(l) for l in lls]
+    most_likely_pvs = [p[0] if len(l)==1 else p[np.where(l==np.max(l))[0][0]] for p,l in zip(pvs, lls)]
+    most_likely_cns = [cn[0] if len(cn)==1 else cn[np.where(l==np.max(l))[0][0]] for cn,l in zip(cn_states, lls)]
+
+    return most_likely_pvs, most_likely_cns, best_lls
+
 def get_most_likely_alpha(cn_states, s, d, phi, pi, norm, bb):
     pvs = [get_pvs(phi[i], cn, pi, norm[i]) for i,cn in enumerate(cn_states)]
     lls = [betabinomial_like(s[i], d[i], np.array(p), float(bb)) for i,p in enumerate(pvs)]
@@ -352,7 +369,7 @@ def cluster(sup,dep,cn_states,Nvar,sparams,cparams,phi_limit,norm,threads=1,recl
         #value = [u * np.prod(1.0 - h[:i]) for i, u in enumerate(h)]
         #value[-1] = 1-sum(value[:-1])
         #return np.array(value)
-    stick_breaking.grad = lambda *x: x[0] #dummy gradient (otherwise fit function fails)
+#    stick_breaking.grad = lambda *x: x[0] #dummy gradient (otherwise fit function fails)
 
     @theano.compile.ops.as_op(itypes=[t.lvector, t.dvector, t.dscalar], otypes=[t.dvector])
 #    def p_var(z, phi_k, bb_beta):
@@ -361,52 +378,69 @@ def cluster(sup,dep,cn_states,Nvar,sparams,cparams,phi_limit,norm,threads=1,recl
 #               get_most_likely_cn_states(cn_states, sup, dep, phi_k[z], purity, pval_cutoff, norm, bb_beta)
 #        return np.array(pvs)
     def p_var(z, phi_k, bb_beta):
-        z = np.array([zi if zi < Ndp else np.random.randint(0, Ndp-1) for zi in z])
-        alphas = get_most_likely_alpha(cn_states, sup, dep, phi_k[z], purity, norm, bb_beta)
-        return np.array(alphas)
-    p_var.grad = lambda *x: [t.cast(x[0][0], dtype='float64'), x[0][1]]
+        pvs = get_most_likely_pvs(cn_states, sup, dep, phi_k[z], purity, norm, bb_beta)
+        return np.array(pvs)
+#        z = np.array([zi if zi < Ndp else np.random.randint(0, Ndp-1) for zi in z])
+#        alphas = get_most_likely_alpha(cn_states, sup, dep, phi_k[z], purity, norm, bb_beta)
+#        return np.array(alphas)
+#    p_var.grad = lambda *x: [t.cast(x[0][0], dtype='float64'), x[0][1]]
 
     model = pm.Model()
     with model:
-        alpha = pm.Gamma('alpha', alpha=alpha, beta=beta, testval=alpha/beta)
-        h = pm.Beta('h', alpha=1, beta=alpha, shape=Ndp, testval=1/(1+alpha))
+        alpha    = pm.Gamma('alpha', alpha=alpha, beta=beta)
+        h        = pm.Beta('h', alpha=1, beta=alpha, shape=Ndp)
 
-        phi_init = np.random.rand(Ndp) * phi_limit
-        phi_init = np.array([sens if x < sens else x for x in phi_init])
-        phi_init[0] = phi_limit # first phi (default assigned) is clonal
-        phi_k = pm.Uniform('phi_k', lower=sens, upper=phi_limit, shape=Ndp, testval=phi_init)
+        p_sb     = pm.Deterministic('p_sb', stick_breaking(h))
+        z        = pm.Categorical('z', p=p_sb, testval=0, shape=Nvar)
+        phi_k    = pm.Uniform('phi_k', lower=sens, upper=phi_limit, shape=Ndp)
 
-        #p = stick_breaking(h)
-        p = pm.Deterministic('p', stick_breaking(h))
-        z = pm.Categorical('z', p=p, testval=0, shape=Nvar)
+        bb_beta  = pm.Gamma('bb_beta', alpha=a_s, beta=b_s)
+        pv       = pm.Deterministic('pv', p_var(z, phi_k, bb_beta))
+        obs      = pm.BetaBinomial('obs', alpha=-(bb_beta * pv * dep)/(pv * dep - dep), beta=bb_beta, n=dep, observed=sup)
 
-        #cbinom = pm.Binomial('cbinom', dep, pv, shape=Nvar, observed=sup)
-
-        #bb_scale = a_s
-        #bb_init  = dep/bb_scale/b_s
-        #bb_beta  = pm.Gamma('bb_beta', alpha=dep/bb_scale, beta=b_s, shape=Nvar, testval=bb_init)
-        bb_beta  = pm.Gamma('bb_beta', alpha=a_s, beta=b_s, testval=a_s/b_s)
-        pv       = p_var(z, phi_k, bb_beta)
-        #bb_alpha = -(bb_beta*pv)/(pv-1)
-        cbbinom  = pm.BetaBinomial('cbbinom', alpha=pv, beta=bb_beta, n=dep, observed=sup)
+#        alpha = pm.Gamma('alpha', alpha=alpha, beta=beta, testval=alpha/beta)
+#        h = pm.Beta('h', alpha=1, beta=alpha, shape=Ndp, testval=1/(1+alpha))
+#
+#        #phi_init = np.random.rand(Ndp) * phi_limit
+#        #phi_init = np.array([sens if x < sens else x for x in phi_init])
+#        #phi_init[0] = phi_limit # first phi (default assigned) is clonal
+#        #phi_k = pm.Uniform('phi_k', lower=sens, upper=phi_limit, shape=Ndp, testval=phi_init)
+#
+#        #p = stick_breaking(h)
+#        p = pm.Deterministic('p', stick_breaking(h))
+#        z = pm.Categorical('z', p=p, testval=0, shape=Nvar)
+#
+#        #cbinom = pm.Binomial('cbinom', dep, pv, shape=Nvar, observed=sup)
+#
+#        #bb_scale = a_s
+#        #bb_init  = dep/bb_scale/b_s
+#        #bb_beta  = pm.Gamma('bb_beta', alpha=dep/bb_scale, beta=b_s, shape=Nvar, testval=bb_init)
+#        bb_beta  = pm.Gamma('bb_beta', alpha=a_s, beta=b_s, testval=a_s/b_s)
+#        pv       = p_var(z, phi_k, bb_beta)
+#        #bb_alpha = -(bb_beta*pv)/(pv-1)
+#        cbbinom  = pm.BetaBinomial('cbbinom', alpha=pv, beta=bb_beta, n=dep, observed=sup)
 
 #    with model:
 #        trace = pm.sample(n_iter)
     with model:
-        use_map = False
-        if use_map:
-            start = pm.find_MAP(fmin=optimize.fmin_cg)
-
-        step1 = pm.Metropolis(vars=[alpha, h, phi_k])
-        #step2 = pm.CategoricalGibbsMetropolis(vars = [z])
-        #step2 = pm.ElemwiseCategorical(vars=[z], values=[0, 1, 2, 3, 4, 5])
-        step2 = pm.ElemwiseCategorical(vars=[z], values=[x for x in range(Ndp)])
-        step3 = pm.Metropolis(vars=[bb_beta, pv, cbbinom])
-        #step3 = pm.Metropolis(vars=[pv, cbinom])
-
-        if use_map:
-            trace = pm.sample(draws=n_iter, step=[step1, step2, step3], start=start, cores=threads)
-        else:
-            trace = pm.sample(draws=n_iter, step=[step1, step2, step3], cores=threads)
+        step1 = pm.Metropolis(vars=[h, phi_k])
+        step2 = pm.ElemwiseCategorical(vars=[z])
+        #step2 = pm.CategoricalGibbsMetropolis(vars=[z])
+        trace = pm.sample(draws=n_iter, step=[step1, step2], cores=threads)
+#        use_map = False
+#        if use_map:
+#            start = pm.find_MAP(fmin=optimize.fmin_cg)
+#
+#        step1 = pm.Metropolis(vars=[alpha, h, phi_k])
+#        #step2 = pm.CategoricalGibbsMetropolis(vars = [z])
+#        #step2 = pm.ElemwiseCategorical(vars=[z], values=[0, 1, 2, 3, 4, 5])
+#        step2 = pm.ElemwiseCategorical(vars=[z], values=[x for x in range(Ndp)])
+#        step3 = pm.Metropolis(vars=[bb_beta, pv, cbbinom])
+#        #step3 = pm.Metropolis(vars=[pv, cbinom])
+#
+#        if use_map:
+#            trace = pm.sample(draws=n_iter, step=[step1, step2, step3], start=start, cores=threads)
+#        else:
+#            trace = pm.sample(draws=n_iter, step=[step1, step2, step3], cores=threads)
 
     return trace[burn::thin], model

@@ -364,7 +364,7 @@ def post_process_clusters(trace,sv_df,snv_df,clus_out_dir,sup,dep,norm,cn_states
     # cluster plotting
     if plot:
         plot_clusters(trace, clus_idx, clus_max_prob, sup, dep, clus_out_dir, cparams)
-        plt.savefig('%s/traces.png' % clus_out_dir)
+        #plt.savefig('%s/traces.png' % clus_out_dir)
 
     # merge clusters
     if len(clus_info)>1 and merge_clusts:
@@ -390,7 +390,7 @@ def post_process_clusters(trace,sv_df,snv_df,clus_out_dir,sup,dep,norm,cn_states
         # bic = -2 * map_.lnL + (1 + npoints + nclus * 2) + (nclus * clus_penalty) * np.log(npoints)
         phis = ccert.average_ccf.values
         #cns, pvs = cluster.get_most_likely_cn_states(cn_states, sup, dep, phis, sparams['pi'], cnv_pval, norm)
-        als, pvs, cns, lls = cluster.get_most_likely_alpha_all(cn_states, sup, dep, phis, sparams['pi'], norm, bb)
+        pvs, cns, lls = cluster.get_most_likely_pvs_all(cn_states, sup, dep, phis, sparams['pi'], norm, bb)
         #cn_ll_combined = [cluster.calc_lik_with_clonal(cn_states[i],sup[i],dep[i],phis[i],sparams['pi'],norm[i]) for i in range(len(cn_states))]
         #cns = [cluster.get_most_likely_cn(cn_states[i],cn_lik,cnv_pval) for i, cn_lik in enumerate(cn_ll_combined)]
         #lls = []
