@@ -23,20 +23,20 @@ def get_sv_vals(sv_df, adjusted, male, cparams):
     cn_states = [cn[side] for cn,side in zip(combos, sides)]
     cn_states = pd.DataFrame([[sv] for sv in cn_states])[0].values
     chroms = [c1 if side == 0 else c2 for c1,c2,side in zip(sv_df.chr1.values, sv_df.chr2.values, sides)]
-    norm = [get_normal_copynumber(c, male) for c in chroms]
+    norm_cnstate = [get_normal_copynumber(c, male) for c in chroms]
 
     if adjusted:
         sup = sv_df.adjusted_support.map(float).values
         dep = sv_df.adjusted_depth.map(float).values
         Nvar = len(sv_df)
-        return sup,dep,cn_states,Nvar,norm
+        return sup,dep,cn_states,Nvar,norm_cnstate
     else:
         sup  = sv_df.support.map(float).values
         norm = zip(sv_df.norm1.values,sv_df.norm2.values)
         norm = np.array([float(n[side]) for n,side in zip(norm,sv_df.preferred_side.values)])
         dep  = norm+sup
         Nvar = len(sv_df)
-        return sup,dep,cn_states,Nvar,norm
+        return sup,dep,cn_states,Nvar,norm_cnstate
 
 def get_snv_vals(df, male, cparams):
     n = df['ref'].map(float).values

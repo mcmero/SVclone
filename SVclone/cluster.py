@@ -33,9 +33,9 @@ def betabinomial_like(x, n, p, b):
 #    l = gamma(n + 1) / (gamma(x + 1) * gamma(n - x + 1))
 #    l = l * ((gamma(x + a) * gamma(n - x + b)) / (gamma(n + a + b)))
 #    l = l * (gamma(a + b) / (gamma(a) * gamma(b)))
-    a = (b * (p * n)) / (n - (p * n))
     #b_ab = beta(a, b)
     #l = comb(n, x) * (beta(x + a, n - x + b) / b_ab) if b_ab != 0 else 1e-100
+    a = (b * (p * n)) / (n - (p * n))
     l = comb(n, x) * (beta(x + a, n - x + b) / beta(a, b))
     if type(l) == list or type(l) == np.ndarray:
         l = [1e-100 if np.isnan(li) else li for li in l]
@@ -220,8 +220,8 @@ def get_most_likely_cn(combo, cn_lik, pval_cutoff):
 
 def get_most_likely_pvs(cn_states, s, d, phi, pi, norm, bb):
     pvs = [get_pvs(phi[i], cn, pi, norm[i]) for i,cn in enumerate(cn_states)]
-    lls = [betabinomial_like(s[i], d[i], np.array(p), float(bb)) for i,p in enumerate(pvs)]
-    most_likely_pvs = [p[0] if len(l)==1 else p[np.where(l==np.max(l))[0][0]] for p,l in zip(pvs, lls)]
+    lls = [0. if len(p)==1 else betabinomial_like(s[i], d[i], np.array(p), float(bb)) for i,p in enumerate(pvs)]
+    most_likely_pvs = [p[0] if type(l)==float else p[np.where(l==np.max(l))[0][0]] for p,l in zip(pvs, lls)]
 
     return most_likely_pvs
 
@@ -383,7 +383,11 @@ def cluster(sup,dep,cn_states,Nvar,sparams,cparams,phi_limit,norm,threads=1,recl
 #        z = np.array([zi if zi < Ndp else np.random.randint(0, Ndp-1) for zi in z])
 #        alphas = get_most_likely_alpha(cn_states, sup, dep, phi_k[z], purity, norm, bb_beta)
 #        return np.array(alphas)
-#    p_var.grad = lambda *x: [t.cast(x[0][0], dtype='float64'), x[0][1]]
+    p_var.grad = lambda *x: [t.cast(x[0][0], dtype='float64'), x[0][1], x[0][2]]
+
+#    phi_init = np.random.rand(Ndp) * phi_limit
+#    phi_init = np.array([sens if x < sens else x for x in phi_init])
+#    phi_init[0] = phi_limit # first phi (default assigned) is clonal
 
     model = pm.Model()
     with model:
@@ -401,10 +405,6 @@ def cluster(sup,dep,cn_states,Nvar,sparams,cparams,phi_limit,norm,threads=1,recl
 #        alpha = pm.Gamma('alpha', alpha=alpha, beta=beta, testval=alpha/beta)
 #        h = pm.Beta('h', alpha=1, beta=alpha, shape=Ndp, testval=1/(1+alpha))
 #
-#        #phi_init = np.random.rand(Ndp) * phi_limit
-#        #phi_init = np.array([sens if x < sens else x for x in phi_init])
-#        #phi_init[0] = phi_limit # first phi (default assigned) is clonal
-#        #phi_k = pm.Uniform('phi_k', lower=sens, upper=phi_limit, shape=Ndp, testval=phi_init)
 #
 #        #p = stick_breaking(h)
 #        p = pm.Deterministic('p', stick_breaking(h))
@@ -423,10 +423,11 @@ def cluster(sup,dep,cn_states,Nvar,sparams,cparams,phi_limit,norm,threads=1,recl
 #    with model:
 #        trace = pm.sample(n_iter)
     with model:
-        step1 = pm.Metropolis(vars=[h, phi_k])
+        step1 = pm.Metropolis(vars=[alpha, h, phi_k])
         step2 = pm.ElemwiseCategorical(vars=[z])
+        step3 = pm.NUTS(vars=[bb_beta])
+        trace = pm.sample(draws=n_iter, step=[step1, step2, step3], cores=threads)
         #step2 = pm.CategoricalGibbsMetropolis(vars=[z])
-        trace = pm.sample(draws=n_iter, step=[step1, step2], cores=threads)
 #        use_map = False
 #        if use_map:
 #            start = pm.find_MAP(fmin=optimize.fmin_cg)
