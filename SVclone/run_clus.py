@@ -39,8 +39,8 @@ def gen_new_colours(N):
     return RGB_tuples
 
 def plot_clusters(trace, clusters, assignments, sup, dep, clus_out_dir, cparams):
-    #traceplot(trace)
-    #plt.savefig('%s/pymc3_traceplot'%clus_out_dir)
+    traceplot(trace)
+    plt.savefig('%s/pymc3_traceplot'%clus_out_dir)
 
     center_trace = trace["phi_k"]
     #center_trace = trace["phi_k"][burn:]
@@ -351,6 +351,7 @@ def post_process_clusters(trace,sv_df,snv_df,clus_out_dir,sup,dep,norm,cn_states
     trace_out = '%s/' % (dump_out_dir)
     write_output.dump_trace(center_trace, trace_out+'phi_trace.txt')
     write_output.dump_trace(z_trace, trace_out+'z_trace.txt')
+    write_output.dump_trace(trace['bb_beta'], trace_out+'bb_beta_trace.txt')
 
     try:
         #alpha_trace = trace['alpha'][burn:]
@@ -363,7 +364,7 @@ def post_process_clusters(trace,sv_df,snv_df,clus_out_dir,sup,dep,norm,cn_states
     # cluster plotting
     if plot:
         plot_clusters(trace, clus_idx, clus_max_prob, sup, dep, clus_out_dir, cparams)
-        plt.savefig('%s/traces.png' % clus_out_dir)
+        #plt.savefig('%s/traces.png' % clus_out_dir)
 
     # merge clusters
     if len(clus_info)>1 and merge_clusts:
@@ -382,15 +383,19 @@ def post_process_clusters(trace,sv_df,snv_df,clus_out_dir,sup,dep,norm,cn_states
     z_phi = get_per_variant_phi(z_trace, center_trace)
 
     # compile run fit statistics
+    bb = np.mean(trace['bb_beta'])
     run_fit = pd.DataFrame()
     if map_ is not None:
         nclus = len(clus_info)
         # bic = -2 * map_.lnL + (1 + npoints + nclus * 2) + (nclus * clus_penalty) * np.log(npoints)
         phis = ccert.average_ccf.values
-        cns, pvs = cluster.get_most_likely_cn_states(cn_states, sup, dep, phis, sparams['pi'], cnv_pval, norm)
-        lls = []
-        for si, di, pvi in zip(sup, dep, pvs):
-            lls.append(cluster.binomial_like(si, di, pvi))
+        #cns, pvs = cluster.get_most_likely_cn_states(cn_states, sup, dep, phis, sparams['pi'], cnv_pval, norm)
+        pvs, cns, lls = cluster.get_most_likely_pvs_all(cn_states, sup, dep, phis, sparams['pi'], norm, bb)
+        #cn_ll_combined = [cluster.calc_lik_with_clonal(cn_states[i],sup[i],dep[i],phis[i],sparams['pi'],norm[i]) for i in range(len(cn_states))]
+        #cns = [cluster.get_most_likely_cn(cn_states[i],cn_lik,cnv_pval) for i, cn_lik in enumerate(cn_ll_combined)]
+        #lls = []
+        #for si, di, pvi in zip(sup, dep, pvs):
+        #    lls.append(cluster.binomial_like(si, di, pvi))
         svc_ic = -2 * np.sum(lls) + (npoints + nclus * clus_penalty) * np.log(npoints)
 
         run_fit = pd.DataFrame([['svc_IC', svc_ic]])
@@ -415,7 +420,7 @@ def post_process_clusters(trace,sv_df,snv_df,clus_out_dir,sup,dep,norm,cn_states
         snv_z_phi     = z_phi[:len(snv_df)]
         write_output.write_out_files(snv_df,clus_info.copy(),snv_members,
                 snv_probs,snv_ccert,clus_out_dir,sparams['sample'],sparams['pi'],snv_sup,
-                snv_dep,snv_norm,snv_cn_states,run_fit,smc_het,cnv_pval,snv_z_phi,are_snvs=True)
+                snv_dep,snv_norm,snv_cn_states,run_fit,smc_het,cnv_pval,snv_z_phi,bb,are_snvs=True)
 
     sv_probs = pd.DataFrame()
     sv_ccert = pd.DataFrame()
@@ -442,7 +447,7 @@ def post_process_clusters(trace,sv_df,snv_df,clus_out_dir,sup,dep,norm,cn_states
         sv_z_phi     = z_phi[lb:lb+len(sv_df)]
         write_output.write_out_files(sv_df,clus_info.copy(),sv_members,
                     sv_probs,sv_ccert,clus_out_dir,sparams['sample'],sparams['pi'],sv_sup,
-                    sv_dep,sv_norm,sv_cn_states,run_fit,smc_het,cnv_pval,sv_z_phi)
+                    sv_dep,sv_norm,sv_cn_states,run_fit,smc_het,cnv_pval,sv_z_phi,bb)
 
 def cluster_and_process(sv_df, snv_df, run, out_dir, sample_params, cluster_params, output_params, seeds, threads):
     male = cluster_params['male']
@@ -468,7 +473,6 @@ def cluster_and_process(sv_df, snv_df, run, out_dir, sample_params, cluster_para
                                      cluster_params, cluster_params['phi_limit'], norm, threads)
         post_process_clusters(mcmc, sv_df, snv_df, clus_out_dir, sup, dep, norm, cn_states,
                           sample_params, cluster_params, output_params, map_, threads)
-
     elif len(sv_df) > 0 or len(snv_df) > 0:
         # no coclustering
         if len(snv_df) > 0:
@@ -699,13 +703,13 @@ def run_clustering(args):
 #                j.start()
 #            for j in jobs:
 #                j.join()
-
-        while True:
-            if not use_map or n_runs == 1:
-                break
-            if np.all(np.array([not j.is_alive() for j in jobs])):
-                if len(sv_df) > 0:
-                    pick_best_run(n_runs, out, sample, ccf_reject, cocluster, fit_metric, cluster_penalty)
-                if len(snv_df) > 0 and not cocluster:
-                    pick_best_run(n_runs, out, sample, ccf_reject, cocluster, fit_metric, cluster_penalty, are_snvs=True)
-                break
+#
+#        while True:
+#            if not use_map or n_runs == 1:
+#                break
+#            if np.all(np.array([not j.is_alive() for j in jobs])):
+#                if len(sv_df) > 0:
+#                    pick_best_run(n_runs, out, sample, ccf_reject, cocluster, fit_metric, cluster_penalty)
+#                if len(snv_df) > 0 and not cocluster:
+#                    pick_best_run(n_runs, out, sample, ccf_reject, cocluster, fit_metric, cluster_penalty, are_snvs=True)
+#                break

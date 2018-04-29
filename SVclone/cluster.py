@@ -10,10 +10,12 @@ import theano.tensor as t
 
 from theano.compile.ops import as_op
 from scipy import stats, optimize
+from scipy.special import gammaln
 from sklearn.cluster import KMeans
 from operator import methodcaller
 theano.config.exception_verbosity = 'high'
 theano.config.warn.round = False
+theano.config.optimizer='fast_run'
 
 def binomial_like(x, n, p):
     '''
@@ -22,6 +24,16 @@ def binomial_like(x, n, p):
     l = math.factorial(n) / (math.factorial(x) * math.factorial(n - x))
     l = l * p ** x * (1 - p) ** (n - x)
     return(np.log(l))
+
+def betabinomial_like(k, n, p, b):
+    '''
+    calculate beta-binomial log-likelihood
+    '''
+    a = - (p * b) / (p - 1)
+    p1 = gammaln(n + 1) - (gammaln(k + 1) + gammaln(n - k + 1))
+    p2 = gammaln(k + a) + gammaln(n - k + b) - gammaln(n + a + b)
+    p3 = gammaln(a + b) - (gammaln(a) + gammaln(b))
+    return p1 + p2 + p3
 
 def add_copynumber_combos(combos, var_maj, var_min, ref_cn, frac, cparams):
     '''
@@ -100,6 +112,20 @@ def get_pv(phi, combo, pi, ni):
 
     return phi * pv * mu
 
+def get_pvs(phi, combos, pi, ni):
+    pvs = []
+    for combo in combos:
+        cn_r, cn_v, mu, cn_f = combo
+
+        pn = (1.0 - pi) * ni        #proportion of normal reads coming from normal cells
+        pr = pi * cn_r * (1. - cn_f) if cn_f < 1 else 0 # incorporate ref population CNV fraction if present
+        pv = pi * cn_v * cn_f       #proportion of variant + normal reads coming from this (the variant) cluster
+        norm_const = pn + pv + pr
+        pv = pv / norm_const
+
+        pvs.append(phi * pv * mu)
+    return pvs
+
 def filter_cns(cn_states):
     cn_str = [','.join(map(str,cn)) for cn in cn_states if cn[2]!=0 and cn[1]!=0]
     cn_str = np.unique(np.array(cn_str))
@@ -118,13 +144,14 @@ def calc_lik_with_clonal(combo, si, di, phi_i, pi, ni):
 
     return np.array([[pvs, lls], [pvs_cl, lls_cl]])
 
-def calc_lik(combo, si, di, phi_i, pi, ni):
+def calc_lik(combo, si, di, phi_i, pi, ni, bb):
     pvs = np.array([get_pv(phi_i, c, pi, ni) for c in combo])
-    lls = np.array([binomial_like(si, di, pvs[i]) for i,c in enumerate(combo)])-0.00000001
+    #lls = np.array([binomial_like(si, di, pvs[i]) for i,c in enumerate(combo)])-0.00000001
+    lls = np.array([betabinomial_like(si, di, pvs[i], bb) for i,c in enumerate(combo)])
     return np.array([pvs, lls])
 
-def get_probs(var_states,s,d,phi,pi,norm):
-    llik = calc_lik(var_states,s,d,phi,pi,norm)[1]
+def get_probs(var_states,s,d,phi,pi,norm,bb):
+    llik = calc_lik(var_states,s,d,phi,pi,norm,bb)[1]
     probs = get_probs_from_llik(llik)
     probs = ','.join(map(lambda x: str(round(x,4)),probs))
     return probs
@@ -185,19 +212,63 @@ def get_most_likely_cn(combo, cn_lik, pval_cutoff):
     else:
         return combo[index_of_max(ll_phi)]
 
-def get_most_likely_cn_states(cn_states, s, d, phi, pi, pval_cutoff, norm):
+def get_most_likely_pvs(cn_states, s, d, phi, pi, norm, bb):
+    pvs = [get_pvs(phi[i], cn, pi, norm[i]) for i,cn in enumerate(cn_states)]
+    #lls = [0. if len(p)==1 else betabinomial_like(s[i], d[i], np.array(p), float(bb)) for i,p in enumerate(pvs)]
+    #most_likely_pvs = [p[0] if type(l)==float else p[np.where(l==np.max(l))[0][0]] for p,l in zip(pvs, lls)]
+
+    vafs = np.array(s) / np.array(d)
+    p_diffs = [np.abs(np.array(p) - vafs[i]) for i,p in enumerate(pvs)]
+    most_likely_pvs = [p[np.where(pd==np.min(pd))[0][0]] for p, pd in zip(pvs, p_diffs)]
+
+    return most_likely_pvs
+
+def get_most_likely_pvs_all(cn_states, s, d, phi, pi, norm, bb):
+    pvs = [get_pvs(phi[i], cn, pi, norm[i]) for i,cn in enumerate(cn_states)]
+    lls = [betabinomial_like(s[i], d[i], np.array(p), float(bb)) for i,p in enumerate(pvs)]
+
+    best_lls = [np.max(l) for l in lls]
+    most_likely_pvs = [p[0] if len(l)==1 else p[np.where(l==np.max(l))[0][0]] for p,l in zip(pvs, lls)]
+    most_likely_cns = [cn[0] if len(cn)==1 else cn[np.where(l==np.max(l))[0][0]] for cn,l in zip(cn_states, lls)]
+
+    return most_likely_pvs, most_likely_cns, best_lls
+
+def get_most_likely_alpha(cn_states, s, d, phi, pi, norm, bb):
+    pvs = [get_pvs(phi[i], cn, pi, norm[i]) for i,cn in enumerate(cn_states)]
+    lls = [betabinomial_like(s[i], d[i], np.array(p), float(bb)) for i,p in enumerate(pvs)]
+
+    most_likely_pv = [p[0] if len(l)==1 else p[np.where(l==np.max(l))[0][0]] for p,l in zip(pvs, lls)]
+    exp_means = most_likely_pv * d
+    most_likely_alpha = - (exp_means * float(bb)) / (exp_means - d)
+
+    return most_likely_alpha
+
+def get_most_likely_alpha_all(cn_states, s, d, phi, pi, norm, bb):
+    pvs = [get_pvs(phi[i], cn, pi, norm[i]) for i,cn in enumerate(cn_states)]
+    lls = [betabinomial_like(s[i], d[i], np.array(p), float(bb)) for i,p in enumerate(pvs)]
+
+    best_lls = [np.max(l) for l in lls]
+    most_likely_pv = [p[0] if len(l)==1 else p[np.where(l==np.max(l))[0][0]] for p,l in zip(pvs, lls)]
+    most_likely_cn = [cn[0] if len(cn)==1 else cn[np.where(l==np.max(l))[0][0]] for cn,l in zip(cn_states, lls)]
+
+    exp_means = most_likely_pv * d
+    most_likely_alpha = - (exp_means * float(bb)) / (exp_means - d)
+
+    return most_likely_alpha, most_likely_pv, most_likely_cn, best_lls
+
+def get_most_likely_cn_states(cn_states, s, d, phi, pi, pval_cutoff, norm, bb):
     '''
     Obtain the copy-number states which maximise the binomial likelihood
     of observing the supporting read depths at each variant location
     '''
-    cn_ll_combined = [calc_lik_with_clonal(cn_states[i],s[i],d[i],phi[i],pi,norm[i]) for i in range(len(cn_states))]
-    most_likely_cn = [get_most_likely_cn(cn_states[i],cn_lik,pval_cutoff) for i, cn_lik in enumerate(cn_ll_combined)]
+    #cn_ll_combined = [calc_lik_with_clonal(cn_states[i],s[i],d[i],phi[i],pi,norm[i]) for i in range(len(cn_states))]
+    #most_likely_cn = [get_most_likely_cn(cn_states[i],cn_lik,pval_cutoff) for i, cn_lik in enumerate(cn_ll_combined)]
 
-    cn_ll = [calc_lik(cn_states[i],s[i],d[i],phi[i],pi,norm[i]) for i in range(len(most_likely_cn))]
+    cn_ll = [calc_lik(cn_states[i],s[i],d[i],phi[i],pi,norm[i],int(bb)) for i in range(len(cn_states))]
     most_likely_pv = [get_most_likely_pv(cn_lik) for cn_lik in cn_ll]
 
-    return most_likely_cn, most_likely_pv
-
+    #return most_likely_cn, most_likely_pv
+    return [], most_likely_pv
 
 def get_initialisation(nclus_init, Ndp, sparams, sup, dep, norm, cn_states, sens, phi_limit, pval_cutoff):
 
@@ -296,53 +367,79 @@ def cluster(sup,dep,cn_states,Nvar,sparams,cparams,phi_limit,norm,threads=1,recl
         #value = [u * np.prod(1.0 - h[:i]) for i, u in enumerate(h)]
         #value[-1] = 1-sum(value[:-1])
         #return np.array(value)
-    stick_breaking.grad = lambda *x: x[0] #dummy gradient (otherwise fit function fails)
+#    stick_breaking.grad = lambda *x: x[0] #dummy gradient (otherwise fit function fails)
 
-    @theano.compile.ops.as_op(itypes=[t.lvector, t.dvector], otypes=[t.dvector])
-    def p_var(z, phi_k):
-        z = np.array([zi if zi < Ndp else np.random.randint(0, Ndp-1) for zi in z])
-        most_lik_cn_states, pvs = \
-               get_most_likely_cn_states(cn_states, sup, dep, phi_k[z], purity, pval_cutoff, norm)
+    @theano.compile.ops.as_op(itypes=[t.lvector, t.dvector, t.dscalar], otypes=[t.dvector])
+#    def p_var(z, phi_k, bb_beta):
+#        z = np.array([zi if zi < Ndp else np.random.randint(0, Ndp-1) for zi in z])
+#        most_lik_cn_states, pvs = \
+#               get_most_likely_cn_states(cn_states, sup, dep, phi_k[z], purity, pval_cutoff, norm, bb_beta)
+#        return np.array(pvs)
+    def p_var(z, phi_k, bb_beta):
+        pvs = get_most_likely_pvs(cn_states, sup, dep, phi_k[z], purity, norm, bb_beta)
         return np.array(pvs)
-        #return np.array([0.25] * len(z))
-    p_var.grad = lambda *x: [t.cast(x[0][0], dtype='float64'), x[0][1]]
+#        z = np.array([zi if zi < Ndp else np.random.randint(0, Ndp-1) for zi in z])
+#        alphas = get_most_likely_alpha(cn_states, sup, dep, phi_k[z], purity, norm, bb_beta)
+#        return np.array(alphas)
+#    p_var.grad = lambda *x: [t.cast(x[0][0], dtype='float64'), x[0][1], x[0][2]]
+
+#    phi_init = np.random.rand(Ndp) * phi_limit
+#    phi_init = np.array([sens if x < sens else x for x in phi_init])
+#    phi_init[0] = phi_limit # first phi (default assigned) is clonal
 
     model = pm.Model()
     with model:
-        alpha = pm.Gamma('alpha', alpha=alpha, beta=beta, testval=alpha/beta)
-        h = pm.Beta('h', alpha=1, beta=alpha, shape=Ndp, testval=1/(1+alpha))
-        phi_k = pm.Uniform('phi_k', lower=sens, upper=phi_limit, shape=Ndp)#, testval=phi_init)
+        alpha    = pm.Gamma('alpha', alpha=alpha, beta=beta)
+        h        = pm.Beta('h', alpha=1, beta=alpha, shape=Ndp)
 
-        #p = stick_breaking(h)
-        p = pm.Deterministic('p', stick_breaking(h))
-        z = pm.Categorical('z', p=p, testval=0, shape=Nvar)
+        p_sb     = pm.Deterministic('p_sb', stick_breaking(h))
+        z        = pm.Categorical('z', p=p_sb, testval=0, shape=Nvar)
+        phi_k    = pm.Uniform('phi_k', lower=sens, upper=phi_limit, shape=Ndp)
 
-        pv       = p_var(z, phi_k)
-        #cbinom = pm.Binomial('cbinom', dep, pv, shape=Nvar, observed=sup)
+        bb_beta  = pm.Gamma('bb_beta', alpha=a_s, beta=b_s)
+        pv       = pm.Deterministic('pv', p_var(z, phi_k, bb_beta))
+        obs      = pm.BetaBinomial('obs', alpha=-(bb_beta * pv)/(pv - 1), beta=bb_beta, n=dep, observed=sup)
 
-        bb_scale = a_s
-        bb_init  = dep/bb_scale/b_s
-        bb_beta  = pm.Gamma('bb_beta', alpha=dep/bb_scale, beta=b_s, shape=Nvar, testval=bb_init)
-        bb_alpha = -(bb_beta*pv)/(pv-1)
-        cbbinom  = pm.BetaBinomial('cbbinom', alpha=bb_alpha, beta=bb_beta, n=dep, observed=sup)
+#        alpha = pm.Gamma('alpha', alpha=alpha, beta=beta, testval=alpha/beta)
+#        h = pm.Beta('h', alpha=1, beta=alpha, shape=Ndp, testval=1/(1+alpha))
+#
+#
+#        #p = stick_breaking(h)
+#        p = pm.Deterministic('p', stick_breaking(h))
+#        z = pm.Categorical('z', p=p, testval=0, shape=Nvar)
+#
+#        #cbinom = pm.Binomial('cbinom', dep, pv, shape=Nvar, observed=sup)
+#
+#        #bb_scale = a_s
+#        #bb_init  = dep/bb_scale/b_s
+#        #bb_beta  = pm.Gamma('bb_beta', alpha=dep/bb_scale, beta=b_s, shape=Nvar, testval=bb_init)
+#        bb_beta  = pm.Gamma('bb_beta', alpha=a_s, beta=b_s, testval=a_s/b_s)
+#        pv       = p_var(z, phi_k, bb_beta)
+#        #bb_alpha = -(bb_beta*pv)/(pv-1)
+#        cbbinom  = pm.BetaBinomial('cbbinom', alpha=pv, beta=bb_beta, n=dep, observed=sup)
 
 #    with model:
 #        trace = pm.sample(n_iter)
     with model:
-        use_map = False
-        if use_map:
-            start = pm.find_MAP(fmin=optimize.fmin_cg)
-
         step1 = pm.Metropolis(vars=[alpha, h, phi_k])
-        #step2 = pm.CategoricalGibbsMetropolis(vars = [z])
-        #step2 = pm.ElemwiseCategorical(vars=[z], values=[0, 1, 2, 3, 4, 5])
-        step2 = pm.ElemwiseCategorical(vars=[z], values=[x for x in range(Ndp)])
-        step3 = pm.Metropolis(vars=[pv, bb_beta, cbbinom])
-        #step3 = pm.Metropolis(vars=[pv, cbinom])
-
-        if use_map:
-            trace = pm.sample(draws=n_iter, step=[step1, step2, step3], start=start, cores=threads)
-        else:
-            trace = pm.sample(draws=n_iter, step=[step1, step2, step3], cores=threads)
+        step2 = pm.ElemwiseCategorical(vars=[z])
+        #step3 = pm.NUTS(vars=[bb_beta])
+        trace = pm.sample(draws=n_iter, step=[step1, step2], cores=threads)
+        #step2 = pm.CategoricalGibbsMetropolis(vars=[z])
+#        use_map = False
+#        if use_map:
+#            start = pm.find_MAP(fmin=optimize.fmin_cg)
+#
+#        step1 = pm.Metropolis(vars=[alpha, h, phi_k])
+#        #step2 = pm.CategoricalGibbsMetropolis(vars = [z])
+#        #step2 = pm.ElemwiseCategorical(vars=[z], values=[0, 1, 2, 3, 4, 5])
+#        step2 = pm.ElemwiseCategorical(vars=[z], values=[x for x in range(Ndp)])
+#        step3 = pm.Metropolis(vars=[bb_beta, pv, cbbinom])
+#        #step3 = pm.Metropolis(vars=[pv, cbinom])
+#
+#        if use_map:
+#            trace = pm.sample(draws=n_iter, step=[step1, step2, step3], start=start, cores=threads)
+#        else:
+#            trace = pm.sample(draws=n_iter, step=[step1, step2, step3], cores=threads)
 
     return trace[burn::thin], model

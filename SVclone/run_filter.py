@@ -507,16 +507,16 @@ def adjust_sv_read_counts(sv_df,pi,pl,min_dep,rlen,Config):
     norm_mean = np.mean(norm_vals[norm_vals > min_dep])
     sides = np.array([0 if a < b else 1 for a,b in zip(sv_df.norm1.values,sv_df.norm2.values)])
 
+    if not filter_subclonal_cnvs:
+        # prefer sides with clonal genotype data
+        exclusive_subclones = zip(sv_df.gtype1.values[one_sc],sv_df.gtype2.values[one_sc])
+        sides[one_sc] = [1 if len(gt1.split('|'))>1 else 0 for gt1,gt2 in exclusive_subclones]
+
     # if one side doesn't have CNV data, pick the other side
     if np.any(sv_df.gtype1.values==''):
         sides[sv_df.gtype1.values==''] = 1
     if np.any(sv_df.gtype2.values==''):
         sides[sv_df.gtype2.values==''] = 0
-
-    if not filter_subclonal_cnvs:
-        # prefer sides with clonal genotype data
-        exclusive_subclones = zip(sv_df.gtype1.values[one_sc],sv_df.gtype2.values[one_sc])
-        sides[one_sc] = [1 if len(gt1.split('|'))>1 else 0 for gt1,gt2 in exclusive_subclones]
 
     norm = np.array([float(ni[si]) for ni,si in zip(n, sides)])
     cparams = {'restrict_cnss': restrict_cnss} #fake cparams dic for compatibility
