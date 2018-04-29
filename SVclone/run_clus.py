@@ -473,7 +473,6 @@ def cluster_and_process(sv_df, snv_df, run, out_dir, sample_params, cluster_para
                                      cluster_params, cluster_params['phi_limit'], norm, threads)
         post_process_clusters(mcmc, sv_df, snv_df, clus_out_dir, sup, dep, norm, cn_states,
                           sample_params, cluster_params, output_params, map_, threads)
-
     elif len(sv_df) > 0 or len(snv_df) > 0:
         # no coclustering
         if len(snv_df) > 0:

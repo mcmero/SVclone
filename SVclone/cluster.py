@@ -10,7 +10,7 @@ import theano.tensor as t
 
 from theano.compile.ops import as_op
 from scipy import stats, optimize
-from scipy.special import gamma, beta, comb
+from scipy.special import gammaln
 from sklearn.cluster import KMeans
 from operator import methodcaller
 theano.config.exception_verbosity = 'high'
@@ -25,21 +25,15 @@ def binomial_like(x, n, p):
     l = l * p ** x * (1 - p) ** (n - x)
     return(np.log(l))
 
-def betabinomial_like(x, n, p, b):
+def betabinomial_like(k, n, p, b):
     '''
     calculate beta-binomial log-likelihood
     '''
-#    a = -(b * p)/(p - 1)
-#    l = gamma(n + 1) / (gamma(x + 1) * gamma(n - x + 1))
-#    l = l * ((gamma(x + a) * gamma(n - x + b)) / (gamma(n + a + b)))
-#    l = l * (gamma(a + b) / (gamma(a) * gamma(b)))
-    #b_ab = beta(a, b)
-    #l = comb(n, x) * (beta(x + a, n - x + b) / b_ab) if b_ab != 0 else 1e-100
-    a = (b * (p * n)) / (n - (p * n))
-    l = comb(n, x) * (beta(x + a, n - x + b) / beta(a, b))
-    if type(l) == list or type(l) == np.ndarray:
-        l = [1e-100 if np.isnan(li) else li for li in l]
-    return(np.log(l))
+    a = - (p * b) / (p - 1)
+    p1 = gammaln(n + 1) - (gammaln(k + 1) + gammaln(n - k + 1))
+    p2 = gammaln(k + a) + gammaln(n - k + b) - gammaln(n + a + b)
+    p3 = gammaln(a + b) - (gammaln(a) + gammaln(b))
+    return p1 + p2 + p3
 
 def add_copynumber_combos(combos, var_maj, var_min, ref_cn, frac, cparams):
     '''
@@ -220,8 +214,12 @@ def get_most_likely_cn(combo, cn_lik, pval_cutoff):
 
 def get_most_likely_pvs(cn_states, s, d, phi, pi, norm, bb):
     pvs = [get_pvs(phi[i], cn, pi, norm[i]) for i,cn in enumerate(cn_states)]
-    lls = [0. if len(p)==1 else betabinomial_like(s[i], d[i], np.array(p), float(bb)) for i,p in enumerate(pvs)]
-    most_likely_pvs = [p[0] if type(l)==float else p[np.where(l==np.max(l))[0][0]] for p,l in zip(pvs, lls)]
+    #lls = [0. if len(p)==1 else betabinomial_like(s[i], d[i], np.array(p), float(bb)) for i,p in enumerate(pvs)]
+    #most_likely_pvs = [p[0] if type(l)==float else p[np.where(l==np.max(l))[0][0]] for p,l in zip(pvs, lls)]
+
+    vafs = np.array(s) / np.array(d)
+    p_diffs = [np.abs(np.array(p) - vafs[i]) for i,p in enumerate(pvs)]
+    most_likely_pvs = [p[np.where(pd==np.min(pd))[0][0]] for p, pd in zip(pvs, p_diffs)]
 
     return most_likely_pvs
 
@@ -383,7 +381,7 @@ def cluster(sup,dep,cn_states,Nvar,sparams,cparams,phi_limit,norm,threads=1,recl
 #        z = np.array([zi if zi < Ndp else np.random.randint(0, Ndp-1) for zi in z])
 #        alphas = get_most_likely_alpha(cn_states, sup, dep, phi_k[z], purity, norm, bb_beta)
 #        return np.array(alphas)
-    p_var.grad = lambda *x: [t.cast(x[0][0], dtype='float64'), x[0][1], x[0][2]]
+#    p_var.grad = lambda *x: [t.cast(x[0][0], dtype='float64'), x[0][1], x[0][2]]
 
 #    phi_init = np.random.rand(Ndp) * phi_limit
 #    phi_init = np.array([sens if x < sens else x for x in phi_init])
@@ -400,7 +398,7 @@ def cluster(sup,dep,cn_states,Nvar,sparams,cparams,phi_limit,norm,threads=1,recl
 
         bb_beta  = pm.Gamma('bb_beta', alpha=a_s, beta=b_s)
         pv       = pm.Deterministic('pv', p_var(z, phi_k, bb_beta))
-        obs      = pm.BetaBinomial('obs', alpha=-(bb_beta * pv * dep)/(pv * dep - dep), beta=bb_beta, n=dep, observed=sup)
+        obs      = pm.BetaBinomial('obs', alpha=-(bb_beta * pv)/(pv - 1), beta=bb_beta, n=dep, observed=sup)
 
 #        alpha = pm.Gamma('alpha', alpha=alpha, beta=beta, testval=alpha/beta)
 #        h = pm.Beta('h', alpha=1, beta=alpha, shape=Ndp, testval=1/(1+alpha))
@@ -425,8 +423,8 @@ def cluster(sup,dep,cn_states,Nvar,sparams,cparams,phi_limit,norm,threads=1,recl
     with model:
         step1 = pm.Metropolis(vars=[alpha, h, phi_k])
         step2 = pm.ElemwiseCategorical(vars=[z])
-        step3 = pm.NUTS(vars=[bb_beta])
-        trace = pm.sample(draws=n_iter, step=[step1, step2, step3], cores=threads)
+        #step3 = pm.NUTS(vars=[bb_beta])
+        trace = pm.sample(draws=n_iter, step=[step1, step2], cores=threads)
         #step2 = pm.CategoricalGibbsMetropolis(vars=[z])
 #        use_map = False
 #        if use_map:
