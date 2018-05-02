@@ -21,7 +21,7 @@ def get_sv_vals(sv_df, adjusted, male, cparams):
     combos = sv_df.apply(cluster.get_sv_allele_combos, axis=1, args=(cparams,)).values
     sides = sv_df.preferred_side.map(int).values
     cn_states = [cn[side] for cn,side in zip(combos, sides)]
-    cn_states = pd.DataFrame([[sv] for sv in cn_states])[0].values
+    #cn_states = pd.DataFrame([[sv] for sv in cn_states])[0].values
     chroms = [c1 if side == 0 else c2 for c1,c2,side in zip(sv_df.chr1.values, sv_df.chr2.values, sides)]
     norm_cnstate = [get_normal_copynumber(c, male) for c in chroms]
 
@@ -43,7 +43,7 @@ def get_snv_vals(df, male, cparams):
     b = df['var'].map(float).values
 
     cn_states = [cluster.get_allele_combos(gtype.split('|'), cparams) for gtype in df.gtype]
-    cn_states = pd.DataFrame([[cn] for cn in cn_states])[0].values
+    #cn_states = pd.DataFrame([[cn] for cn in cn_states])[0].values
 
     norm = [get_normal_copynumber(c, male) for c in df.chrom.values]
     return b,(n+b),cn_states,len(b),norm
