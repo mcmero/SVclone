@@ -1,15 +1,15 @@
 import nose2
 import unittest
 import numpy as np
-import ConfigParser
+import configparser
 import os
 import pandas as pd
 import subprocess
 from unittest import TestCase
-from SVprocess import bamtools
-from SVprocess import annotate
-from SVprocess import svp_load_data as load_data
-from SVprocess import count
+from SVclone.SVprocess import bamtools
+from SVclone.SVprocess import annotate
+from SVclone.SVprocess import svp_load_data as load_data
+from SVclone.SVprocess import count
 from SVclone import load_data as svc_load
 from SVclone import run_filter
 from SVclone import run_clus
@@ -50,9 +50,10 @@ sc_str       = '%s_subclonal_structure.txt' % sample
 n_clus       = '%s_number_of_clusters.txt' % sample
 ccfs         = '%s_vaf_ccf.txt' % sample
 
-Config = ConfigParser.ConfigParser()
+Config = configparser.ConfigParser()
 Config.read(cfg)
 
+threads        = int(Config.get('ClusterParameters', 'threads'))
 max_cn         = float(Config.get('BamParameters', 'max_cn'))
 mean_cov       = float(Config.get('BamParameters', 'mean_cov'))
 sc_len         = int(Config.get('SVcountParameters', 'sc_len'))
@@ -162,7 +163,7 @@ class test(unittest.TestCase):
         # separate clustering test
         subprocess.call(['rm', '-rf', '%s/run0' % outdir])
         run_clus.cluster_and_process(sv_df, snv_df, 0, outdir, sample_params,
-                                     cluster_params, output_params, [1234])
+                                     cluster_params, output_params, [1234], threads)
 
         sv1 = pd.read_csv('%s/run0/%s' % (outdir, ass_prob_tbl),
                           delimiter='\t', dtype=None, header=0, low_memory=False)
@@ -210,7 +211,7 @@ class test(unittest.TestCase):
         cluster_params['cocluster'] = True
 
         run_clus.cluster_and_process(sv_df, snv_df, 0, outdir, sample_params,
-                                        cluster_params, output_params, [1234])
+                                        cluster_params, output_params, [1234], threads)
 
         snv1 = pd.read_csv('%s/run0/snvs/%s' % (outdir, ass_prob_tbl),
                            delimiter='\t', dtype=None, header=0, low_memory=False)
@@ -268,7 +269,7 @@ class test(unittest.TestCase):
         cluster_params['use_map'] = False
 
         run_clus.cluster_and_process(sv_filt_df, snv_filt_df, 0, outdir, sample_params,
-                                        cluster_params, output_params, [1234])
+                                        cluster_params, output_params, [1234], threads)
 
         rundir = '%s/run0' % outdir
         sv_to_assign = post_assign.get_var_to_assign(sv_df, sv_filt_df)
