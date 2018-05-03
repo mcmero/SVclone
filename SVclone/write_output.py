@@ -82,7 +82,7 @@ def write_out_files(df, clus_info, clus_members, df_probs, clus_cert, clus_out_d
     df_probs  = df_probs.loc[cmem]
     clus_cert = clus_cert.loc[cmem]
     z_phi     = z_phi[cmem]
-    sup, dep, norm, cn_states = sup[cmem], dep[cmem], np.array(norm)[cmem], cn_states[cmem]
+    sup, dep, norm, cn_states = sup[cmem], dep[cmem], np.array(norm)[cmem], np.array(cn_states)[cmem]
 
     # prepare data structures for output
     cn_vect     = np.empty((0, len(cmem)), dtype=cn_dtype)

@@ -467,7 +467,8 @@ def cluster_and_process(sv_df, snv_df, run, out_dir, sample_params, cluster_para
         sup = np.append(sup, sv_sup)
         dep = np.append(dep, sv_dep)
         norm = np.append(norm, sv_norm)
-        cn_states = pd.concat([pd.DataFrame(cn_states),pd.DataFrame(sv_cn_states)])[0].values
+        #cn_states = pd.concat([pd.DataFrame(cn_states),pd.DataFrame(sv_cn_states)])[0].values
+        cn_states.extend(sv_cn_states)
         Nvar = Nvar + sv_Nvar
         mcmc, map_ = cluster.cluster(sup, dep, cn_states, Nvar, sample_params,
                                      cluster_params, cluster_params['phi_limit'], norm, threads)
