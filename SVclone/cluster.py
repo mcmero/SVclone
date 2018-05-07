@@ -376,9 +376,10 @@ def cluster(sup,dep,cn_states,Nvar,sparams,cparams,phi_limit,norm,threads=1,recl
         obs      = pm.BetaBinomial('obs', alpha=(pv * prec), beta=(1 - pv) * prec, n=dep, observed=sup)
 
     with model:
-        step1 = pm.Metropolis(vars=[alpha, h, phi_k])
+        step1 = pm.Metropolis(vars=[alpha, h, phi_k, prec])
         step2 = pm.ElemwiseCategorical(vars=[z]) # ElemwiseCategorical still much faster than CategoricalGibbsMetropolis
         #step2 = pm.CategoricalGibbsMetropolis(vars=[z])
-        trace = pm.sample(draws=n_iter, step=[step1, step2], cores=threads, threads=threads, tune=1000, nuts_kwargs={'target_accept': 0.9})
+        trace = pm.sample(draws=n_iter, step=[step1, step2], cores=threads, threads=threads*2, tune=burn)
 
-    return trace[burn::thin], model
+    #return trace[burn::thin], model
+    return trace[::thin], model

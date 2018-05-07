@@ -39,8 +39,8 @@ def gen_new_colours(N):
     return RGB_tuples
 
 def plot_clusters(trace, clusters, assignments, sup, dep, clus_out_dir, cparams):
-    traceplot(trace)
-    plt.savefig('%s/pymc3_traceplot'%clus_out_dir)
+    #traceplot(trace[::10], varnames=['alpha', 'z', 'phi_k', 'pv', 'prec']) #plot a thinned trace
+    #plt.savefig('%s/pymc3_traceplot'%clus_out_dir)
 
     center_trace = trace["phi_k"]
     #center_trace = trace["phi_k"][burn:]
@@ -54,6 +54,7 @@ def plot_clusters(trace, clusters, assignments, sup, dep, clus_out_dir, cparams)
     maxclus = max([max(z) for z in z_trace])
 
     alpha_trace = []
+    prec_trace = trace['prec']
     try:
         #alpha_trace = trace['alpha'][burn:]
         alpha_trace = trace['alpha']
@@ -61,11 +62,11 @@ def plot_clusters(trace, clusters, assignments, sup, dep, clus_out_dir, cparams)
     except KeyError:
         pass
 
-    fig, axes = plt.subplots(4, 1, sharex=False, sharey=False, figsize=(12.5,12))
+    fig, axes = plt.subplots(5, 1, sharex=False, sharey=False, figsize=(12.5,12))
     if len(alpha_trace) > 0:
-        fig, axes = plt.subplots(5, 1, sharex=False, sharey=False, figsize=(12.5,15))
-        axes[4].set_title("Alpha trace")
-        axes[4].plot(range(len(alpha_trace)), alpha_trace, lw=1)
+        fig, axes = plt.subplots(6, 1, sharex=False, sharey=False, figsize=(12.5,18))
+        axes[5].set_title("Alpha trace")
+        axes[5].plot(range(len(alpha_trace)), alpha_trace, lw=1)
 
     RGB_tuples = gen_new_colours(len(clusters))
 
@@ -100,6 +101,9 @@ def plot_clusters(trace, clusters, assignments, sup, dep, clus_out_dir, cparams)
         sup_clus = sup[clus_idx]
         dep_clus = dep[clus_idx]
         axes[3].hist(sup_clus/dep_clus,bins=np.array(range(0,100,2))/100.,alpha=0.75,color=RGB_tuples[idx])
+
+    axes[4].set_title("Prec trace")
+    axes[4].plot(range(len(prec_trace)), prec_trace, lw=1)
 
     fig.tight_layout()
     plt.savefig('%s/cluster_trace_hist'%clus_out_dir)
