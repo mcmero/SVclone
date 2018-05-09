@@ -124,20 +124,20 @@ def load_input_simple(svin,use_dir,class_field):
     svs = np.empty(0, dtype=sv_dtype)
     sv_id = 0
     for row in sv_tmp:
-        chr1 = str(row['chr1'])
+        chr1 = str(row['chr1']) if not isinstance(row['chr1'], bytes) else row['chr1'].decode('utf-8')
         pos1 = int(row['pos1'])
-        chr2 = str(row['chr2'])
+        chr2 = str(row['chr2']) if not isinstance(row['chr2'], bytes) else row['chr2'].decode('utf-8')
         pos2 = int(row['pos2'])
-        orig_id = str(row['ID']) if 'ID' in sv_tmp.dtype.names else ''
+        orig_id = row['ID'].decode('utf-8') if 'ID' in sv_tmp.dtype.names else ''
         orig_pos1 = pos1
         orig_pos2 = pos2
-        sv_class = row[class_field] if class_field!='' else ''
+        sv_class = row[class_field].decode('utf-8') if class_field!='' else ''
         add_sv = np.empty(0)
 
         dir1, dir2 = '?', '?'
         if use_dir:
-            dir1 = str(row['dir1'])
-            dir2 = str(row['dir2'])
+            dir1 = row['dir1'].decode('utf-8')
+            dir2 = row['dir2'].decode('utf-8')
 
         add_sv = np.array([(sv_id, chr1, pos1, dir1, chr2, pos2, dir2, sv_class, orig_id, orig_pos1, orig_pos2)], dtype=sv_dtype)
         svs = np.append(svs,add_sv)
