@@ -188,12 +188,37 @@ Where:
 * -o or --out \<out\> : output directory to create files. Default: the sample name.
 * -cgf or --config \<config.ini\>: SVclone configuration file with additional parameters (svclone_config.ini is the default).
 * --params \<params.txt\> : Parameters file from processing step containing read information. If not supplied, the default search path is \<out\>/\<sample\>_params.txt'
-* -c or --cnvs \<cnv file\> : Battenberg subclones.txt file containing segmented copy-numbers for patient sample. If not supplied, will assume that all regions are copy-number neutral (Major = 1, Minor = 1).
+* -c or --cnvs \<cnv file\> : Battenberg subclones.txt or ASCAT caveman csv file containing segmented copy-numbers for patient sample. If not supplied, will assume that all regions are copy-number neutral (Major = 1, Minor = 1).
 * -p \<file\> or --purity_ploidy \<file\>: Tumour purity and ploidy in tab-separated text file. Purity must be between 0 and 1. Ploidy can be a floating point number. Column names must be labelled 'sample', 'purity' and 'ploidy' (without quotes). Row 2 must contain the sample name and purity and ploidy values respectively.
 * -g or --germline \<germline_svinfo.txt\> : Germline SVs; will filter out any tumour SVs which have >1 supporting read in the germline. Expects the same input format as the sv info file (you can run sv_process on the tumour SVs against the germline bam file to obtain this).
 * --snvs \<snv_file\> : SNVs in VCF format to (optionally) compare the clustering with SVs.
 * --snv_format \<sanger, mutect, mutect_callstats\> (default = sanger) : Specify VCF input format (only if clustering SNVs).
 * --blacklist \<file.bed\> : Takes a list of intervals in BED format. Skip processing of any break-pairs where either SV break-end overlaps an interval specified in the supplied bed file. Using something like the [DAC blacklist](https://www.encodeproject.org/annotations/ENCSR636HFF/) is recommended.
+
+### Copy-number input formats ###
+
+Two copy-number input formats are supported: [Battenberg](https://github.com/cancerit/cgpBattenberg) and [ASCAT](https://github.com/cancerit/ascatNgs). The following shows a Battenberg subclones.txt example:
+
+```
+X	chr	startpos	endpos	BAF	pval	LogR	ntot	nMaj1_A	nMin1_A	frac1_A	nMaj2_A	nMin2_A	frac2_A
+1	1	54491	7958088	0.509836471	1	0.029104607	2.510592339	1	1	1	NA	NA	NA
+2	1	7958594	15094665	0.519197319	6.23E-36	-0.179467225	1.74352809	1	0	0.12550915	1	1	0.87449085
+3	1	15095331	39549452	0.519007705	3.72E-09	-0.050483364	2.037000342	1	1	0.86585984	2	1	0.13414016
+4	1	39556288	40141768	0.840924898	1	1.617870568	9.512437457	8	1	1	NA	NA	NA
+```
+
+Battenberg provides more possible segmentations, but SVclone will only use fractions for the '\_A' segments. Only the genomic coordinates, allelic copy-number and fraction fields are used by SVclone.
+
+ASCAT's cavemam csv format is as follows:
+
+```
+1,1,54491,7958088,2,1,2,1
+2,1,7958594,15094665,2,1,2,1
+3,1,15095331,39549452,2,1,2,1
+4,1,39556288,40141768,2,1,8,1
+```
+
+The fields are ID, chrom, start, end, normal total copy-number, normal minor allele copy-number, tumour total copy-number and tumour minor copy-number. This format gives copy-number calls at clonal resolution only. 
 
 ### Purity/ploidy file ###
 
