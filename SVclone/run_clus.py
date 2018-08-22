@@ -16,6 +16,7 @@ import time
 import shutil
 import pymc as pm
 import random
+import ConfigParser
 
 from distutils.dir_util import copy_tree
 from collections import OrderedDict
@@ -424,7 +425,6 @@ def post_process_clusters(mcmc,sv_df,snv_df,clus_out_dir,sup,dep,norm,cn_states,
                     sv_dep,sv_norm,sv_cn_states,run_fit,smc_het,cnv_pval,sv_z_phi)
 
 def cluster_and_process(sv_df, snv_df, run, out_dir, sample_params, cluster_params, output_params, seeds):
-    male = cluster_params['male']
     np.random.seed(seeds[run])
     print('Random seed for run %d is %d' % (run, seeds[run]))
 
@@ -435,9 +435,9 @@ def cluster_and_process(sv_df, snv_df, run, out_dir, sample_params, cluster_para
     Nvar, sup, dep, cn_states, norm = None, None, None, None, None
     if cluster_params['cocluster'] and len(sv_df)>0 and len(snv_df)>0:
         # coclustering
-        sup, dep, cn_states, Nvar, norm = load_data.get_snv_vals(snv_df, male, cluster_params)
+        sup, dep, cn_states, Nvar, norm = load_data.get_snv_vals(snv_df, cluster_params)
         sv_sup, sv_dep, sv_cn_states, sv_Nvar, sv_norm = load_data.get_sv_vals(sv_df,
-                                                cluster_params['adjusted'], male, cluster_params)
+                                                cluster_params['adjusted'], cluster_params)
         sup = np.append(sup, sv_sup)
         dep = np.append(dep, sv_dep)
         norm = np.append(norm, sv_norm)
@@ -453,14 +453,14 @@ def cluster_and_process(sv_df, snv_df, run, out_dir, sample_params, cluster_para
         if len(snv_df) > 0:
             if not os.path.exists('%s/snvs'%clus_out_dir):
                 os.makedirs('%s/snvs'%clus_out_dir)
-            sup, dep, cn_states, Nvar, norm = load_data.get_snv_vals(snv_df, male, cluster_params)
+            sup, dep, cn_states, Nvar, norm = load_data.get_snv_vals(snv_df, cluster_params)
             mcmc, map_ = cluster.cluster(sup, dep, cn_states, Nvar, sample_params,
                                          cluster_params, cluster_params['phi_limit'], norm)
             post_process_clusters(mcmc, pd.DataFrame(), snv_df, clus_out_dir, sup, dep, norm,
                                   cn_states,sample_params, cluster_params, output_params, map_)
         if len(sv_df) > 0:
             sup, dep, cn_states, Nvar, norm = load_data.get_sv_vals(sv_df,
-                                                cluster_params['adjusted'], male, cluster_params)
+                                                cluster_params['adjusted'], cluster_params)
             mcmc, map_ = cluster.cluster(sup, dep, cn_states, Nvar, sample_params,
                                          cluster_params, cluster_params['phi_limit'], norm)
             post_process_clusters(mcmc, sv_df, pd.DataFrame(), clus_out_dir, sup, dep, norm,
@@ -579,8 +579,94 @@ def subsample_snvs(snv_df, subsample, run, ss_seeds, sample, out):
 
     return(snv_run_df)
 
-def run_clustering(args):
+def select_copynumber(cn_state):
+    '''
+    Return the major and minor alleles
+    for whichever copy-number state has
+    the higher fraction (if subclonal).
+    Otherwise just return clonal vals.
+    '''
+    cn_state = [cn.split(',') for cn in cn_state.split('|')]
+    major, minor = cn_state[0][0], cn_state[0][1]
+    if len(cn_state) > 0:
+        frac = cn_state[0][2]
+        major = major if frac > 0.5 else cn_state[1][0]
+        minor = minor if frac > 0.5 else cn_state[1][1]
+    return (int(major), int(minor))
 
+def format_snvs_for_ccube(df, sparams, cparams, cc_file):
+    '''
+    prepare ccube input for SNVs
+    '''
+    sup, dep, cn_states, Nvar, norm_cn = load_data.get_snv_vals(df, cparams)
+    mutation_id = ['%s_%d' % (c, p) for c, p in zip(df.chrom, df.pos)]
+    cn_states = df.gtype.map(lambda x: select_copynumber(x))
+    major = np.array([m for m,n in cn_states])
+    minor = np.array([n for m,n in cn_states])
+
+    cc_df = pd.DataFrame({'id': range(len(df)),
+                         'mutation_id': mutation_id,
+                         'purity': sparams['pi'],
+                         'normal_cn': norm_cn,
+                         'var_counts': sup,
+                         'ref_counts': dep - sup,
+                         'total_counts': dep,
+                         'vaf': sup / dep,
+                         'minor_cn': minor,
+                         'major_cn': major,
+                         'total_cn': major + minor})
+
+    cc_df = cc_df[['id', 'mutation_id', 'purity', 'normal_cn', 'var_counts', 'ref_counts',
+                   'total_counts', 'vaf', 'minor_cn', 'major_cn', 'total_cn']]
+    cc_df.to_csv(cc_file, sep='\t', index=False)
+
+def format_svs_for_ccube(df, sparams, cparams, cc_file, gain_loss_classes):
+    '''
+    prepare ccube input for SVs
+    '''
+    adjust_factor = 1. - (float(sparams['pi']) / sparams['ploidy'])
+    sup, dep, cn_states, Nvar, norm_cn = load_data.get_sv_vals(df, cparams)
+
+    sv_classes = df.classification.values
+    dups = np.array([sv_class in gain_loss_classes['dna_gain_class'] for idx, sv_class in enumerate(sv_classes)])
+    norm1, norm2 = df.norm1, df.norm2
+    norm1[dups] = norm1[dups] * adjust_factor
+    norm2[dups] = norm2[dups] * adjust_factor
+
+    mutation_id = ['%s:%d:%s_%s:%d:%s' % (c1, p1, d1, c2, p2, d2) for c1, p1, d1, c2, p2, d2 in \
+                    zip(df.chr1.values, df.pos1.values, df.dir1.values, df.chr2.values, df.pos2.values, df.dir2.values)]
+    cn_states1 = df.gtype1.map(lambda x: select_copynumber(x))
+    cn_states2 = df.gtype2.map(lambda x: select_copynumber(x))
+    major1 = np.array([m for m,n in cn_states1])
+    minor1 = np.array([n for m,n in cn_states1])
+    major2 = np.array([m for m,n in cn_states2])
+    minor2 = np.array([n for m,n in cn_states2])
+
+    cc_df = pd.DataFrame({'id': df.ID,
+                         'mutation_id': mutation_id,
+                         'purity': sparams['pi'],
+                         'normal_cn': norm_cn,
+                         'var_counts1': sup,
+                         'ref_counts1': norm1,
+                         'total_counts1': sup + norm1,
+                         'minor_cn1': minor1,
+                         'major_cn1': major1,
+                         'total_cn1': major1 + minor1,
+                         'vaf1': sup / (sup + norm1),
+                         'var_counts2': sup,
+                         'ref_counts2': norm2,
+                         'total_counts2': sup + norm2,
+                         'minor_cn2': minor2,
+                         'major_cn2': major2,
+                         'total_cn2': major2 + minor2,
+                         'vaf2': sup / (sup + norm2)})
+
+    cc_df = cc_df[['id', 'mutation_id', 'purity', 'normal_cn',
+                   'var_counts1', 'ref_counts1', 'total_counts1', 'minor_cn1', 'major_cn1', 'total_cn1', 'vaf1',
+                   'var_counts2', 'ref_counts2', 'total_counts2', 'minor_cn2', 'major_cn2', 'total_cn2', 'vaf2']]
+    cc_df.to_csv(cc_file, sep='\t', index=False)
+
+def run_clustering(args):
     sample          = args.sample
     cfg             = args.cfg
     out             = sample if args.out == "" else args.out
@@ -592,7 +678,7 @@ def run_clustering(args):
     XX              = args.XX
     XY              = args.XY
     subsample       = args.subsample
-    ss_seeds         = args.ss_seeds
+    ss_seeds        = args.ss_seeds
 
     if out!='' and not os.path.exists(out):
         os.makedirs(out)
@@ -648,43 +734,68 @@ def run_clustering(args):
         if len(sv_df) > 0:
             print("Clustering %d SVs..." % len(sv_df))
 
-    if threads == 1:
-        for run in range(n_runs):
-            snv_run_df = snv_df
-            if subsample > 0 and subsample < len(snv_df):
-                snv_run_df = subsample_snvs(snv_df, subsample, run, ss_seeds, sample, out)
-            cluster_and_process(sv_df,snv_run_df,run,out,sample_params,cluster_params,output_params,seeds)
-        # select the best run based on min BIC
-        if use_map and n_runs > 1:
-            if len(sv_df) > 0:
-                pick_best_run(n_runs, out, sample, ccf_reject, cocluster, fit_metric, cluster_penalty)
-            if len(snv_df) > 0 and not cocluster:
-                pick_best_run(n_runs, out, sample, ccf_reject, cocluster, fit_metric, cluster_penalty, are_snvs=True)
-    else:
-        conc_runs = max(1, n_runs / threads) if n_runs % threads == 0 else (n_runs / threads) + 1
-        for i in range(conc_runs):
-            jobs = []
-            for j in range(threads):
-                run = j + (i * threads)
-                if not run > n_runs-1:
-                    print("Thread %d; cluster run: %d" % (j, run))
-                    snv_run_df = snv_df
-                    if subsample > 0 and subsample < len(snv_df):
-                        snv_run_df = subsample_snvs(snv_df, subsample, run, ss_seeds, sample, out)
-                    process = multiprocessing.Process(target=cluster_and_process,args=(sv_df,snv_run_df,run,out,
-                                                      sample_params,cluster_params,output_params,seeds))
-                    jobs.append(process)
-            for j in jobs:
-                j.start()
-            for j in jobs:
-                j.join()
+    Config = ConfigParser.ConfigParser()
+    cfg_file = Config.read(cfg)
+    dna_gain_class = Config.get('SVclasses', 'dna_gain_class').split(',')
+    dna_loss_class = Config.get('SVclasses', 'dna_loss_class').split(',')
+    gain_loss_classes = {'dna_gain_class': dna_gain_class, 'dna_loss_class': dna_loss_class}
 
-        while True:
-            if not use_map or n_runs == 1:
-                break
-            if np.all(np.array([not j.is_alive() for j in jobs])):
-                if len(sv_df) > 0:
-                    pick_best_run(n_runs, out, sample, ccf_reject, cocluster, fit_metric, cluster_penalty)
-                if len(snv_df) > 0 and not cocluster:
-                    pick_best_run(n_runs, out, sample, ccf_reject, cocluster, fit_metric, cluster_penalty, are_snvs=True)
-                break
+    cc_sv, cc_snv = None, None
+    if len(sv_df) > 0:
+        cc_file = '%s/%s_ccube_sv_input.txt' % (out, sample_params['sample'])
+        format_svs_for_ccube(sv_df, sample_params, cluster_params, cc_file, gain_loss_classes)
+
+        if os.path.exists(cc_file):
+            dirname = os.path.dirname(os.path.abspath(__file__))
+            subprocess.call(['Rscript', '%s/cluster_with_ccube.R' % dirname, cc_file,
+                             out, sample_params['sample'], 'cores==%d' % threads])
+
+    if len(snv_df) > 0:
+        cc_file = '%s/%s_ccube_snv_input.txt' % (out, sample_params['sample'])
+        format_snvs_for_ccube(snv_df, sample_params, cluster_params, cc_file)
+
+        if os.path.exists(cc_file):
+            dirname = os.path.dirname(os.path.abspath(__file__))
+            subprocess.call(['Rscript', '%s/cluster_with_ccube.R' % dirname, cc_file,
+                             out, sample_params['sample'], 'cores==%d' % threads])
+
+#    if threads == 1:
+#        for run in range(n_runs):
+#            snv_run_df = snv_df
+#            if subsample > 0 and subsample < len(snv_df):
+#                snv_run_df = subsample_snvs(snv_df, subsample, run, ss_seeds, sample, out)
+#            cluster_and_process(sv_df,snv_run_df,run,out,sample_params,cluster_params,output_params,seeds)
+#        # select the best run based on min BIC
+#        if use_map and n_runs > 1:
+#            if len(sv_df) > 0:
+#                pick_best_run(n_runs, out, sample, ccf_reject, cocluster, fit_metric, cluster_penalty)
+#            if len(snv_df) > 0 and not cocluster:
+#                pick_best_run(n_runs, out, sample, ccf_reject, cocluster, fit_metric, cluster_penalty, are_snvs=True)
+#    else:
+#        conc_runs = max(1, n_runs / threads) if n_runs % threads == 0 else (n_runs / threads) + 1
+#        for i in range(conc_runs):
+#            jobs = []
+#            for j in range(threads):
+#                run = j + (i * threads)
+#                if not run > n_runs-1:
+#                    print("Thread %d; cluster run: %d" % (j, run))
+#                    snv_run_df = snv_df
+#                    if subsample > 0 and subsample < len(snv_df):
+#                        snv_run_df = subsample_snvs(snv_df, subsample, run, ss_seeds, sample, out)
+#                    process = multiprocessing.Process(target=cluster_and_process,args=(sv_df,snv_run_df,run,out,
+#                                                      sample_params,cluster_params,output_params,seeds))
+#                    jobs.append(process)
+#            for j in jobs:
+#                j.start()
+#            for j in jobs:
+#                j.join()
+#
+#        while True:
+#            if not use_map or n_runs == 1:
+#                break
+#            if np.all(np.array([not j.is_alive() for j in jobs])):
+#                if len(sv_df) > 0:
+#                    pick_best_run(n_runs, out, sample, ccf_reject, cocluster, fit_metric, cluster_penalty)
+#                if len(snv_df) > 0 and not cocluster:
+#                    pick_best_run(n_runs, out, sample, ccf_reject, cocluster, fit_metric, cluster_penalty, are_snvs=True)
+#                break
