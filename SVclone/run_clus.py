@@ -586,13 +586,19 @@ def select_copynumber(cn_state):
     the higher fraction (if subclonal).
     Otherwise just return clonal vals.
     '''
-    cn_state = [cn.split(',') for cn in cn_state.split('|')]
-    major, minor = cn_state[0][0], cn_state[0][1]
-    if len(cn_state) > 0:
-        frac = cn_state[0][2]
-        major = major if frac > 0.5 else cn_state[1][0]
-        minor = minor if frac > 0.5 else cn_state[1][1]
-    return (int(major), int(minor))
+    try:
+        cn_state = [cn.split(',') for cn in cn_state.split('|')]
+        major, minor = cn_state[0][0], cn_state[0][1]
+        if len(cn_state) > 0:
+            frac = cn_state[0][2]
+            if int(float(major)) + int(float(minor)) == 0:
+                major, minor = cn_state[1][0], cn_state[1][1]
+            else:
+                major = major if frac > 0.5 else cn_state[1][0]
+                minor = minor if frac > 0.5 else cn_state[1][1]
+        return (int(float(major)), int(float(minor)))
+    except:
+        return (0, 0)
 
 def format_snvs_for_ccube(df, sparams, cparams, cc_file):
     '''
@@ -618,12 +624,18 @@ def format_snvs_for_ccube(df, sparams, cparams, cc_file):
 
     cc_df = cc_df[['id', 'mutation_id', 'purity', 'normal_cn', 'var_counts', 'ref_counts',
                    'total_counts', 'vaf', 'minor_cn', 'major_cn', 'total_cn']]
+
     cc_df.to_csv(cc_file, sep='\t', index=False)
 
 def format_svs_for_ccube(df, sparams, cparams, cc_file, gain_loss_classes):
     '''
     prepare ccube input for SVs
     '''
+    dl = len(df)
+    df = df[np.logical_and(df.gtype1!='', df.gtype2!='')]
+    if len(df) != dl:
+        print('Filtered out %d SVs with missing copy-number states' % (dl - len(df)))
+
     adjust_factor = 1. - (float(sparams['pi']) / sparams['ploidy'])
     sup, dep, cn_states, Nvar, norm_cn = load_data.get_sv_vals(df, cparams)
 
@@ -635,6 +647,7 @@ def format_svs_for_ccube(df, sparams, cparams, cc_file, gain_loss_classes):
 
     mutation_id = ['%s:%d:%s_%s:%d:%s' % (c1, p1, d1, c2, p2, d2) for c1, p1, d1, c2, p2, d2 in \
                     zip(df.chr1.values, df.pos1.values, df.dir1.values, df.chr2.values, df.pos2.values, df.dir2.values)]
+
     cn_states1 = df.gtype1.map(lambda x: select_copynumber(x))
     cn_states2 = df.gtype2.map(lambda x: select_copynumber(x))
     major1 = np.array([m for m,n in cn_states1])
