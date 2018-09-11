@@ -75,7 +75,7 @@ if (is_sv_data) {
                                 ssm = cc_input, writeOutput = T, resultFolder = resultFolder,
                                 ccubeResultRDataFile = paste(resultFolder, "ccube_snv_results.RData", sep="/"),
                                 numOfClusterPool = numOfClusterPool, numOfRepeat = numOfRepeat,
-                                runAnalysis = T, runQC = T, multiCore = T,
+                                runAnalysis = T, runQC = T, multiCore = multiCore,
                                 basicFormats = F, allFormats = T, returnAll = T)
 }
 

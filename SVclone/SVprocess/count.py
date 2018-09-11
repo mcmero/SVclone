@@ -113,11 +113,9 @@ def get_bp_dist(read,bp_pos):
         return (bp_pos - read['ref_start'])
 
 def points_towards_break(read,pos,threshold):
-    if read['is_reverse']:
-        if read['ref_start'] + threshold < pos: return False
-    else:
-        if read['ref_end'] - threshold > pos: return False
-    return True
+    scenario1 = read['is_reverse'] and read['ref_end'] > pos
+    scenario2 = not read['is_reverse'] and read['ref_start'] < pos
+    return scenario1 or scenario2
 
 def is_supporting_spanning_pair(read,mate,bp1,bp2,inserts,max_ins,threshold):
     pos1 = (bp1['start'] + bp1['end']) / 2
