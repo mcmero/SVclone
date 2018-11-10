@@ -513,6 +513,8 @@ def extract_sv_info(svin, bam, rparams, outname):
         oid_field, opos1_field, opos2_field = [h[0] for h in dtypes.sv_dtype]
 
     svs = np.genfromtxt(svin, delimiter='\t', names=True, dtype=None, invalid_raise=False)
+    if svs.ndim == 0:
+        svs = np.reshape(svs,(1))
 
     print("Extracting data from %d SVs"%len(svs))
     for row in svs:
