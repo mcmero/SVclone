@@ -28,7 +28,8 @@ def get_sv_vals(sv_df, cparams):
     norm = [get_normal_copynumber(c, male) for c in chroms]
 
     if adjusted:
-        sup = sv_df.adjusted_support.map(float).values
+        # TEMPORARY
+        sup = sv_df.support.map(float).values
         dep = sv_df.adjusted_depth.map(float).values
         Nvar = len(sv_df)
         return sup,dep,cn_states,Nvar,norm

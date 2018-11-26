@@ -581,24 +581,21 @@ def subsample_snvs(snv_df, subsample, run, ss_seeds, sample, out):
 
 def select_copynumber(cn_state):
     '''
-    Return the major and minor alleles
-    for whichever copy-number state has
-    the higher fraction (if subclonal).
-    Otherwise just return clonal vals.
+    Return the major, minor and subclonal fraction
+    for clonal or subclonal copy-number states
     '''
     try:
         cn_state = [cn.split(',') for cn in cn_state.split('|')]
-        major, minor = cn_state[0][0], cn_state[0][1]
-        if len(cn_state) > 0:
-            frac = cn_state[0][2]
-            if int(float(major)) + int(float(minor)) == 0:
-                major, minor = cn_state[1][0], cn_state[1][1]
-            else:
-                major = major if frac > 0.5 else cn_state[1][0]
-                minor = minor if frac > 0.5 else cn_state[1][1]
-        return (int(float(major)), int(float(minor)))
+        cn_state = [float(cn) for cn_side in cn_state for cn in cn_side]
+
+        if len(cn_state) < 4:
+            # extend CN array with zeroes if clonal
+            cn_state.extend([0.0] * 3)
+            return cn_state
+        else:
+            return cn_state
     except:
-        return (0, 0)
+        return [0] * 6
 
 def format_snvs_for_ccube(df, sparams, cparams, cc_file):
     '''
@@ -650,33 +647,40 @@ def format_svs_for_ccube(df, sparams, cparams, cc_file, gain_loss_classes):
 
     cn_states1 = df.gtype1.map(lambda x: select_copynumber(x))
     cn_states2 = df.gtype2.map(lambda x: select_copynumber(x))
-    major1 = np.array([m for m,n in cn_states1])
-    minor1 = np.array([n for m,n in cn_states1])
-    major2 = np.array([m for m,n in cn_states2])
-    minor2 = np.array([n for m,n in cn_states2])
+    cn_states1 = pd.DataFrame.from_records(list(cn_states1.values))
+    cn_states2 = pd.DataFrame.from_records(list(cn_states2.values))
 
-    cc_df = pd.DataFrame({'id': df.ID,
+    cc_df = pd.DataFrame({'id': df.ID.values,
                          'mutation_id': mutation_id,
                          'purity': sparams['pi'],
                          'normal_cn': norm_cn,
                          'var_counts1': sup,
-                         'ref_counts1': norm1,
-                         'total_counts1': sup + norm1,
-                         'minor_cn1': minor1,
-                         'major_cn1': major1,
-                         'total_cn1': major1 + minor1,
-                         'vaf1': sup / (sup + norm1),
+                         'ref_counts1': norm1.values,
+                         'total_counts1': sup + norm1.values,
+                         'vaf1': sup / (sup + norm1.values),
+                         'subclonal_cn1': cn_states1[2] < 1,
+                         'major_cn1_sub1': cn_states1[0],
+                         'minor_cn1_sub1': cn_states1[1],
+                         'total_cn1_sub1': cn_states1[0] + cn_states1[1],
+                         'frac_cn1_sub1': cn_states1[2],
+                         'major_cn1_sub2': cn_states1[3],
+                         'minor_cn1_sub2': cn_states1[4],
+                         'total_cn1_sub2': cn_states1[3] + cn_states1[4],
+                         'frac_cn1_sub2': cn_states1[5],
                          'var_counts2': sup,
-                         'ref_counts2': norm2,
-                         'total_counts2': sup + norm2,
-                         'minor_cn2': minor2,
-                         'major_cn2': major2,
-                         'total_cn2': major2 + minor2,
-                         'vaf2': sup / (sup + norm2)})
+                         'ref_counts2': norm2.values,
+                         'total_counts2': sup + norm2.values,
+                         'vaf2': sup / (sup + norm2.values),
+                         'subclonal_cn2': cn_states2[2] < 1,
+                         'major_cn2_sub1': cn_states2[0],
+                         'minor_cn2_sub1': cn_states2[1],
+                         'total_cn2_sub1': cn_states2[0] + cn_states2[1],
+                         'frac_cn2_sub1': cn_states2[2],
+                         'major_cn2_sub2': cn_states2[3],
+                         'minor_cn2_sub2': cn_states2[4],
+                         'total_cn2_sub2': cn_states2[3] + cn_states2[4],
+                         'frac_cn2_sub2': cn_states2[5]})
 
-    cc_df = cc_df[['id', 'mutation_id', 'purity', 'normal_cn',
-                   'var_counts1', 'ref_counts1', 'total_counts1', 'minor_cn1', 'major_cn1', 'total_cn1', 'vaf1',
-                   'var_counts2', 'ref_counts2', 'total_counts2', 'minor_cn2', 'major_cn2', 'total_cn2', 'vaf2']]
     cc_df.to_csv(cc_file, sep='\t', index=False)
 
 def run_clustering(args):

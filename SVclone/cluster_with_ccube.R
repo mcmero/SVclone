@@ -65,9 +65,11 @@ if (is_sv_data) {
                                           ssm = cc_input, modelSV = T,
                                           numOfClusterPool = numOfClusterPool, numOfRepeat = numOfRepeat,
                                           runAnalysis = T, runQC = T,
-                                          ccubeResultRDataFile = paste(resultFolder, "ccube_sv_results.RData", sep="/"), 
+                                          ccubeResultRDataFile = paste(resultFolder, "ccube_sv_results.RData", sep="/"),
                                           multiCore = multiCore, basicFormats = F, allFormats = F, returnAll = T)
     save(doubleBreakPtsRes, file=paste(resultFolder, "ccube_sv_results.RData", sep="/"))
+    MakeCcubeStdPlot_sv(res = doubleBreakPtsRes$res, ssm = doubleBreakPtsRes$ssm,
+                        printPlot = T, fn = paste(resultFolder, 'ccube_sv_results.pdf', sep='/'))
 } else {
     resultFolder <- paste(resultFolder, "snvs", sep="/")
     system(paste("mkdir -p", resultFolder))
@@ -86,26 +88,7 @@ if (is_sv_data) {
 if (is_sv_data) {
     res <- doubleBreakPtsRes$res
     uniqLabels <- unique(res$label)
-    cc_input$ccube_mult1 <- res$full.model$bv1
-    cc_input$ccube_mult2 <- res$full.model$bv2
-    cc_input <- mutate(rowwise(cc_input),
-                  vaf1 = var_counts1/(var_counts1+ref_counts1),
-                  ccube_ccf1 = MapVaf2CcfPyClone(vaf1,
-                                            purity,
-                                            normal_cn,
-                                            major_cn1 + minor_cn1,
-                                            major_cn1 + minor_cn1,
-                                            ccube_mult1,
-                                            constraint=F),
-                 vaf2 = var_counts2/(var_counts2+ref_counts2),
-                 ccube_ccf2 = MapVaf2CcfPyClone(vaf2,
-                                                purity,
-                                                normal_cn,
-                                                major_cn2 + minor_cn2,
-                                                major_cn2 + minor_cn2,
-                                                ccube_mult2,
-                                                constraint=F),
-                 )
+    cc_input <- doubleBreakPtsRes$ssm
 
     svs <- do.call(rbind, strsplit(as.character(cc_input$mutation_id), "_", fixed = T))
     sv1 <- do.call(rbind, strsplit(as.character(svs[,1]), ":", fixed = T))
@@ -128,8 +111,8 @@ if (is_sv_data) {
 
     #### multiplicity ####
     mult <- svs
-    mult$tumour_copynumber1 <- cc_input$major_cn1 + cc_input$minor_cn1
-    mult$tumour_copynumber2 <- cc_input$major_cn1 + cc_input$minor_cn2
+    mult$tumour_copynumber1 <- cc_input$total_cn1
+    mult$tumour_copynumber2 <- cc_input$total_cn2
     mult$multiplicity1 <- cc_input$ccube_mult1
     mult$multiplicity2 <- cc_input$ccube_mult2
 
