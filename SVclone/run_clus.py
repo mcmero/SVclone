@@ -765,7 +765,9 @@ def run_clustering(args):
         if os.path.exists(cc_file):
             dirname = os.path.dirname(os.path.abspath(__file__))
             subprocess.call(['Rscript', '%s/cluster_with_ccube.R' % dirname, cc_file,
-                             out, sample_params['sample'], 'cores==%d' % threads])
+                             out, sample_params['sample'], '--cores=%d' % threads,
+                             '--clusmax=%s' % cluster_params['clus_limit'],
+                             '--repeat=%s' % cluster_params['repeat']])
 
     if len(snv_df) > 0:
         cc_file = '%s/%s_ccube_snv_input.txt' % (out, sample_params['sample'])
@@ -774,7 +776,9 @@ def run_clustering(args):
         if os.path.exists(cc_file):
             dirname = os.path.dirname(os.path.abspath(__file__))
             subprocess.call(['Rscript', '%s/cluster_with_ccube.R' % dirname, cc_file,
-                             out, sample_params['sample'], 'cores==%d' % threads])
+                             out, sample_params['sample'], '--cores=%d' % threads,
+                             '--clusmax=%s' % cluster_params['clus_limit'],
+                             '--repeat=%s' % cluster_params['repeat']])
 
 #    if threads == 1:
 #        for run in range(n_runs):

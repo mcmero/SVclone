@@ -363,6 +363,7 @@ def get_params_cluster_step(sample, cfg, out, pp_file, param_file, XX, XY):
     threads         = int(Config.get('ClusterParameters', 'threads'))
     nclus_init      = Config.get('ClusterParameters', 'nclus_init')
     restrict_cnss   = string_to_bool(Config.get('ClusterParameters', 'restrict_cnv_search_space'))
+    repeat          = int(Config.get('ClusterParameters', 'repeat'))
 
     use_map         = string_to_bool(Config.get('ClusterParameters', 'map'))
     merge_clusts    = string_to_bool(Config.get('ClusterParameters', 'merge'))
@@ -406,7 +407,8 @@ def get_params_cluster_step(sample, cfg, out, pp_file, param_file, XX, XY):
                        'clus_limit': clus_limit, 'subclone_diff': subclone_diff, 'cocluster': cocluster ,
                        'clonal_cnv_pval': cnv_pval, 'adjust_phis': adjust_phis, 'sv_to_sim': sv_to_sim,
                        'threads': threads, 'ccf_reject': ccf_reject, 'nclus_init': nclus_init,
-                       'restrict_cnss': restrict_cnss, 'merge_iter': merge_iter, 'merge_burn': merge_burn }
+                       'restrict_cnss': restrict_cnss, 'merge_iter': merge_iter, 'merge_burn': merge_burn,
+                       'repeat': repeat}
     output_params  = { 'plot': plot, 'smc_het': smc_het, 'cluster_penalty': cluster_penalty, 'fit_metric': fit_metric }
 
     return sample_params, cluster_params, output_params

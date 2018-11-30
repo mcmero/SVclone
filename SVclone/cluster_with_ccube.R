@@ -14,15 +14,16 @@ if("--help" %in% args) {
         Cluster provided input file using ccube
 
         Usage:
-        Rscript cluster_with_ccube.R <input_file> <out_dir> <sample_name> --cores=<N> --clusmax=<N>\n\n")
+        Rscript cluster_with_ccube.R <input_file> <out_dir> <sample_name> --cores=<N> --clusmax=<N> --repeat=<N>\n\n")
     q(save="no")
 }
 
 ccfile <- args[1]
 outdir <- args[2]
 sample <- args[3]
-clusmax  <- args[grep("--clusmax=",args, value=TRUE)]
-cores  <- args[grep("--cores=",args, value=TRUE)]
+clusmax  <- grep("--clusmax=", args, value=TRUE)
+cores  <- grep("--cores=", args, value=TRUE)
+numOfRepeat <- grep("--repeat", args, value=TRUE)
 
 if (length(cores) == 0) {
     cores <- 1
@@ -37,6 +38,12 @@ if (length(clusmax) == 0) {
     clusmax <- as.numeric(strsplit(clusmax, "=")[[1]][2])
 }
 
+if (length(numOfRepeat) == 0) {
+    numOfRepeat <- 5
+} else {
+    numOfRepeat <- as.numeric(strsplit(numOfRepeat, "=")[[1]][2])
+}
+
 if (!file.exists(ccfile)) {
     cat("ccube input file does not exist!\n")
     q(save="no")
@@ -48,8 +55,10 @@ if (nrow(cc_input) == 0) {
     q(save="no")
 }
 
+#ensure clusters <= number of data points
+clusmax <- min(clusmax, nrow(cc_input))
 numOfClusterPool = 1:clusmax
-numOfRepeat = 5
+
 multiCore <- FALSE
 if (cores > 1) {multiCore <- TRUE}
 
