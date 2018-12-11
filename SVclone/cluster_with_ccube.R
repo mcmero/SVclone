@@ -82,12 +82,15 @@ if (is_sv_data) {
 } else {
     resultFolder <- paste(resultFolder, "snvs", sep="/")
     system(paste("mkdir -p", resultFolder))
-    res <- RunCcubePipeline(dataFolder = outdir, sampleName = sample, makeFolders = F,
-                                ssm = cc_input, writeOutput = T, resultFolder = resultFolder,
+    snvRes <- RunCcubePipeline(dataFolder = outdir, sampleName = sample,
+                                ssm = cc_input, resultFolder = resultFolder,
                                 ccubeResultRDataFile = paste(resultFolder, "ccube_snv_results.RData", sep="/"),
                                 numOfClusterPool = numOfClusterPool, numOfRepeat = numOfRepeat,
                                 runAnalysis = T, runQC = T, multiCore = multiCore,
-                                basicFormats = F, allFormats = T, returnAll = T)
+                                basicFormats = F, allFormats = F, returnAll = T)
+    save(snvRes, file=paste(resultFolder, "ccube_snv_results.RData", sep="/"))
+    MakeCcubeStdPlot(res = snvRes$res, ssm = snvRes$ssm, printPlot = T, fn = paste(resultFolder, 'ccube_snv_results.pdf', sep='/'))
+    print(paste(resultFolder, "ccube_snv_results.RData", sep="/"))
 }
 
 #################################################################################################################
@@ -133,7 +136,6 @@ if (is_sv_data) {
     subc <- as.data.frame(table(res$label), stringsAsFactors = F)
     subc <- dplyr::rename(subc, cluster = Var1, n_ssms = Freq)
     subc$proportion <- res$full.model$ccfMean[as.integer(subc$cluster)] * cellularity
-    subc$cluster <- seq_along(uniqLabels)-1
     fn <- paste0(resultFolder, "/", sample, "_subclonal_structure.txt")
     write.table(subc, file = fn, sep = "\t", row.names = F, quote = F)
 
@@ -142,6 +144,49 @@ if (is_sv_data) {
     ccert$most_likely_assignment <- res$label
     ccert$average_proportion1 <- cc_input$ccube_ccf1 * cellularity
     ccert$average_proportion2 <- cc_input$ccube_ccf2 * cellularity
+    fn <- paste0(resultFolder, "/", sample, "_cluster_certainty.txt")
+    write.table(ccert, file = fn, sep = "\t", row.names = F, quote = F)
+} else {
+    res <- snvRes$res
+    uniqLabels <- unique(res$label)
+    cc_input <- snvRes$ssm
+
+    snvs <- data.frame(do.call(rbind, strsplit(as.character(cc_input$mutation_id), "_", fixed = T)))
+    colnames(snvs) <- c("chr", "pos")
+
+    #### assignment probability ####
+    mutAssign <- snvs
+    if (length(uniqLabels) == 1) {
+      mutR = data.frame(res$full.model$responsibility)
+      colnames(mutR) <- "cluster0"
+    } else {
+      mutR <- data.frame(res$full.model$responsibility[, sort(uniqLabels)])
+      colnames(mutR) <- paste0("cluster", seq_along(uniqLabels)-1)
+    }
+    mutAssign <- data.frame(mutAssign, mutR)
+    fn <- paste0(resultFolder, "/", sample, "_assignment_probability_table.txt")
+    write.table(mutAssign, file = fn, sep = "\t", row.names = F, quote = F)
+
+    #### multiplicity ####
+    mult <- snvs
+    mult$tumour_copynumber <- cc_input$total_cn
+    mult$multiplicity <- cc_input$ccube_mult
+
+    fn <- paste0(resultFolder, "/", sample, "_multiplicity.txt")
+    write.table(mult, file = fn, sep = "\t", row.names = F, quote = F)
+
+    #### subclonal structure ####
+    cellularity <- unique(cc_input$purity)
+    subc <- as.data.frame(table(res$label), stringsAsFactors = F)
+    subc <- dplyr::rename(subc, cluster = Var1, n_ssms = Freq)
+    subc$proportion <- res$full.model$ccfMean[as.integer(subc$cluster)] * cellularity
+    fn <- paste0(resultFolder, "/", sample, "_subclonal_structure.txt")
+    write.table(subc, file = fn, sep = "\t", row.names = F, quote = F)
+
+    #### cluster certainty ####
+    ccert <- snvs
+    ccert$most_likely_assignment <- res$label
+    ccert$average_proportion <- cc_input$ccube_ccf * cellularity
     fn <- paste0(resultFolder, "/", sample, "_cluster_certainty.txt")
     write.table(ccert, file = fn, sep = "\t", row.names = F, quote = F)
 }

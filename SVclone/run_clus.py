@@ -603,24 +603,25 @@ def format_snvs_for_ccube(df, sparams, cparams, cc_file):
     '''
     sup, dep, cn_states, Nvar, norm_cn = load_data.get_snv_vals(df, cparams)
     mutation_id = ['%s_%d' % (c, p) for c, p in zip(df.chrom, df.pos)]
-    cn_states = df.gtype.map(lambda x: select_copynumber(x))
-    major = np.array([m for m,n in cn_states])
-    minor = np.array([n for m,n in cn_states])
 
-    cc_df = pd.DataFrame({'id': range(len(df)),
-                         'mutation_id': mutation_id,
+    cn_states = df.gtype.map(lambda x: select_copynumber(x))
+    cn_states = pd.DataFrame.from_records(list(cn_states.values))
+    cc_df = pd.DataFrame({'mutation_id': mutation_id,
                          'purity': sparams['pi'],
                          'normal_cn': norm_cn,
                          'var_counts': sup,
                          'ref_counts': dep - sup,
                          'total_counts': dep,
                          'vaf': sup / dep,
-                         'minor_cn': minor,
-                         'major_cn': major,
-                         'total_cn': major + minor})
-
-    cc_df = cc_df[['id', 'mutation_id', 'purity', 'normal_cn', 'var_counts', 'ref_counts',
-                   'total_counts', 'vaf', 'minor_cn', 'major_cn', 'total_cn']]
+                         'subclonal_cn': cn_states[2] < 1,
+                         'major_cn_sub1': cn_states[0],
+                         'minor_cn_sub1': cn_states[1],
+                         'total_cn_sub1': cn_states[0] + cn_states[1],
+                         'frac_cn_sub1': cn_states[2],
+                         'major_cn_sub2': cn_states[3],
+                         'minor_cn_sub2': cn_states[4],
+                         'total_cn_sub2': cn_states[3] + cn_states[4],
+                         'frac_cn_sub2': cn_states[5]})
 
     cc_df.to_csv(cc_file, sep='\t', index=False)
 
