@@ -65,10 +65,14 @@ if (cores > 1) {multiCore <- TRUE}
 #################################################################################################################
 # Cluster
 #################################################################################################################
-resultFolder <- paste(outdir, "ccube_out", sep="/")
+resultFolder <- paste(outdir, "ccube_out/", sep="/")
 system(paste("mkdir -p", resultFolder))
 
-is_sv_data = 'var_counts1' %in% colnames(cc_input)
+# clean up any possible NA copynumbers
+cn_cols <- grep("cn",colnames(cc_input))
+cc_input[,cn_cols][is.na(cc_input[,cn_cols])] <- 0
+
+is_sv_data = "var_counts1" %in% colnames(cc_input)
 if (is_sv_data) {
     doubleBreakPtsRes <- RunCcubePipeline(dataFolder = outdir, sampleName = sample,
                                           ssm = cc_input, modelSV = T,
@@ -76,11 +80,11 @@ if (is_sv_data) {
                                           runAnalysis = T, runQC = T,
                                           ccubeResultRDataFile = paste(resultFolder, "ccube_sv_results.RData", sep="/"),
                                           multiCore = multiCore, basicFormats = F, allFormats = F, returnAll = T)
-    save(doubleBreakPtsRes, file=paste(resultFolder, "ccube_sv_results.RData", sep="/"))
+    save(doubleBreakPtsRes, file=paste0(resultFolder, sample, "_ccube_sv_results.RData"))
     MakeCcubeStdPlot_sv(res = doubleBreakPtsRes$res, ssm = doubleBreakPtsRes$ssm,
-                        printPlot = T, fn = paste(resultFolder, 'ccube_sv_results.pdf', sep='/'))
+                        printPlot = T, fn = paste0(resultFolder, sample, "_ccube_sv_results.pdf"))
 } else {
-    resultFolder <- paste(resultFolder, "snvs", sep="/")
+    resultFolder <- paste(resultFolder, "snvs/", sep="/")
     system(paste("mkdir -p", resultFolder))
     snvRes <- RunCcubePipeline(dataFolder = outdir, sampleName = sample,
                                 ssm = cc_input, resultFolder = resultFolder,
@@ -88,9 +92,8 @@ if (is_sv_data) {
                                 numOfClusterPool = numOfClusterPool, numOfRepeat = numOfRepeat,
                                 runAnalysis = T, runQC = T, multiCore = multiCore,
                                 basicFormats = F, allFormats = F, returnAll = T)
-    save(snvRes, file=paste(resultFolder, "ccube_snv_results.RData", sep="/"))
-    MakeCcubeStdPlot(res = snvRes$res, ssm = snvRes$ssm, printPlot = T, fn = paste(resultFolder, 'ccube_snv_results.pdf', sep='/'))
-    print(paste(resultFolder, "ccube_snv_results.RData", sep="/"))
+    save(snvRes, file=paste0(resultFolder, sample, "_ccube_snv_results.RData"))
+    MakeCcubeStdPlot(res = snvRes$res, ssm = snvRes$ssm, printPlot = T, fn = paste0(resultFolder, sample, "_ccube_snv_results.pdf"))
 }
 
 #################################################################################################################
