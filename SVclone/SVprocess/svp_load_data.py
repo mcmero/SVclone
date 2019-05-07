@@ -173,7 +173,7 @@ def get_purity_ploidy(pp_file, sample, out):
     pp_file = default_loc if pp_file == '' else pp_file
 
     if os.path.exists(pp_file):
-        pur_pl  = np.genfromtxt(pp_file, delimiter='\t', names=True, dtype=None)
+        pur_pl  = np.genfromtxt(pp_file, delimiter='\t', names=True, dtype=None, encoding='utf-8')
         pi      = float(pur_pl['purity'])
         pl      = float(pur_pl['ploidy'])
     else:
@@ -201,7 +201,7 @@ def get_read_params(params_file, sample, out):
     params_file = default_loc if params_file == '' else params_file
 
     if os.path.exists(params_file):
-        read_params = np.genfromtxt(params_file, delimiter='\t', names=True, dtype=None, invalid_raise=False)
+        read_params = np.genfromtxt(params_file, delimiter='\t', names=True, dtype=None, invalid_raise=False, encoding='utf-8')
         rlen        = int(read_params['read_len'])
         insert      = float(read_params['insert_mean'])
         std         = float(read_params['insert_std'])

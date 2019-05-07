@@ -20,26 +20,15 @@ def get_normal_copynumber(chrom, male):
 def get_sv_vals(sv_df, cparams):
     adjusted = cparams['adjusted']
     male = cparams['male']
-    combos = sv_df.apply(cluster.get_sv_allele_combos, axis=1, args=(cparams,)).values
-    sides = sv_df.preferred_side.map(int).values
-    cn_states = [cn[side] for cn,side in zip(combos, sides)]
-    cn_states = pd.DataFrame([[sv] for sv in cn_states])[0].values
-    chroms = [c1 if side == 0 else c2 for c1,c2,side in zip(sv_df.chr1.values, sv_df.chr2.values, sides)]
-    norm = [get_normal_copynumber(c, male) for c in chroms]
+    chroms = sv_df.chr1.values # consider only chrom 1 for normal copy-number
+    norm_cn = [get_normal_copynumber(c, male) for c in chroms]
+    norm1, norm2 = sv_df.adjusted_norm1.values, sv_df.adjusted_norm2.values
+    norm1, norm2 = map(int, map(round, norm1)), map(int, map(round, norm2))
 
-    if adjusted:
-        # TEMPORARY
-        sup = sv_df.support.map(float).values
-        dep = sv_df.adjusted_depth.map(float).values
-        Nvar = len(sv_df)
-        return sup,dep,cn_states,Nvar,norm
-    else:
-        sup  = sv_df.support.map(float).values
-        norm = zip(sv_df.norm1.values,sv_df.norm2.values)
-        norm = np.array([float(n[side]) for n,side in zip(norm,sv_df.preferred_side.values)])
-        dep  = norm+sup
-        Nvar = len(sv_df)
-        return sup,dep,cn_states,Nvar,norm
+    Nvar = len(sv_df)
+    sup = sv_df.adjusted_support.map(float).values if adjusted else sv_df.support.map(float).values
+
+    return sup, norm1, norm2, Nvar, norm_cn
 
 def get_snv_vals(df, cparams):
     male = cparams['male']
@@ -57,7 +46,7 @@ def load_svs(sv_file):
     sv_df = pd.DataFrame(dat)
     sv_df.chr1 = sv_df.chr1.map(str)
     sv_df.chr2 = sv_df.chr2.map(str)
-    sv_df['norm_mean'] = map(np.mean,zip(sv_df['norm1'].values,sv_df['norm2'].values))
+    sv_df['raw_norm_mean'] = map(np.mean,zip(sv_df['norm1'].values,sv_df['norm2'].values))
     return sv_df
 
 def load_cnvs(cnv_file):

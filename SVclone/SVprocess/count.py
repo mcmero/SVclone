@@ -515,7 +515,7 @@ def extract_sv_info(svin, bam, rparams, outname):
         dir2_field, sv_class, \
         oid_field, opos1_field, opos2_field = [h[0] for h in dtypes.sv_dtype]
 
-    svs = np.genfromtxt(svin, delimiter='\t', names=True, dtype=None, invalid_raise=False)
+    svs = np.genfromtxt(svin, delimiter='\t', names=True, dtype=None, invalid_raise=False, encoding='utf-8')
 
     print("Extracting data from %d SVs"%len(svs))
     for row in svs:
