@@ -97,7 +97,7 @@ def format_snvs_for_ccube(df, sparams, cparams, cc_file):
 
     cc_df.to_csv(cc_file, sep='\t', index=False)
 
-def format_svs_for_ccube(df, sparams, cparams, cc_file, gain_loss_classes):
+def format_svs_for_ccube(df, sparams, cparams, cc_file):
     '''
     prepare ccube input for SVs
     '''
@@ -186,11 +186,6 @@ def run_clustering(args):
         snv_df = pd.read_csv(snv_file,delimiter='\t',dtype=None,header=0,low_memory=False)
         snv_df = pd.DataFrame(snv_df).fillna('')
 
-    if (len(sv_df) == 0 or len(snv_df) ==0) and cluster_params['cocluster']:
-        cluster_params['cocluster'] = False
-
-    clus_info, center_trace, ztrace, clus_members = None, None, None, None
-
     sv_to_sim = cluster_params['sv_to_sim']
     if sv_to_sim > 0:
         print('Simulating %d SV...' % (len(sv_df) * sv_to_sim))
@@ -200,30 +195,10 @@ def run_clustering(args):
                 sv_df.loc[len(sv_df)] = simu_sv(sv_df.loc[i])
 
     threads = cluster_params['threads']
-    use_map = cluster_params['use_map']
-    ccf_reject = cluster_params['ccf_reject']
-    cocluster = cluster_params['cocluster']
-    fit_metric = output_params['fit_metric']
-    cluster_penalty = output_params['cluster_penalty']
-
-    if cocluster:
-        print("Coclustering %d SVs & %d SNVs..." % (len(sv_df), len(snv_df)))
-    else:
-        if len(snv_df) > 0:
-            print("Clustering %d SNVs..." % len(snv_df))
-        if len(sv_df) > 0:
-            print("Clustering %d SVs..." % len(sv_df))
-
-    Config = ConfigParser.ConfigParser()
-    cfg_file = Config.read(cfg)
-    dna_gain_class = Config.get('SVclasses', 'dna_gain_class').split(',')
-    dna_loss_class = Config.get('SVclasses', 'dna_loss_class').split(',')
-    gain_loss_classes = {'dna_gain_class': dna_gain_class, 'dna_loss_class': dna_loss_class}
-
     cc_sv, cc_snv = None, None
     if len(sv_df) > 0:
         cc_file = '%s/%s_ccube_sv_input.txt' % (out, sample_params['sample'])
-        format_svs_for_ccube(sv_df, sample_params, cluster_params, cc_file, gain_loss_classes)
+        format_svs_for_ccube(sv_df, sample_params, cluster_params, cc_file)
 
         if os.path.exists(cc_file):
             dirname = os.path.dirname(os.path.abspath(__file__))
