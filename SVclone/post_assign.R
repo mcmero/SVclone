@@ -1,5 +1,6 @@
 library(ccube)
 library(dplyr)
+source('SVclone/write_output.R')
 
 args <- commandArgs(trailingOnly = TRUE)
 
@@ -42,6 +43,7 @@ if (joint_model) {
                                               svRes = doubleBreakPtsRes$res,
                                               mydata = svdata)
     save(postAssignResSVs, file=paste0(resultFolder, sample, "_ccube_postAssign_sv_results.RData"))
+    write_sv_output(postAssignResSVs, resultFolder, sample)
     MakeCcubeStdPlot_sv(res = postAssignResSVs$res, ssm = postAssignResSVs$ssm,
                         printPlot = T, fn = paste0(resultFolder, sample, "_ccube_sv_postAssign_results.pdf"))
 
@@ -50,6 +52,7 @@ if (joint_model) {
                                                svRes = doubleBreakPtsRes$res,
                                                mydata = snvdata)
     save(postAssignResSNVs, file=paste0(resultFolder, '/snvs/', sample, "_ccube_postAssign_snv_results.RData"))
+    write_snv_output(postAssignResSNVs, paste0(resultFolder, '/snvs/'), sample)
     MakeCcubeStdPlot(res = postAssignResSNVs$res, ssm = postAssignResSNVs$ssm,
                         printPlot = T, fn = paste0(resultFolder, '/snvs/', sample, "_ccube_snv_postAssign_results.pdf"))
 } else {
@@ -57,6 +60,7 @@ if (joint_model) {
     postAssignRes <- RunPostAssignPipeline(svRes = snvRes$res,
                                            mydata = svdata)
     save(postAssignRes, file=paste0(resultFolder, sample, "_ccube_sv_postAssign_results.RData"))
+    write_sv_output(postAssignRes, resultFolder, sample)
     MakeCcubeStdPlot_sv(res = postAssignRes$res, ssm = postAssignRes$ssm,
                         printPlot = T, fn = paste0(resultFolder, sample, "_ccube_sv_postAssign_results.pdf"))
 }
