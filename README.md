@@ -1,5 +1,7 @@
 # README #
 
+### NOTE: The master branch implement's SVclone's [biorXiv version](https://www.biorxiv.org/content/10.1101/172486v1.abstract). SVclone now uses [ccube's](https://www.biorxiv.org/content/10.1101/484402v1.abstract) clustering model. We recommend running this version. Please switch the the 'ccube' branch and follow the run and install instructions ###
+
 This package is used to cluster structural variants of similar cancer cell fraction (CCF). SVclone is divided into five components: annotate, count, filter, cluster and post-assign. The annotate step infers directionality of each breakpoint (if not supplied), recalibrates breakpoint position to the soft-clip boundary and subsequently classifies SVs using a rule-based approach. The count step counts the variant and non-variant reads from breakpoint locations. Both the annotate and count steps utilise BAM-level information. The filter step removes SVs based on a number of adjustable parameters and prepares the variants for clustering. SNVs can also be added at this step as well as CNV information, which is matched to SV and SNV loci. Any variants that were filtered out, or left out due to sub-sampling can be added back using the post-assign step, which assigns each variant (which contains a >0 VAF and matching copy-number state, at minimum) to the most likely cluster (obtained from the cluster step). Post-processing scripts are also included to aid in visualising the clustering results.
 
 ### How do I get set up? ###
