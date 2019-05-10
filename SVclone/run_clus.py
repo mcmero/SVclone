@@ -154,7 +154,6 @@ def run_clustering(args):
     param_file      = args.param_file
     snv_file        = args.snv_file
     sv_file         = args.sv_file
-    seeds           = args.seeds
     XX              = args.XX
     XY              = args.XY
     subsample       = args.subsample
@@ -163,12 +162,9 @@ def run_clustering(args):
     if out!='' and not os.path.exists(out):
         os.makedirs(out)
 
-    sample_params, cluster_params, output_params = \
+    sample_params, cluster_params = \
                    load_data.get_params_cluster_step(sample, cfg, out, pp_file, param_file, XX, XY)
-    n_runs = cluster_params['n_runs']
-
-    seeds = get_seeds(seeds, n_runs)
-    ss_seeds = get_seeds(ss_seeds, n_runs)
+    ss_seeds = get_seeds(ss_seeds, 1)
 
     sv_df       = pd.DataFrame()
     snv_df      = pd.DataFrame()
@@ -205,7 +201,8 @@ def run_clustering(args):
             subprocess.call(['Rscript', '%s/cluster_with_ccube.R' % dirname, cc_file,
                              out, sample_params['sample'], '--cores=%d' % threads,
                              '--clusmax=%s' % cluster_params['clus_limit'],
-                             '--repeat=%s' % cluster_params['repeat']])
+                             '--repeat=%s' % cluster_params['repeat'],
+                             '--maxiter=%s' % cluster_params['n_iter']])
 
     if len(snv_df) > 0:
         cc_file = '%s/%s_ccube_snv_input.txt' % (out, sample_params['sample'])
@@ -216,4 +213,5 @@ def run_clustering(args):
             subprocess.call(['Rscript', '%s/cluster_with_ccube.R' % dirname, cc_file,
                              out, sample_params['sample'], '--cores=%d' % threads,
                              '--clusmax=%s' % cluster_params['clus_limit'],
-                             '--repeat=%s' % cluster_params['repeat']])
+                             '--repeat=%s' % cluster_params['repeat'],
+                             '--maxiter=%s' % cluster_paramx['n_iter']])

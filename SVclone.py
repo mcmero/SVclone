@@ -6,7 +6,6 @@ Commandline input for running SV
 
 from SVclone import run_filter
 from SVclone import run_clus
-from SVclone import post_assign
 from SVclone.SVprocess import annotate
 from SVclone.SVprocess import count
 
@@ -143,9 +142,6 @@ cluster_parser.add_argument("-p","--purity_ploidy",dest="pp_file",default="",
 
 cluster_parser.add_argument("--snvs",dest="snv_file",default="",
                     help="To specify filtered SNVs output from Filter Step. Default loc: <outdir>/<sample>_filtered_snvs.tsv")
-
-cluster_parser.add_argument("--seeds",dest="seeds",default="",
-                    help="Random seeds passed on to PyMC (use for replicating runs).")
 
 cluster_parser.add_argument("--subsample",dest="subsample",default=0,type=int,
                     help="Subsample N SNVs from total filtered output to use for clustering.")

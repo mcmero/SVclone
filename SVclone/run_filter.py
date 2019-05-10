@@ -467,7 +467,6 @@ def adjust_sv_read_counts(sv_df,pi,pl,min_dep,rlen,Config):
     dna_loss_class = Config.get('SVclasses', 'dna_loss_class').split(',')
     support_adjust_factor = float(Config.get('FilterParameters', 'support_adjust_factor'))
     filter_subclonal_cnvs = string_to_bool(Config.get('FilterParameters', 'filter_subclonal_cnvs'))
-    restrict_cnss = string_to_bool(Config.get('ClusterParameters', 'restrict_cnv_search_space'))
 
     gt1_sc  = [float(x.split('|')[0].split(',')[2])<1 if x!='' else False for x in sv_df.gtype1.values]
     gt2_sc  = [float(x.split('|')[0].split(',')[2])<1 if x!='' else False for x in sv_df.gtype2.values]
@@ -478,9 +477,6 @@ def adjust_sv_read_counts(sv_df,pi,pl,min_dep,rlen,Config):
     d = np.array(sv_df.spanning.values)
     sup = np.array(d+s,dtype=float)
     Nvar = len(sv_df)
-
-    cparams = {'restrict_cnss': restrict_cnss} #fake cparams dic for compatibility
-    combos = sv_df.apply(cluster.get_sv_allele_combos, axis=1, args=(cparams,))
 
     try:
         # adjust normal read counts of duplications

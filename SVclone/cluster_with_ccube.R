@@ -15,7 +15,7 @@ if("--help" %in% args) {
         Cluster provided input file using ccube
 
         Usage:
-        Rscript cluster_with_ccube.R <input_file> <out_dir> <sample_name> --cores=<N> --clusmax=<N> --repeat=<N>\n\n")
+        Rscript cluster_with_ccube.R <input_file> <out_dir> <sample_name> --cores=<N> --clusmax=<N> --repeat=<N> --maxiter=<N>\n\n")
     q(save="no")
 }
 
@@ -25,6 +25,7 @@ sample <- args[3]
 clusmax  <- grep("--clusmax=", args, value=TRUE)
 cores  <- grep("--cores=", args, value=TRUE)
 numOfRepeat <- grep("--repeat", args, value=TRUE)
+maxiter <- grep("--maxiter", args, value=TRUE)
 
 if (length(cores) == 0) {
     cores <- 1
@@ -43,6 +44,12 @@ if (length(numOfRepeat) == 0) {
     numOfRepeat <- 5
 } else {
     numOfRepeat <- as.numeric(strsplit(numOfRepeat, "=")[[1]][2])
+}
+
+if (length(maxiter) == 0) {
+    maxiter <- 1000
+} else {
+    maxiter <- as.numeric(strsplit(maxiter, "=")[[1]][2])
 }
 
 if (!file.exists(ccfile)) {
@@ -78,7 +85,7 @@ if (is_sv_data) {
     doubleBreakPtsRes <- RunCcubePipeline(dataFolder = outdir, sampleName = sample,
                                           ssm = cc_input, modelSV = T,
                                           numOfClusterPool = numOfClusterPool, numOfRepeat = numOfRepeat,
-                                          runAnalysis = T, runQC = T,
+                                          runAnalysis = T, runQC = T, maxiter = maxiter,
                                           ccubeResultRDataFile = paste(resultFolder, "ccube_sv_results.RData", sep="/"),
                                           multiCore = multiCore, basicFormats = F, allFormats = F, returnAll = T)
     save(doubleBreakPtsRes, file=paste0(resultFolder, sample, "_ccube_sv_results.RData"))
