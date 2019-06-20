@@ -74,7 +74,7 @@ def format_snvs_for_ccube(df, sparams, cparams, cc_file):
     '''
     prepare ccube input for SNVs
     '''
-    sup, dep, cn_states, Nvar, norm_cn = load_data.get_snv_vals(df, cparams)
+    sup, dep, Nvar, norm_cn = load_data.get_snv_vals(df, cparams)
     mutation_id = ['%s_%d' % (c, p) for c, p in zip(df.chrom, df.pos)]
 
     cn_states = df.gtype.map(lambda x: select_copynumber(x))
@@ -214,4 +214,4 @@ def run_clustering(args):
                              out, sample_params['sample'], '--cores=%d' % threads,
                              '--clusmax=%s' % cluster_params['clus_limit'],
                              '--repeat=%s' % cluster_params['repeat'],
-                             '--maxiter=%s' % cluster_paramx['n_iter']])
+                             '--maxiter=%s' % cluster_params['n_iter']])

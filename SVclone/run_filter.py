@@ -13,7 +13,6 @@ import vcf
 from operator import methodcaller
 from SVprocess import svp_load_data as svp_load
 from . import run_clus
-from . import cluster
 from . import load_data
 
 pd.options.mode.chained_assignment = None

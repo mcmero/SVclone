@@ -5,8 +5,6 @@ import numpy as np
 import vcf
 import ConfigParser
 import os
-
-from . import cluster
 from SVprocess import svp_load_data as svp_load
 
 def get_normal_copynumber(chrom, male):
@@ -35,11 +33,8 @@ def get_snv_vals(df, cparams):
     n = df['ref'].map(float).values
     b = df['var'].map(float).values
 
-    cn_states = [cluster.get_allele_combos(gtype.split('|'), cparams) for gtype in df.gtype]
-    cn_states = pd.DataFrame([[cn] for cn in cn_states])[0].values
-
-    normcn = [get_normal_copynumber(c, male) for c in df.chrom.values]
-    return b,(n+b),cn_states,len(b),norm_cn
+    norm_cn = [get_normal_copynumber(c, male) for c in df.chrom.values]
+    return b, (n+b), len(b), norm_cn
 
 def load_svs(sv_file):
     dat = pd.read_csv(sv_file,delimiter='\t',dtype=None, low_memory=False)
@@ -63,7 +58,9 @@ def load_cnvs(cnv_file):
     if len(cnv_df.columns)==1:
         # assume caveman csv file
         col_names = ['chr','startpos','endpos','norm_total','norm_minor','tumour_total','tumour_minor']
-        cnv_df = pd.DataFrame(pd.read_csv(cnv_file,delimiter=',',dtype=None,names=col_names,index_col=0,skip_blank_lines=True))
+        cnv_df = pd.DataFrame(pd.read_csv(cnv_file, delimiter=',',
+                              dtype=None, names=col_names, index_col=0,
+                              skip_blank_lines=True))
 
     try:
         if 'nMaj1_A' in cnv_df.columns.values:
@@ -118,7 +115,9 @@ def load_cnvs(cnv_file):
             cnv_df = cnv_df[np.invert(np.isnan(cnv_df.major_cn.values))]
             cnv_df['chromosome'] = cnv_df.chromosome.map(str)
             cnv_df = cnv_df.rename(columns={'chromosome': 'chr', 'start': 'startpos', 'end': 'endpos'})
-            gtypes = cnv_df.major_cn.map(str) + ',' + cnv_df.minor_cn.map(str) + ',' + cnv_df.clonal_frequency.map(str)
+            gtypes = cnv_df.major_cn.map(str) + ',' \
+                        + cnv_df.minor_cn.map(str) \
+                        + ',' + cnv_df.clonal_frequency.map(str)
             cnv_df['gtype'] = gtypes
             select_cols = ['chr','startpos','endpos','gtype']
             return cnv_df[select_cols]
