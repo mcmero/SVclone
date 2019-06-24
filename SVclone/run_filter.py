@@ -13,7 +13,6 @@ import vcf
 from operator import methodcaller
 from SVprocess import svp_load_data as svp_load
 from . import run_clus
-from . import cluster
 from . import load_data
 
 pd.options.mode.chained_assignment = None
@@ -138,17 +137,6 @@ def remove_zero_copynumbers(gtype):
         gt = map(float, gtype_tmp[0])
         if (gt[0]==0 and gt[1]==0) or gt[0] < 0 or gt[1] < 0:
             gtype = ''
-#    else:
-#        new_gtype = []
-#        for gt in gtype_tmp:
-#            gt = map(float,gt)
-#            if (gt[0]!=0 or gt[1]!=0):
-#                new_gtype.append(gt)
-#        if len(new_gtype) > 0:
-#            new_gtype = [map(str,g) for g in new_gtype]
-#            gtype = '|'.join([','.join(g) for g in new_gtype])
-#        else:
-#            gtype = ''
     return gtype
 
 def get_weighted_cns(gtypes):
@@ -257,7 +245,7 @@ def run_cnv_filter(df_flt, cnv, ploidy, neutral, filter_outliers, strict_cnv_fil
 
             if strict_cnv_filt:
                 # filter out if both CNV states are missing
-                df_flt = df_flt[np.logical_or(df_flt.gtype1!='', df_flt.gtype2!='')]
+                df_flt = df_flt[np.logical_and(df_flt.gtype1!='', df_flt.gtype2!='')]
                 print('Filtered out %d SVs with missing or invalid copy-numbers' % (n_df - len(df_flt)))
             else:
                 # assume normal copy-numbers
@@ -478,7 +466,6 @@ def adjust_sv_read_counts(sv_df,pi,pl,min_dep,rlen,Config):
     dna_loss_class = Config.get('SVclasses', 'dna_loss_class').split(',')
     support_adjust_factor = float(Config.get('FilterParameters', 'support_adjust_factor'))
     filter_subclonal_cnvs = string_to_bool(Config.get('FilterParameters', 'filter_subclonal_cnvs'))
-    restrict_cnss = string_to_bool(Config.get('ClusterParameters', 'restrict_cnv_search_space'))
 
     gt1_sc  = [float(x.split('|')[0].split(',')[2])<1 if x!='' else False for x in sv_df.gtype1.values]
     gt2_sc  = [float(x.split('|')[0].split(',')[2])<1 if x!='' else False for x in sv_df.gtype2.values]
@@ -490,58 +477,33 @@ def adjust_sv_read_counts(sv_df,pi,pl,min_dep,rlen,Config):
     sup = np.array(d+s,dtype=float)
     Nvar = len(sv_df)
 
-    # pick side with the lower norm count (proxy for lower CNV val)
-    norm_vals = np.append(sv_df.norm1.values,sv_df.norm2.values)
-    norm_mean = np.mean(norm_vals[norm_vals > min_dep])
-    sides = np.array([0 if a < b else 1 for a,b in zip(sv_df.norm1.values,sv_df.norm2.values)])
-
-    if not filter_subclonal_cnvs:
-        # prefer sides with clonal genotype data
-        exclusive_subclones = zip(sv_df.gtype1.values[one_sc],sv_df.gtype2.values[one_sc])
-        sides[one_sc] = [1 if len(gt1.split('|'))>1 else 0 for gt1,gt2 in exclusive_subclones]
-
-    # if one side doesn't have CNV data, pick the other side
-    if np.any(sv_df.gtype1.values==''):
-        sides[sv_df.gtype1.values==''] = 1
-    if np.any(sv_df.gtype2.values==''):
-        sides[sv_df.gtype2.values==''] = 0
-
-    norm = np.array([float(ni[si]) for ni,si in zip(n, sides)])
-    cparams = {'restrict_cnss': restrict_cnss} #fake cparams dic for compatibility
-    combos = sv_df.apply(cluster.get_sv_allele_combos, axis=1, args=(cparams,))
-    cn_states = [cn[side] for cn,side in zip(combos, sides)]
-
     try:
-        # read value adjustments for specific types of events
-        # currently the adjustments are quite simple
+        # adjust normal read counts of duplications
         sv_classes = sv_df.classification.values
         dups = np.array([ sv_class in dna_gain_class for idx,sv_class in enumerate(sv_classes) ])
-        loss = np.array([ sv_class in dna_loss_class for idx,sv_class in enumerate(sv_classes) ])
 
-        # normal read counts for DNA gains are adjusted by purity and ploidy
-        if sum(dups)>0:
-            # estimate adjustment from normal counts for SV events where there is no gain of DNA
-            # otherwise use a calculated approximation factor
-            alt_adjust = 1. - (float(pi)/pl)
-            adjust_factor = np.mean(norm[loss])/np.mean(norm[dups]) if sum(loss)>10 else alt_adjust
-            if adjust_factor < 1:
-                norm[dups] = norm[dups] * adjust_factor
-            else:
-                norm[dups] = norm[dups] * alt_adjust
-
+        adjust_factor = 1. - (float(pi)/pl)
+        norm1, norm2 = sv_df.norm1.map(float).values, sv_df.norm2.map(float).values
+        norm1[dups] = [float(n) * adjust_factor for n in norm1[dups]]
+        norm2[dups] = [float(n) * adjust_factor for n in norm2[dups]]
     except AttributeError:
         print('Warning, no valid classifications found. SV read counts cannot be adjusted')
 
-    all_indexes      = sv_df.index.values
-    adjust_factor    = 1+(support_adjust_factor*pi)
-    adjusted_support = map(round,sup*adjust_factor)
+    all_indexes = sv_df.index.values
+    sup_adjust_factor = 1+(support_adjust_factor*pi)
+    adjusted_support = np.array(map(round,sup*sup_adjust_factor))
 
-    sv_df.loc[all_indexes,'adjusted_norm']      = norm
-    sv_df.loc[all_indexes,'adjusted_support']   = map(int,adjusted_support)
-    sv_df.loc[all_indexes,'adjusted_depth']     = map(int,adjusted_support+norm)
-    sv_df.loc[all_indexes,'preferred_side']     = sides
-    sv_df.loc[all_indexes,'raw_mean_vaf']       = sup/(sup+sv_df.norm_mean.map(float).values)
-    sv_df.loc[all_indexes,'adjusted_vaf']       = adjusted_support/(norm+adjusted_support)
+    adj_norm_means = np.array([np.mean([float(n1), float(n2)]) for n1, n2 in zip(norm1, norm2)])
+    sv_df.loc[all_indexes,'adjusted_norm1'] = norm1
+    sv_df.loc[all_indexes,'adjusted_norm2'] = norm2
+    sv_df.loc[all_indexes,'adjusted_norm_mean'] = adj_norm_means
+    sv_df.loc[all_indexes,'adjusted_support'] = map(int, map(np.round, adjusted_support))
+    sv_df.loc[all_indexes,'adjusted_depth1'] = map(int, map(np.round, adjusted_support + norm1))
+    sv_df.loc[all_indexes,'adjusted_depth2'] = map(int, map(np.round, adjusted_support + norm2))
+    sv_df.loc[all_indexes,'raw_mean_vaf'] = sup / (sup + sv_df.raw_norm_mean.map(float).values)
+    sv_df.loc[all_indexes,'adjusted_vaf1'] = adjusted_support / (norm1 + adjusted_support)
+    sv_df.loc[all_indexes,'adjusted_vaf2'] = adjusted_support / (norm2 + adjusted_support)
+    sv_df.loc[all_indexes,'adjusted_mean_vaf'] = sup / (adj_norm_means + adjusted_support)
 
     return sv_df
 
@@ -594,14 +556,6 @@ def run(args):
     filter_otl  = string_to_bool(Config.get('FilterParameters', 'filter_outliers'))
     strict_cnv_filt = string_to_bool(Config.get('FilterParameters', 'strict_cnv_filt'))
     filter_subclonal_cnvs = string_to_bool(Config.get('FilterParameters', 'filter_subclonal_cnvs'))
-
-#    def proc_arg(arg,n_args=1,of_type=str):
-#        arg = str.split(arg,',')
-#        arg = arg * n_args if len(arg)==1 else arg
-#        if of_type==int or of_type==float:
-#            return map(eval,arg)
-#        else:
-#            return map(of_type,arg)
 
     out = sample if out == "" else out
 

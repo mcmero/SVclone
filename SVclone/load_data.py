@@ -5,8 +5,6 @@ import numpy as np
 import vcf
 import ConfigParser
 import os
-
-from . import cluster
 from SVprocess import svp_load_data as svp_load
 
 def get_normal_copynumber(chrom, male):
@@ -17,43 +15,33 @@ def get_normal_copynumber(chrom, male):
     else:
         return 2.
 
-def get_sv_vals(sv_df, adjusted, male, cparams):
-    combos = sv_df.apply(cluster.get_sv_allele_combos, axis=1, args=(cparams,)).values
-    sides = sv_df.preferred_side.map(int).values
-    cn_states = [cn[side] for cn,side in zip(combos, sides)]
-    cn_states = pd.DataFrame([[sv] for sv in cn_states])[0].values
-    chroms = [c1 if side == 0 else c2 for c1,c2,side in zip(sv_df.chr1.values, sv_df.chr2.values, sides)]
-    norm = [get_normal_copynumber(c, male) for c in chroms]
+def get_sv_vals(sv_df, cparams):
+    adjusted = cparams['adjusted']
+    male = cparams['male']
+    chroms = sv_df.chr1.values # consider only chrom 1 for normal copy-number
+    norm_cn = [get_normal_copynumber(c, male) for c in chroms]
+    norm1, norm2 = sv_df.adjusted_norm1.values, sv_df.adjusted_norm2.values
+    norm1, norm2 = map(int, map(round, norm1)), map(int, map(round, norm2))
 
-    if adjusted:
-        sup = sv_df.adjusted_support.map(float).values
-        dep = sv_df.adjusted_depth.map(float).values
-        Nvar = len(sv_df)
-        return sup,dep,cn_states,Nvar,norm
-    else:
-        sup  = sv_df.support.map(float).values
-        norm = zip(sv_df.norm1.values,sv_df.norm2.values)
-        norm = np.array([float(n[side]) for n,side in zip(norm,sv_df.preferred_side.values)])
-        dep  = norm+sup
-        Nvar = len(sv_df)
-        return sup,dep,cn_states,Nvar,norm
+    Nvar = len(sv_df)
+    sup = sv_df.adjusted_support.map(float).values if adjusted else sv_df.support.map(float).values
 
-def get_snv_vals(df, male, cparams):
+    return sup, norm1, norm2, Nvar, norm_cn
+
+def get_snv_vals(df, cparams):
+    male = cparams['male']
     n = df['ref'].map(float).values
     b = df['var'].map(float).values
 
-    cn_states = [cluster.get_allele_combos(gtype.split('|'), cparams) for gtype in df.gtype]
-    cn_states = pd.DataFrame([[cn] for cn in cn_states])[0].values
-
-    norm = [get_normal_copynumber(c, male) for c in df.chrom.values]
-    return b,(n+b),cn_states,len(b),norm
+    norm_cn = [get_normal_copynumber(c, male) for c in df.chrom.values]
+    return b, (n+b), len(b), norm_cn
 
 def load_svs(sv_file):
     dat = pd.read_csv(sv_file,delimiter='\t',dtype=None, low_memory=False)
     sv_df = pd.DataFrame(dat)
     sv_df.chr1 = sv_df.chr1.map(str)
     sv_df.chr2 = sv_df.chr2.map(str)
-    sv_df['norm_mean'] = map(np.mean,zip(sv_df['norm1'].values,sv_df['norm2'].values))
+    sv_df['raw_norm_mean'] = map(np.mean,zip(sv_df['norm1'].values,sv_df['norm2'].values))
     return sv_df
 
 def load_cnvs(cnv_file):
@@ -70,7 +58,9 @@ def load_cnvs(cnv_file):
     if len(cnv_df.columns)==1:
         # assume caveman csv file
         col_names = ['chr','startpos','endpos','norm_total','norm_minor','tumour_total','tumour_minor']
-        cnv_df = pd.DataFrame(pd.read_csv(cnv_file,delimiter=',',dtype=None,names=col_names,index_col=0,skip_blank_lines=True))
+        cnv_df = pd.DataFrame(pd.read_csv(cnv_file, delimiter=',',
+                              dtype=None, names=col_names, index_col=0,
+                              skip_blank_lines=True))
 
     try:
         if 'nMaj1_A' in cnv_df.columns.values:
@@ -125,7 +115,9 @@ def load_cnvs(cnv_file):
             cnv_df = cnv_df[np.invert(np.isnan(cnv_df.major_cn.values))]
             cnv_df['chromosome'] = cnv_df.chromosome.map(str)
             cnv_df = cnv_df.rename(columns={'chromosome': 'chr', 'start': 'startpos', 'end': 'endpos'})
-            gtypes = cnv_df.major_cn.map(str) + ',' + cnv_df.minor_cn.map(str) + ',' + cnv_df.clonal_frequency.map(str)
+            gtypes = cnv_df.major_cn.map(str) + ',' \
+                        + cnv_df.minor_cn.map(str) \
+                        + ',' + cnv_df.clonal_frequency.map(str)
             cnv_df['gtype'] = gtypes
             select_cols = ['chr','startpos','endpos','gtype']
             return cnv_df[select_cols]
@@ -344,47 +336,13 @@ def get_params_cluster_step(sample, cfg, out, pp_file, param_file, XX, XY):
         raise ValueError('No configuration file found')
 
     mean_cov        = float(Config.get('BamParameters', 'mean_cov'))
-    shape           = float(Config.get('BetaParameters', 'alpha'))
-    scale           = float(Config.get('BetaParameters', 'beta'))
-    fixed_alpha     = Config.get('BetaParameters', 'fixed_alpha')
-    phi_limit       = float(Config.get('ClusterParameters', 'phi_limit'))
     clus_limit      = int(Config.get('ClusterParameters', 'clus_limit'))
-    subclone_diff   = float(Config.get('ClusterParameters', 'subclone_diff'))
-    hpd_alpha       = float(Config.get('ClusterParameters', 'hpd_alpha'))
-
-    n_runs          = int(Config.get('ClusterParameters', 'n_runs'))
     n_iter          = int(Config.get('ClusterParameters', 'n_iter'))
-    burn            = int(Config.get('ClusterParameters', 'burn'))
-    thin            = int(Config.get('ClusterParameters', 'thin'))
     threads         = int(Config.get('ClusterParameters', 'threads'))
-    nclus_init      = Config.get('ClusterParameters', 'nclus_init')
-    restrict_cnss   = string_to_bool(Config.get('ClusterParameters', 'restrict_cnv_search_space'))
-
-    use_map         = string_to_bool(Config.get('ClusterParameters', 'map'))
-    merge_clusts    = string_to_bool(Config.get('ClusterParameters', 'merge'))
-    cocluster       = string_to_bool(Config.get('ClusterParameters', 'cocluster'))
+    repeat          = int(Config.get('ClusterParameters', 'repeat'))
     adjusted        = string_to_bool(Config.get('ClusterParameters', 'adjusted'))
-    cnv_pval        = float(Config.get('ClusterParameters', 'clonal_cnv_pval'))
-    adjust_phis     = string_to_bool(Config.get('ClusterParameters', 'adjust_phis'))
     male            = string_to_bool(Config.get('ClusterParameters', 'male'))
     sv_to_sim       = int(Config.get('ClusterParameters', 'sv_to_sim'))
-
-    plot            = string_to_bool(Config.get('OutputParameters', 'plot'))
-    ccf_reject      = float(Config.get('OutputParameters', 'ccf_reject_threshold'))
-    smc_het         = string_to_bool(Config.get('OutputParameters', 'smc_het'))
-    fit_metric      = Config.get('OutputParameters', 'fit_metric')
-    cluster_penalty = int(Config.get('OutputParameters', 'cluster_penalty'))
-
-    try:
-        merge_iter      = int(Config.get('ClusterParameters', 'merge_iter'))
-        merge_burn      = int(Config.get('ClusterParameters', 'merge_burn'))
-    except ConfigParser.NoOptionError:
-        merge_iter = int(round(n_iter / 4))
-        merge_burn = int(round(burn / 4))
-
-    if burn == 0 and use_map:
-        print('No burn-in period specified, setting MAP to false.')
-        use_map = False
 
     if XX:
         male = False
@@ -396,60 +354,8 @@ def get_params_cluster_step(sample, cfg, out, pp_file, param_file, XX, XY):
 
     sample_params  = { 'sample': sample, 'ploidy': pl, 'pi': pi, 'rlen': rlen,
                        'insert': insert, 'mean_cov': mean_cov }
-    cluster_params = { 'n_runs': n_runs, 'n_iter': n_iter, 'burn': burn, 'thin': thin, 'alpha': shape,
-                       'beta': scale, 'use_map': use_map, 'hpd_alpha': hpd_alpha, 'fixed_alpha': fixed_alpha,
-                       'male': male, 'merge_clusts': merge_clusts, 'adjusted': adjusted, 'phi_limit': phi_limit,
-                       'clus_limit': clus_limit, 'subclone_diff': subclone_diff, 'cocluster': cocluster ,
-                       'clonal_cnv_pval': cnv_pval, 'adjust_phis': adjust_phis, 'sv_to_sim': sv_to_sim,
-                       'threads': threads, 'ccf_reject': ccf_reject, 'nclus_init': nclus_init,
-                       'restrict_cnss': restrict_cnss, 'merge_iter': merge_iter, 'merge_burn': merge_burn }
-    output_params  = { 'plot': plot, 'smc_het': smc_het, 'cluster_penalty': cluster_penalty, 'fit_metric': fit_metric }
+    cluster_params = { 'n_iter': n_iter, 'male': male, 'adjusted': adjusted,
+                       'sv_to_sim': sv_to_sim, 'threads': threads, 'repeat': repeat,
+                       'clus_limit': clus_limit }
 
-    return sample_params, cluster_params, output_params
-
-def get_run_output(rundir, sample, purity, snvs=False):
-    outdir = rundir if not snvs or os.path.basename(rundir) == 'best_run_snvs' else '%s/snvs/' % rundir
-
-    fit_file   = '%s/%s_fit.txt' % (outdir, sample)
-    scs_file   = '%s/%s_subclonal_structure.txt' % (outdir, sample)
-    ccert_file = '%s/%s_cluster_certainty.txt' % (outdir, sample)
-    probs_file = '%s/%s_assignment_probability_table.txt' % (outdir, sample)
-
-    fit   = pd.DataFrame()
-    scs   = pd.DataFrame()
-    ccert = pd.DataFrame()
-    probs = pd.DataFrame()
-
-    alt_scs_file = '%s/snvs/%s_subclonal_structure.txt' % (rundir, sample)
-    alt_scs_file = alt_scs_file if not snvs else '%s/%s_subclonal_structure.txt' % (rundir, sample)
-
-    if os.path.exists(scs_file):
-        scs = pd.read_csv(scs_file, delimiter = '\t', dtype = None, low_memory = False)
-    elif os.path.exists(alt_scs_file):
-        scs = pd.read_csv(alt_scs_file, delimiter = '\t', dtype = None, low_memory = False)
-    else:
-        raise ValueError('No subclonal structure file exists!')
-
-    # have to rename columns for function compatibility
-    rename_cols =  {'cluster': 'clus_id', 'n_variants': 'size', 'CCF': 'phi'}
-    if 'n_ssms' in scs.columns.values:
-        rename_cols =  {'cluster': 'clus_id', 'n_ssms': 'size', 'CCF': 'phi'}
-    scs = scs.rename(columns = rename_cols)
-    scs = scs.drop('proportion', 1)
-
-    if os.path.exists(ccert_file):
-        ccert = pd.read_csv(ccert_file, delimiter = '\t', dtype = None, low_memory = False)
-
-    if os.path.exists(probs_file):
-        probs = pd.read_csv(probs_file, delimiter = '\t', dtype = None, low_memory = False)
-
-    if os.path.exists(fit_file):
-        fit = pd.read_csv(fit_file, delimiter = '\t', dtype = None, low_memory = False)
-
-    if len(ccert) > 0:
-        # have to rename columns for function compatibility
-        rename_cols =  {'average_proportion': 'average_ccf'}
-        ccert = ccert.rename(columns = rename_cols)
-        ccert['average_ccf'] = ccert.average_ccf.values / purity
-
-    return scs, ccert, probs, fit
+    return sample_params, cluster_params

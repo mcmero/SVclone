@@ -181,9 +181,12 @@ def reads_to_sam(reads,bam,bp1,bp2,dirout,name):
     Takes reads from array, matches them to bam
     file reads by query name and outputs them to Sam
     '''
+    reads = np.unique(reads['query_name'])
+
     bamf = pysam.AlignmentFile(bam, "rb")
     loc1 = '%s:%d:%d' % (bp1['chrom'], bp1['start'], bp1['end'])
     loc2 = '%s:%d:%d' % (bp2['chrom'], bp2['start'], bp2['end'])
+
     iter_loc1 = bamf.fetch(region=loc1,until_eof=True)
     iter_loc2 = bamf.fetch(region=loc2,until_eof=True)
 
@@ -211,7 +214,6 @@ def reads_to_sam(reads,bam,bp1,bp2,dirout,name):
             bam_out.write(bamf.mate(x))
             idx = int(np.where(reads==x.query_name)[0])
             reads = np.delete(reads,idx)
-
     bamf.close()
     bam_out.close()
 
@@ -239,6 +241,7 @@ def get_loc_counts(bp,loc_reads,pos,rc,reproc,split,norm,min_ins,max_ins,sc_len,
             break
         if x['query_name'] in norm['query_name']:
             continue
+
         r1 = loc_reads[idx]
         r2 = loc_reads[idx+1] if (idx+2)<=len(loc_reads) else None
         if is_normal_non_overlap(r1,r2,pos,min_ins,max_ins,threshold):
@@ -259,7 +262,7 @@ def get_loc_counts(bp,loc_reads,pos,rc,reproc,split,norm,min_ins,max_ins,sc_len,
                     rc[split_cnt]  = rc[split_cnt]+get_sc_bases(x,pos,threshold)
                 else:
                     reproc = np.append(reproc,x) #may be spanning support or anomalous
-        elif r2!=None and r1['query_name']==r2['query_name'] and is_normal_spanning(r1,r2,pos,min_ins,max_ins,sc_len):
+        elif r2!=None and r1['query_name']==r2['query_name'] and is_normal_spanning(r1,r2,pos,min_ins,max_ins,0):
             norm_across1 = is_normal_across_break(r1, pos, min_ins, max_ins, norm_overlap)
             norm_across2 = is_normal_across_break(r2, pos, min_ins, max_ins, norm_overlap)
             if not norm_across1 and not norm_across2:
@@ -512,7 +515,7 @@ def extract_sv_info(svin, bam, rparams, outname):
         dir2_field, sv_class, \
         oid_field, opos1_field, opos2_field = [h[0] for h in dtypes.sv_dtype]
 
-    svs = np.genfromtxt(svin, delimiter='\t', names=True, dtype=None, invalid_raise=False)
+    svs = np.genfromtxt(svin, delimiter='\t', names=True, dtype=None, invalid_raise=False, encoding='utf-8')
     if svs.ndim == 0:
         svs = np.reshape(svs,(1))
 
