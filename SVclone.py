@@ -107,7 +107,7 @@ filter_parser.add_argument("-o","--out",dest="out",default="",
 
 filter_parser.add_argument("-p","--purity_ploidy",dest="pp_file",default="",
                     help='''Tumour purity ploidy file. See README for format. The default file path is
-                    <outdir>/purity_ploidy.txt. If not found, default purity = 1 (100%); default ploidy = 2.''')
+                    <outdir>/purity_ploidy.txt. If not found, default purity = 1 (100%%); default ploidy = 2.''')
 
 filter_parser.add_argument("--blacklist", dest="blist", default="",
                     help='''Takes a file in BED format as an argument. Filter out any break-pairs where
@@ -138,7 +138,7 @@ cluster_parser.add_argument("--params",dest="param_file",default="",
 
 cluster_parser.add_argument("-p","--purity_ploidy",dest="pp_file",default="",
                     help='''Tumour purity ploidy file. See README for format. The default file path is
-                    <outdir>/purity_ploidy.txt. If not found, default purity = 1 (100%); default ploidy = 2.''')
+                    <outdir>/purity_ploidy.txt. If not found, default purity = 1 (100%%); default ploidy = 2.''')
 
 cluster_parser.add_argument("--snvs",dest="snv_file",default="",
                     help="To specify filtered SNVs output from Filter Step. Default loc: <outdir>/<sample>_filtered_snvs.tsv")
