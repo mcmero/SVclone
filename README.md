@@ -37,17 +37,13 @@ Example data is provided to test your SVclone installation (data contains simula
 
     ./run_example.sh
 
-NOTE: installing [R](https://www.r-project.org/) is required to run the post-processing script. See INSTALL.md for package dependencies.
+You can check the following output plot, which will summarise the clustering result:
 
-You can check the following output plots:
+* tumour_p80_DEL/ccube_out/tumour
 
-* tumour_p80_DEL/tumour_p80_DEL_run_summary.pdf
-* tumour_p80_DEL/tumour_p80_DEL_run*.pdf
-* tumour_p80_DEL/tumour_p80_DEL_best_run_svs_post_assign_best_fit.pdf
+You can also test the simulated SNV data by running:
 
-You can also test the simulated SNV data by running (this will take longer than running SVs only):
-
-    ./run_coclus_example.sh
+    ./run_example_wsnvs.sh
 
 The simulated data contains a 100% CCF clone and a 30% subclone.
 
@@ -264,7 +260,7 @@ Ccube will create an RData file under \<ccube_out\>/\<sample\>_[sv/snv]_results.
 
 Post-assignment involves reassigning SV cluster memberships to either an SNV model, or to a joint SV + SNV model. If using the joint-model approach, SNVs may also be reassigned using the derived joint model. Run this step as follows:
 
-    Rscript SVclone/post_assign.R \<sample\>_\<sv_results.RData\> \<sample\>_\<snv_results.RData\> <output_dir> <sample> [--joint]
+    Rscript SVclone/post_assign.R <sv_results.RData> <snv_results.RData> <output_dir> <sample> [--joint]
 
 If the `--joint` argument is used, SVs and SNVs will be reassigned to a joint model. If this flag is omitted, SVs will be assigned to the SNV model (default behaviour).
 
