@@ -87,7 +87,7 @@ if (is_sv_data) {
                                           numOfClusterPool = numOfClusterPool, numOfRepeat = numOfRepeat,
                                           runAnalysis = T, runQC = T, maxiter = maxiter,
                                           ccubeResultRDataFile = paste(resultFolder, "ccube_sv_results.RData", sep="/"),
-                                          multiCore = multiCore, basicFormats = F, allFormats = F, returnAll = T)
+                                          multiCore = multiCore, basicFormats = F, allFormats = F)
     save(doubleBreakPtsRes, file=paste0(resultFolder, sample, "_ccube_sv_results.RData"))
     MakeCcubeStdPlot_sv(res = doubleBreakPtsRes$res, ssm = doubleBreakPtsRes$ssm,
                         printPlot = T, fn = paste0(resultFolder, sample, "_ccube_sv_results.pdf"))
@@ -99,7 +99,7 @@ if (is_sv_data) {
                                 ccubeResultRDataFile = paste(resultFolder, "ccube_snv_results.RData", sep="/"),
                                 numOfClusterPool = numOfClusterPool, numOfRepeat = numOfRepeat,
                                 runAnalysis = T, runQC = T, multiCore = multiCore,
-                                basicFormats = F, allFormats = F, returnAll = T)
+                                basicFormats = F, allFormats = F)
     save(snvRes, file=paste0(resultFolder, sample, "_ccube_snv_results.RData"))
     MakeCcubeStdPlot(res = snvRes$res, ssm = snvRes$ssm, printPlot = T, fn = paste0(resultFolder, sample, "_ccube_snv_results.pdf"))
 }
