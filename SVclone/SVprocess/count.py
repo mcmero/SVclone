@@ -153,24 +153,37 @@ def is_supporting_spanning_pair(read,mate,bp1,bp2,inserts,max_ins,threshold):
 
     return False
 
-def get_loc_reads(bp,bamf,max_dp):
-    loc = '%s:%d:%d' % (bp['chrom'], max(0,bp['start']), bp['end'])
-    loc_reads = np.empty([0,len(dtypes.read_dtype)],dtype=dtypes.read_dtype)
+def fetch_reads(loc,bamf,max_dp):
     err_code = 0
+    loc_reads = np.empty([0,len(dtypes.read_dtype)],dtype=dtypes.read_dtype)
+    iter_loc = bamf.fetch(region=loc,until_eof=True)
+    for x in iter_loc:
+        read = read_to_array(x,bamf)
+        if len(np.atleast_1d(read))>0:
+            loc_reads = np.append(loc_reads,read)
+        if len(loc_reads) > max_dp:
+            print('Read depth too high at %s' % loc)
+            err_code = 1
+            return np.empty(0), err_code
+
+    loc_reads = np.sort(loc_reads,axis=0,order=['query_name','ref_start'])
+    loc_reads = np.unique(loc_reads) #remove duplicates
+
+    return loc_reads, err_code
+
+def get_loc_reads(bp,bamf,max_dp,new_pysam=False):
+    loc = '%s:%d:%d' % (bp['chrom'], max(0,bp['start']), bp['end'])
     try:
-        iter_loc = bamf.fetch(region=loc,until_eof=True)
-        for x in iter_loc:
-            read = read_to_array(x,bamf)
-            if len(np.atleast_1d(read))>0:
-                loc_reads = np.append(loc_reads,read)
-            if len(loc_reads) > max_dp:
-                print('Read depth too high at %s' % loc)
-                err_code = 1
-                return np.empty(0), err_code
-        loc_reads = np.sort(loc_reads,axis=0,order=['query_name','ref_start'])
-        loc_reads = np.unique(loc_reads) #remove duplicates
+        loc_reads, err_code = fetch_reads(loc, bamf, max_dp)
         return loc_reads, err_code
     except ValueError:
+        pass
+    try:
+        # try with updated pysam loc format...
+        loc = '%s:%d-%d' % (bp['chrom'], max(0,bp['start']), bp['end'])
+        loc_reads, err_code = fetch_reads(loc, bamf, max_dp)
+        return loc_reads, err_code
+    except:
         print('Fetching reads failed for loc: %s' % loc)
         err_code = 2
         return np.empty(0), err_code
