@@ -10,7 +10,7 @@ Install [Anaconda2](https://www.continuum.io/downloads) (or [Python 2.7.\*](http
 
 Now run the following:
 
-    git clone --single-branch --branch ccube git@github.com:mcmero/SVclone.git
+    git clone git@github.com:mcmero/SVclone.git
     cd SVclone
 
     pip install -r requirements.txt
