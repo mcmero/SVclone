@@ -1,19 +1,17 @@
 import nose2
 import unittest
 import numpy as np
-import ConfigParser
+import configparser
 import os
 import pandas as pd
 import subprocess
 from unittest import TestCase
-from SVprocess import bamtools
-from SVprocess import annotate
-from SVprocess import svp_load_data as load_data
-from SVprocess import count
+from SVclone.SVprocess import bamtools
+from SVclone.SVprocess import annotate
+from SVclone.SVprocess import svp_load_data as load_data
+from SVclone.SVprocess import count
 from SVclone import load_data as svc_load
 from SVclone import run_filter
-from SVclone import run_clus
-from SVclone import post_assign
 
 blist = ''
 bam = 'example_data/tumour_p80_DEL_sv_extract_sorted.bam'
@@ -50,7 +48,7 @@ sc_str       = '%s_subclonal_structure.txt' % sample
 n_clus       = '%s_number_of_clusters.txt' % sample
 ccfs         = '%s_vaf_ccf.txt' % sample
 
-Config = ConfigParser.ConfigParser()
+Config = configparser.ConfigParser()
 Config.read(cfg)
 
 max_cn         = float(Config.get('BamParameters', 'max_cn'))
@@ -140,201 +138,6 @@ class test(unittest.TestCase):
         snv_df['gtype'] = default_gtype
 
         snv_df.to_csv(snv_filt_file, sep='\t', index=False, na_rep='')
-
-        # subset files for post-assign tests
-        sv_df[:50].to_csv(svf_subset, sep='\t', index=False, na_rep='')
-        snv_df[:250].to_csv(snvf_subset, sep='\t', index=False, na_rep='')
-
-    def test_04_cluster(self):
-        sv_df = pd.read_csv(sv_filt_file, delimiter='\t', dtype=None, header=0, low_memory=False)
-        sv_df = pd.DataFrame(sv_df).fillna('')
-        sample_params, cluster_params, output_params = \
-            svc_load.get_params_cluster_step(sample, cfg, outdir, pp_file, param_file, False, False)
-
-        snv_df = pd.read_csv(snv_filt_file, delimiter='\t', dtype=None, header=0, low_memory=False)
-        snv_df = pd.DataFrame(snv_df).fillna('')
-
-        cluster_params['n_iter'] = 110
-        cluster_params['burn'] = 10
-        cluster_params['use_map'] = False
-        cluster_params['cocluster'] = False
-
-        # separate clustering test
-        subprocess.call(['rm', '-rf', '%s/run0' % outdir])
-        run_clus.cluster_and_process(sv_df, snv_df, 0, outdir, sample_params,
-                                     cluster_params, output_params, [1234])
-
-        sv1 = pd.read_csv('%s/run0/%s' % (outdir, ass_prob_tbl),
-                          delimiter='\t', dtype=None, header=0, low_memory=False)
-        sv2 = pd.read_csv('%s/run0/%s' % (outdir, ccert), delimiter='\t', dtype=None, header=0, low_memory=False)
-        sv3 = pd.read_csv('%s/run0/%s' % (outdir, cn_out), delimiter='\t', dtype=None, header=0, low_memory=False)
-        #sv4 = pd.read_csv('%s/run0/%s' % (outdir, fit), delimiter='\t', dtype=None, header=None, low_memory=False)
-        sv5 = pd.read_csv('%s/run0/%s' % (outdir, ml_cn), delimiter='\t', dtype=None, header=0, low_memory=False)
-        sv6 = pd.read_csv('%s/run0/%s' % (outdir, mult), delimiter='\t', dtype=None, header=0, low_memory=False)
-        sv7 = pd.read_csv('%s/run0/%s' % (outdir, sc_str), delimiter='\t', dtype=None, header=0, low_memory=False)
-        sv8 = pd.read_csv('%s/run0/%s' % (outdir, n_clus), delimiter='\t', dtype=None, header=0, low_memory=False)
-        sv9 = pd.read_csv('%s/run0/%s' % (outdir, ccfs),
-                          delimiter='\t', dtype=None, header=0, low_memory=False)
-
-        snv9 = pd.read_csv('%s/run0/snvs/%s' % (outdir, ccfs), delimiter='\t', dtype=None, header=0, low_memory=False)
-        snv1 = pd.read_csv('%s/run0/snvs/%s' % (outdir, ass_prob_tbl),
-                           delimiter='\t', dtype=None, header=0, low_memory=False)
-        snv2 = pd.read_csv('%s/run0/snvs/%s' % (outdir, ccert), delimiter='\t', dtype=None, header=0, low_memory=False)
-        snv3 = pd.read_csv('%s/run0/snvs/%s' % (outdir, cn_out), delimiter='\t', dtype=None, header=0, low_memory=False)
-        snv5 = pd.read_csv('%s/run0/snvs/%s' % (outdir, ml_cn), delimiter='\t', dtype=None, header=0, low_memory=False)
-        snv6 = pd.read_csv('%s/run0/snvs/%s' % (outdir, mult), delimiter='\t', dtype=None, header=0, low_memory=False)
-        snv7 = pd.read_csv('%s/run0/snvs/%s' % (outdir, sc_str), delimiter='\t', dtype=None, header=0, low_memory=False)
-        snv8 = pd.read_csv('%s/run0/snvs/%s' % (outdir, n_clus), delimiter='\t', dtype=None, header=0, low_memory=False)
-        snv9 = pd.read_csv('%s/run0/snvs/%s' % (outdir, ccfs), delimiter='\t', dtype=None, header=0, low_memory=False)
-
-        self.assertTrue(len(sv1) == len(sv_df))
-        self.assertTrue(len(sv2) == len(sv_df))
-        self.assertTrue(len(sv3) == len(sv_df))
-        #self.assertTrue(len(sv4) == 9)
-        self.assertTrue(len(sv5) == len(sv_df))
-        self.assertTrue(len(sv6) == len(sv_df))
-        self.assertTrue(len(sv7.columns) == 9)
-        self.assertTrue(len(sv8) == 1)
-        self.assertTrue(len(sv9) == len(sv_df))
-        self.assertTrue(len(snv1) == len(snv_df))
-        self.assertTrue(len(snv2) == len(snv_df))
-        self.assertTrue(len(snv3) == len(snv_df))
-        self.assertTrue(len(snv5) == len(snv_df))
-        self.assertTrue(len(snv6) == len(snv_df))
-        self.assertTrue(len(snv7.columns) == 9)
-        self.assertTrue(len(snv8) == 1)
-        self.assertTrue(len(snv9) == len(snv_df))
-
-        # coclustering test
-        subprocess.call(['rm', '-rf', '%s/run0' % outdir])
-        cluster_params['cocluster'] = True
-
-        run_clus.cluster_and_process(sv_df, snv_df, 0, outdir, sample_params,
-                                        cluster_params, output_params, [1234])
-
-        snv1 = pd.read_csv('%s/run0/snvs/%s' % (outdir, ass_prob_tbl),
-                           delimiter='\t', dtype=None, header=0, low_memory=False)
-        snv2 = pd.read_csv('%s/run0/snvs/%s' % (outdir, ccert), delimiter='\t', dtype=None, header=0, low_memory=False)
-        snv3 = pd.read_csv('%s/run0/snvs/%s' % (outdir, cn_out), delimiter='\t', dtype=None, header=0, low_memory=False)
-        snv5 = pd.read_csv('%s/run0/snvs/%s' % (outdir, ml_cn), delimiter='\t', dtype=None, header=0, low_memory=False)
-        snv6 = pd.read_csv('%s/run0/snvs/%s' % (outdir, mult), delimiter='\t', dtype=None, header=0, low_memory=False)
-        snv7 = pd.read_csv('%s/run0/snvs/%s' % (outdir, sc_str), delimiter='\t', dtype=None, header=0, low_memory=False)
-        snv8 = pd.read_csv('%s/run0/snvs/%s' % (outdir, n_clus), delimiter='\t', dtype=None, header=0, low_memory=False)
-        snv9 = pd.read_csv('%s/run0/snvs/%s' % (outdir, ccfs), delimiter='\t', dtype=None, header=0, low_memory=False)
-        sv1 = pd.read_csv('%s/run0/%s' % (outdir, ass_prob_tbl), delimiter='\t', dtype=None, header=0, low_memory=False)
-        sv2 = pd.read_csv('%s/run0/%s' % (outdir, ccert), delimiter='\t', dtype=None, header=0, low_memory=False)
-        sv3 = pd.read_csv('%s/run0/%s' % (outdir, cn_out), delimiter='\t', dtype=None, header=0, low_memory=False)
-        sv5 = pd.read_csv('%s/run0/%s' % (outdir, ml_cn), delimiter='\t', dtype=None, header=0, low_memory=False)
-        sv6 = pd.read_csv('%s/run0/%s' % (outdir, mult), delimiter='\t', dtype=None, header=0, low_memory=False)
-        sv7 = pd.read_csv('%s/run0/%s' % (outdir, sc_str), delimiter='\t', dtype=None, header=0, low_memory=False)
-        sv8 = pd.read_csv('%s/run0/%s' % (outdir, n_clus), delimiter='\t', dtype=None, header=0, low_memory=False)
-        sv9 = pd.read_csv('%s/run0/%s' % (outdir, ccfs), delimiter='\t', dtype=None, header=0, low_memory=False)
-
-        self.assertTrue(len(sv1) == len(sv_df))
-        self.assertTrue(len(sv2) == len(sv_df))
-        self.assertTrue(len(sv3) == len(sv_df))
-        self.assertTrue(len(sv5) == len(sv_df))
-        self.assertTrue(len(sv6) == len(sv_df))
-        self.assertTrue(len(sv8) == 1)
-        self.assertTrue(len(sv9) == len(sv_df))
-        self.assertTrue(len(snv1) == len(snv_df))
-        self.assertTrue(len(snv2) == len(snv_df))
-        self.assertTrue(len(snv3) == len(snv_df))
-        self.assertTrue(len(snv5) == len(snv_df))
-        self.assertTrue(len(snv6) == len(snv_df))
-        self.assertTrue(len(snv8) == 1)
-        self.assertTrue(len(snv9) == len(snv_df))
-
-        # TODO - add tests for run selection
-
-    def test_05_post_assign(self):
-        sv_df = pd.read_csv(sv_filt_file, delimiter='\t', dtype=None, header=0, low_memory=False)
-        sv_df = pd.DataFrame(sv_df).fillna('')
-
-        snv_df = pd.read_csv(snv_filt_file, delimiter='\t', dtype=None, header=0, low_memory=False)
-        snv_df = pd.DataFrame(snv_df).fillna('')
-
-        sv_filt_df = sv_df.head(50).copy()
-        snv_filt_df = snv_df.head(250).copy()
-
-        # rerun clustering with subset
-        subprocess.call(['rm', '-rf', '%s/run0' % outdir])
-        sample_params, cluster_params, output_params = \
-            svc_load.get_params_cluster_step(sample, cfg, outdir, pp_file, param_file, False, False)
-
-        cluster_params['n_iter'] = 100
-        cluster_params['burn'] = 0
-        cluster_params['cocluster'] = True
-        cluster_params['use_map'] = False
-
-        run_clus.cluster_and_process(sv_filt_df, snv_filt_df, 0, outdir, sample_params,
-                                        cluster_params, output_params, [1234])
-
-        rundir = '%s/run0' % outdir
-        sv_to_assign = post_assign.get_var_to_assign(sv_df, sv_filt_df)
-
-        self.assertTrue(len(sv_to_assign) == (len(sv_df) - len(sv_filt_df)))
-
-        sv_to_assign = run_filter.adjust_sv_read_counts(sv_to_assign, pi, ploidy, 0, rlen, Config)
-        post_assign.post_assign_vars(sv_to_assign, sv_filt_df, rundir, sample, sample_params, 
-                                     cluster_params, clus_th, True, cdefs)
-
-        sv1 = pd.read_csv('%s/run0_post_assign/%s' % (outdir, ass_prob_tbl),
-                          delimiter='\t', dtype=None, header=0, low_memory=False)
-        sv2 = pd.read_csv('%s/run0_post_assign/%s' % (outdir, ccert),
-                          delimiter='\t', dtype=None, header=0, low_memory=False)
-        sv3 = pd.read_csv('%s/run0_post_assign/%s' % (outdir, cn_out),
-                          delimiter='\t', dtype=None, header=0, low_memory=False)
-        sv5 = pd.read_csv('%s/run0_post_assign/%s' % (outdir, ml_cn),
-                          delimiter='\t', dtype=None, header=0, low_memory=False)
-        sv6 = pd.read_csv('%s/run0_post_assign/%s' % (outdir, mult),
-                          delimiter='\t', dtype=None, header=0, low_memory=False)
-        sv7 = pd.read_csv('%s/run0_post_assign/%s' % (outdir, sc_str),
-                          delimiter='\t', dtype=None, header=0, low_memory=False)
-        sv8 = pd.read_csv('%s/run0_post_assign/%s' % (outdir, n_clus),
-                          delimiter='\t', dtype=None, header=0, low_memory=False)
-        sv9 = pd.read_csv('%s/run0_post_assign/%s' % (outdir, ccfs),
-                          delimiter='\t', dtype=None, header=0, low_memory=False)
-
-        self.assertTrue(len(sv1) == len(sv_df))
-        self.assertTrue(len(sv2) == len(sv_df))
-        self.assertTrue(len(sv3) == len(sv_df))
-        self.assertTrue(len(sv5) == len(sv_df))
-        self.assertTrue(len(sv6) == len(sv_df))
-        self.assertTrue(len(sv8) == 1)
-        self.assertTrue(len(sv9) == len(sv_df))
-
-        snv_to_assign = post_assign.get_var_to_assign(snv_df, snv_filt_df, snvs = True)
-        post_assign.post_assign_vars(snv_to_assign, snv_filt_df, rundir, sample, sample_params, cluster_params,
-                                     clus_th, True, cdefs, snvs = True)
-
-        snv1 = pd.read_csv('%s/run0_post_assign/snvs/%s' % (outdir, ass_prob_tbl),
-                           delimiter='\t', dtype=None, header=0, low_memory=False)
-        snv2 = pd.read_csv('%s/run0_post_assign/snvs/%s' % (outdir, ccert),
-                           delimiter='\t', dtype=None, header=0, low_memory=False)
-        snv3 = pd.read_csv('%s/run0_post_assign/snvs/%s' % (outdir, cn_out),
-                           delimiter='\t', dtype=None, header=0, low_memory=False)
-        snv5 = pd.read_csv('%s/run0_post_assign/snvs/%s' % (outdir, ml_cn),
-                           delimiter='\t', dtype=None, header=0, low_memory=False)
-        snv6 = pd.read_csv('%s/run0_post_assign/snvs/%s' % (outdir, mult),
-                           delimiter='\t', dtype=None, header=0, low_memory=False)
-        snv7 = pd.read_csv('%s/run0_post_assign/snvs/%s' % (outdir, sc_str),
-                           delimiter='\t', dtype=None, header=0, low_memory=False)
-        snv8 = pd.read_csv('%s/run0_post_assign/snvs/%s' % (outdir, n_clus),
-                           delimiter='\t', dtype=None, header=0, low_memory=False)
-        snv9 = pd.read_csv('%s/run0_post_assign/snvs/%s' % (outdir, ccfs),
-                           delimiter='\t', dtype=None, header=0, low_memory=False)
-
-        self.assertTrue(len(snv1) == len(snv_df))
-        self.assertTrue(len(snv2) == len(snv_df))
-        self.assertTrue(len(snv3) == len(snv_df))
-        self.assertTrue(len(snv5) == len(snv_df))
-        self.assertTrue(len(snv6) == len(snv_df))
-        self.assertTrue(len(snv8) == 1)
-        self.assertTrue(len(snv9) == len(snv_df))
-
-    # TODO: add test for map/picking best run
-    # TODO: add tests for cluster merging
 
 if __name__ == '__main__':
     nose2.main()

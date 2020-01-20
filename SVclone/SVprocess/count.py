@@ -3,7 +3,7 @@ Using characterised SVs, count normal and supporting reads at SV locations
 '''
 import warnings
 import os
-import ConfigParser
+import configparser
 import numpy as np
 import pysam
 import csv
@@ -23,7 +23,7 @@ def read_to_array(x,bamf):
                          x.query_alignment_end,x.query_length,x.tlen,np.bool(x.is_reverse)),dtype=dtypes.read_dtype)
         return read
     except TypeError:
-        print 'Warning: record %s contains invalid attributes, skipping' % x.query_name
+        print('Warning: record %s contains invalid attributes, skipping' % x.query_name)
         #return np.empty(len(dtypes.read_dtype),dtype=dtypes.read_dtype)
         return np.empty(0)
 
@@ -416,7 +416,7 @@ def get_sv_read_counts(row,bam,rparams,out,split_reads,span_reads,anom_reads):
 
 def get_params(cfg,bam,sample,out):
 
-    Config = ConfigParser.ConfigParser()
+    Config = configparser.ConfigParser()
     cfg_file = Config.read(cfg)
 
     if len(cfg_file)==0:

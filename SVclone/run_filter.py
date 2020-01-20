@@ -4,14 +4,14 @@ Run clustering and tree building on sample inputs
 from __future__ import print_function
 
 import os
-import ConfigParser
+import configparser
 import numpy as np
 import re
 import pandas as pd
 import vcf
 
 from operator import methodcaller
-from SVprocess import svp_load_data as svp_load
+from SVclone.SVprocess import svp_load_data as svp_load
 from . import run_clus
 from . import load_data
 
@@ -107,9 +107,9 @@ def run_simple_snv_filter(snv_df, min_dep, blist, filter_chrs, valid_chrs):
 
 def is_clonal_neutral(gtype):
     if gtype=='': return False
-    gtype = map(methodcaller('split',','),gtype.split('|'))
+    gtype = [x.split(',') for x in gtype.split('|')]
     if len(gtype)==1:
-        gt = map(float,gtype[0])
+        gt = [float(x) for x in gtype[0]]
         return (gt[0]==1 and gt[1]==1 and gt[2]==1)
     return False
 
@@ -119,9 +119,9 @@ def exceeds_cn_limit(gtype, max_cn):
     of any clone exceeds the max_cn threshold
     '''
     if gtype=='': return False
-    gtype = map(methodcaller('split',','),gtype.split('|'))
+    gtype = [x.split(',') for x in gtype.split('|')]
     if len(gtype)==1:
-        gt = map(float, gtype[0])
+        gt = [float(x) for x in gtype[0]]
         return (gt[0] > max_cn or gt[1] > max_cn)
     else:
         return np.any(np.array([float(gt[0]) > max_cn or float(gt[1]) > max_cn for gt in gtype]))
@@ -132,15 +132,17 @@ def remove_zero_copynumbers(gtype):
     where the total copy-number is zero
     '''
     if gtype=='': return ''
-    gtype_tmp = map(methodcaller('split',','),gtype.split('|'))
-    if len(gtype_tmp)==1:
-        gt = map(float, gtype_tmp[0])
+    gtype_tmp = gtype.split('|')
+    gtype_tmp = [x.split(',') for x in gtype_tmp]
+    if len(gtype)==1:
+        gt = [float(x) for x in gtype_tmp[0]]
         if (gt[0]==0 and gt[1]==0) or gt[0] < 0 or gt[1] < 0:
             gtype = ''
     return gtype
 
 def get_weighted_cns(gtypes):
-    gtypes_split = [map(methodcaller("split",","),x) for x in map(methodcaller("split","|"),gtypes)]
+    gtypes_split = [x.split('|') for x in gtypes]
+    gtypes_split = [x.split(',') for x in gtypes]
     cn_vals = []
     for gtype in gtypes_split:
         cn_val = sum([int(eval(g[0]))+int(eval(g[1]))*float(eval(g[2])) if g!=[''] else 2 for g in gtype])
@@ -184,7 +186,7 @@ def run_cnv_filter(df_flt, cnv, ploidy, neutral, filter_outliers, strict_cnv_fil
         if are_snvs:
             df_flt = df_flt.fillna('')
             df_flt = df_flt[df_flt.gtype.values!='']
-            is_neutral = map(is_clonal_neutral,df_flt.gtype.values)
+            is_neutral = [is_clonal_neutral(x) for x in df_flt.gtype.values]
             df_flt2 = df_flt[is_neutral]
             print('Filtered out %d SNVs that were not copy-number neutral' % (n_df - len(df_flt)))
 
@@ -195,8 +197,8 @@ def run_cnv_filter(df_flt, cnv, ploidy, neutral, filter_outliers, strict_cnv_fil
                 df_flt = df_flt[np.logical_and(depths>dep_ranges[0],depths<dep_ranges[1])]
                 print('Filtered out %d SNVs which had outlying depths' % (n_df - len(df_flt)))
         else:
-            gt1_is_neutral = map(is_clonal_neutral,df_flt.gtype1.values)
-            gt2_is_neutral = map(is_clonal_neutral,df_flt.gtype2.values)
+            gt1_is_neutral = [is_clonal_neutral(x) for x in df_flt.gtype1.values]
+            gt2_is_neutral = [is_clonal_neutral(x) for x in df_flt.gtype2.values]
             is_neutral = np.logical_and(gt1_is_neutral,gt2_is_neutral)
             df_flt = df_flt[is_neutral]
             print('Filtered out %d SVs which were not copy-number neutral' % (n_df - len(df_flt)))
@@ -208,7 +210,7 @@ def run_cnv_filter(df_flt, cnv, ploidy, neutral, filter_outliers, strict_cnv_fil
     elif len(cnv)>0:
         if are_snvs:
             df_flt = df_flt.fillna('')
-            df_flt['gtype'] = map(remove_zero_copynumbers,df_flt.gtype.values)
+            df_flt['gtype'] = [remove_zero_copynumbers(x) for x in df_flt.gtype.values]
 
             df_flt = df_flt[df_flt.gtype.values!='']
             print('Filtered out %d SNVs with missing or invalid copy-numbers' % (n_df - len(df_flt)))
@@ -240,8 +242,8 @@ def run_cnv_filter(df_flt, cnv, ploidy, neutral, filter_outliers, strict_cnv_fil
         else:
             df_flt['gtype1'].fillna('')
             df_flt['gtype2'].fillna('')
-            df_flt['gtype1'] = np.array(map(remove_zero_copynumbers,df_flt.gtype1.values))
-            df_flt['gtype2'] = np.array(map(remove_zero_copynumbers,df_flt.gtype2.values))
+            df_flt['gtype1'] = np.array([remove_zero_copynumbers(x) for x in df_flt.gtype1.values])
+            df_flt['gtype2'] = np.array([remove_zero_copynumbers(x) for x in df_flt.gtype2.values])
 
             if strict_cnv_filt:
                 # filter out if both CNV states are missing
@@ -311,11 +313,11 @@ def match_copy_numbers(var_df, cnv_df, strict_cnv_filt, sv_offset, bp_fields=['c
 
     chrom_field, pos_field, dir_field, class_field, other_pos_field = bp_fields
 
-    var_df[chrom_field] = map(str,var_df[chrom_field].values)
-    var_df[pos_field] = map(int,var_df[pos_field].values)
-    var_df[dir_field] = map(str,var_df[dir_field].values)
-    var_df[class_field] = map(str,var_df[class_field].values)
-    var_df[other_pos_field] = map(int,var_df[other_pos_field].values)
+    var_df[chrom_field]     = [str(x) for x in var_df[chrom_field].values]
+    var_df[pos_field]       = [int(x) for x in var_df[pos_field].values]
+    var_df[dir_field]       = [str(x) for x in var_df[dir_field].values]
+    var_df[class_field]     = [str(x) for x in var_df[class_field].values]
+    var_df[other_pos_field] = [int(x) for x in var_df[other_pos_field].values]
 
     bp_chroms = np.unique(var_df[chrom_field].values)
     bp_chroms = sorted(bp_chroms, key=lambda item: (int(item.partition(' ')[0]) \
@@ -427,8 +429,10 @@ def get_adjacent_cnv(cnv,match,pos,cnv_pos,next_cnv=True):
 def gtypes_match(gtype1,gtype2):
     if gtype1=='' or gtype2=='':
         return False
-    gtype1 = [map(float,x.split(',')[:2]) for x in gtype1.split('|')]
-    gtype2 = [map(float,x.split(',')[:2]) for x in gtype2.split('|')]
+    gtype1 = [x for x in gtype1.split('|')]
+    gtype1 = [float(x) for x in gtype1.split(',')][:2]
+    gtype2 = [x for x in gtype2.split('|')]
+    gtype2 = [float(x) for x in gtype2.split(',')][:2]
     return np.all(np.array(gtype1)==np.array(gtype2))
 
 def is_same_sv_germline(sv1,sv2,gl_th):
@@ -476,50 +480,38 @@ def adjust_sv_read_counts(sv_df,pi,pl,min_dep,rlen,Config):
     d = np.array(sv_df.spanning.values)
     sup = np.array(d+s,dtype=float)
     Nvar = len(sv_df)
+    norm1, norm2 = sv_df.norm1.map(float).values, sv_df.norm2.map(float).values
 
     try:
         # adjust normal read counts of duplications
         sv_classes = sv_df.classification.values
         dups = np.array([ sv_class in dna_gain_class for idx,sv_class in enumerate(sv_classes) ])
 
-        adjust_factor = 1. - (float(pi)/pl)
-        norm1, norm2 = sv_df.norm1.map(float).values, sv_df.norm2.map(float).values
+        adjust_factor = 1. - (float(pi) / pl)
         norm1[dups] = [float(n) * adjust_factor for n in norm1[dups]]
         norm2[dups] = [float(n) * adjust_factor for n in norm2[dups]]
     except AttributeError:
         print('Warning, no valid classifications found. SV read counts cannot be adjusted')
 
     all_indexes = sv_df.index.values
-    sup_adjust_factor = 1+(support_adjust_factor*pi)
-    adjusted_support = np.array(map(round,sup*sup_adjust_factor))
+    sup_adjust_factor = 1 + (support_adjust_factor * pi)
+    adjusted_support = [int(round(x)) for x in sup * sup_adjust_factor]
+    adjusted_depth1 = [int(round(x)) for x in adjusted_support + norm1]
+    adjusted_depth2 = [int(round(x)) for x in adjusted_support + norm2]
 
     adj_norm_means = np.array([np.mean([float(n1), float(n2)]) for n1, n2 in zip(norm1, norm2)])
     sv_df.loc[all_indexes,'adjusted_norm1'] = norm1
     sv_df.loc[all_indexes,'adjusted_norm2'] = norm2
     sv_df.loc[all_indexes,'adjusted_norm_mean'] = adj_norm_means
-    sv_df.loc[all_indexes,'adjusted_support'] = map(int, map(np.round, adjusted_support))
-    sv_df.loc[all_indexes,'adjusted_depth1'] = map(int, map(np.round, adjusted_support + norm1))
-    sv_df.loc[all_indexes,'adjusted_depth2'] = map(int, map(np.round, adjusted_support + norm2))
+    sv_df.loc[all_indexes,'adjusted_support'] = adjusted_support
+    sv_df.loc[all_indexes,'adjusted_depth1'] = adjusted_depth1
+    sv_df.loc[all_indexes,'adjusted_depth2'] = adjusted_depth2
     sv_df.loc[all_indexes,'raw_mean_vaf'] = sup / (sup + sv_df.raw_norm_mean.map(float).values)
     sv_df.loc[all_indexes,'adjusted_vaf1'] = adjusted_support / (norm1 + adjusted_support)
     sv_df.loc[all_indexes,'adjusted_vaf2'] = adjusted_support / (norm2 + adjusted_support)
     sv_df.loc[all_indexes,'adjusted_mean_vaf'] = sup / (adj_norm_means + adjusted_support)
 
     return sv_df
-
-def sort_by_loc(snv_df):
-    '''
-    sorts the SNV dataframe by chromosome then position
-    '''
-
-    loc = ['%s_%s' % x for x in zip(snv_df.chrom, snv_df.pos)]
-    sortloc = sorted(loc, key=lambda item: (int(item.partition('_')[0])
-                        if item[0].isdigit() else str(item[0]), int(item.partition('_')[2])))
-    snv_df.index = loc
-    snv_df = snv_df.loc[sortloc]
-    snv_df = snv_df.drop_duplicates()
-
-    return snv_df
 
 def string_to_bool(v):
   return v.lower() in ("yes", "true", "t", "1")
@@ -537,7 +529,7 @@ def run(args):
     cfg         = args.cfg
     blist_file  = args.blist
 
-    Config = ConfigParser.ConfigParser()
+    Config = configparser.ConfigParser()
     cfg_file = Config.read(cfg)
 
     if len(cfg_file)==0:
@@ -641,7 +633,6 @@ def run(args):
         print('Final filtered SV count: %d' % len(sv_df))
 
     if len(snv_df)>0:
-        snv_df = sort_by_loc(snv_df)
         snv_df.index = range(len(snv_df)) #reindex
         snv_df.to_csv('%s/%s_filtered_snvs.tsv'%(out,sample),sep='\t',index=False,na_rep='')
         print('Final filtered SNV count: %d' % len(snv_df))

@@ -3,9 +3,9 @@ from __future__ import print_function
 import pandas as pd
 import numpy as np
 import vcf
-import ConfigParser
+import configparser
 import os
-from SVprocess import svp_load_data as svp_load
+from SVclone.SVprocess import svp_load_data as svp_load
 
 def get_normal_copynumber(chrom, male):
     if male and (chrom == 'X' or chrom == 'chrX'):
@@ -21,7 +21,8 @@ def get_sv_vals(sv_df, cparams):
     chroms = sv_df.chr1.values # consider only chrom 1 for normal copy-number
     norm_cn = [get_normal_copynumber(c, male) for c in chroms]
     norm1, norm2 = sv_df.adjusted_norm1.values, sv_df.adjusted_norm2.values
-    norm1, norm2 = map(int, map(round, norm1)), map(int, map(round, norm2))
+    norm1 = [int(round(n)) for n in norm1]
+    norm2 = [int(round(n)) for n in norm2]
 
     Nvar = len(sv_df)
     sup = sv_df.adjusted_support.map(float).values if adjusted else sv_df.support.map(float).values
@@ -41,7 +42,7 @@ def load_svs(sv_file):
     sv_df = pd.DataFrame(dat)
     sv_df.chr1 = sv_df.chr1.map(str)
     sv_df.chr2 = sv_df.chr2.map(str)
-    sv_df['raw_norm_mean'] = map(np.mean,zip(sv_df['norm1'].values,sv_df['norm2'].values))
+    sv_df['raw_norm_mean'] = [np.mean(norm) for norm in zip(sv_df['norm1'].values, sv_df['norm2'].values)]
     return sv_df
 
 def load_cnvs(cnv_file):
@@ -57,7 +58,7 @@ def load_cnvs(cnv_file):
 
     if len(cnv_df.columns)==1:
         # assume caveman csv file
-        col_names = ['chr','startpos','endpos','norm_total','norm_minor','tumour_total','tumour_minor']
+        col_names = ['chr', 'startpos', 'endpos', 'norm_total', 'norm_minor', 'tumour_total', 'tumour_minor']
         cnv_df = pd.DataFrame(pd.read_csv(cnv_file, delimiter=',',
                               dtype=None, names=col_names, index_col=0,
                               skip_blank_lines=True))
@@ -66,9 +67,9 @@ def load_cnvs(cnv_file):
         if 'nMaj1_A' in cnv_df.columns.values:
             # battenberg input
             cnv_df = cnv_df[np.invert(np.isnan(cnv_df.nMaj1_A.values))]
-            cnv_df['chr'] = map(str,cnv_df['chr'])
-            cnv_df['nMaj1_A'] = map(float,cnv_df['nMaj1_A'])
-            cnv_df['nMin1_A'] = map(float,cnv_df['nMin1_A'])
+            cnv_df['chr'] = cnv_df['chr'].map(str)
+            cnv_df['nMaj1_A'] = cnv_df['nMaj1_A'].map(float)
+            cnv_df['nMin1_A'] = cnv_df['nMin1_A'].map(float)
 
             gtypes = cnv_df['nMaj1_A'].map(str) + ',' + \
                      cnv_df['nMin1_A'].map(str) + ',' + \
@@ -83,15 +84,15 @@ def load_cnvs(cnv_file):
                                 cnv_sc['frac2_A'].map(str)
 
             cnv_df['gtype'] = gtypes
-            select_cols = ['chr','startpos','endpos','gtype']
+            select_cols = ['chr', 'startpos', 'endpos', 'gtype']
             return cnv_df[select_cols]
 
         elif 'battenberg_nMaj1_A' in cnv_df.columns.values:
             # also battenberg
             cnv_df = cnv_df[np.invert(np.isnan(cnv_df.battenberg_nMaj1_A.values))]
-            cnv_df['chr'] = map(str,cnv_df['chr'])
-            cnv_df['battenberg_nMaj1_A'] = map(float,cnv_df['battenberg_nMaj1_A'])
-            cnv_df['battenberg_nMin1_A'] = map(float,cnv_df['battenberg_nMin1_A'])
+            cnv_df['chr'] = cnv_df['chr'].map(str)
+            cnv_df['battenberg_nMaj1_A'] = cnv_df['battenberg_nMaj1_A'].map(float)
+            cnv_df['battenberg_nMin1_A'] = cnv_df['battenberg_nMin1_A'].map(float)
 
             gtypes = cnv_df['battenberg_nMaj1_A'].map(str) + ',' + \
                      cnv_df['battenberg_nMin1_A'].map(str) + ',' + \
@@ -107,7 +108,7 @@ def load_cnvs(cnv_file):
 
             cnv_df['gtype'] = gtypes
             cnv_df = cnv_df.rename(columns={'start': 'startpos', 'end': 'endpos'})
-            select_cols = ['chr','startpos','endpos','gtype']
+            select_cols = ['chr', 'startpos', 'endpos', 'gtype']
             return cnv_df[select_cols]
 
         elif 'clonal_frequency' in cnv_df.columns.values:
@@ -119,7 +120,7 @@ def load_cnvs(cnv_file):
                         + cnv_df.minor_cn.map(str) \
                         + ',' + cnv_df.clonal_frequency.map(str)
             cnv_df['gtype'] = gtypes
-            select_cols = ['chr','startpos','endpos','gtype']
+            select_cols = ['chr', 'startpos', 'endpos', 'gtype']
             return cnv_df[select_cols]
 
         elif 'star' in cnv_df.columns.values:
@@ -129,7 +130,7 @@ def load_cnvs(cnv_file):
             cnv_df = cnv_df.rename(columns={'chromosome': 'chr', 'start': 'startpos', 'end': 'endpos'})
             gtypes = cnv_df.major_cn.map(str) + ',' + cnv_df.minor_cn.map(str) + ',1.0'
             cnv_df['gtype'] = gtypes
-            select_cols = ['chr','startpos','endpos','gtype']
+            select_cols = ['chr', 'startpos', 'endpos', 'gtype']
             return cnv_df[select_cols]
 
         else:
@@ -138,7 +139,7 @@ def load_cnvs(cnv_file):
             major = cnv_df.tumour_total.map(int) - cnv_df.tumour_minor.map(int)
             gtypes = major.map(str) + ',' + cnv_df.tumour_minor.map(str) + ',1.0'
             cnv_df['gtype'] = gtypes
-            select_cols = ['chr','startpos','endpos','gtype']
+            select_cols = ['chr', 'startpos', 'endpos', 'gtype']
             return cnv_df[select_cols]
 
     except KeyError:
@@ -156,11 +157,11 @@ def load_snvs_mutect_callstats(snvs):
                'var'   : snv_df.t_alt_sum.map(float)}
 
     snv_out = pd.DataFrame(snv_out)
-    snv_out = snv_out[['chrom','pos','gtype','ref','var']]
+    snv_out = snv_out[['chrom', 'pos', 'gtype', 'ref', 'var']]
     return snv_out
 
 def load_snvs_multisnv(snvs, sample):
-    snv_dtype = [('chrom','S50'),('pos',int),('gtype','S50'),('ref',float),('var',float)]
+    snv_dtype = [('chrom', '<U50'), ('pos', int), ('gtype', '<U50'), ('ref', float), ('var', float)]
     snv_df = np.empty([0,5],dtype=snv_dtype)
 
     vcf_reader = vcf.Reader(filename=snvs)
@@ -193,7 +194,7 @@ def load_snvs_multisnv(snvs, sample):
 
 def load_snvs_consensus(snvs):
     vcf_reader = vcf.Reader(filename=snvs)
-    snv_dtype = [('chrom','S50'),('pos',int),('gtype','S50'),('ref',float),('var',float)]
+    snv_dtype = [('chrom', '<U50'), ('pos',int), ('gtype', '<U50'), ('ref',float), ('var',float)]
     snv_df = np.empty([0,5],dtype=snv_dtype)
 
     for record in vcf_reader:
@@ -210,7 +211,7 @@ def load_snvs_consensus(snvs):
 
 def load_snvs_mutect(snvs,sample):
     vcf_reader = vcf.Reader(filename=snvs)
-    snv_dtype = [('chrom','S50'),('pos',int),('gtype','S50'),('ref',float),('var',float)]
+    snv_dtype = [('chrom', '<U50'), ('pos',int), ('gtype', '<U50'), ('ref',float), ('var',float)]
     snv_df = np.empty([0,5],dtype=snv_dtype)
 
     samples = vcf_reader.samples
@@ -234,14 +235,14 @@ def load_snvs_mutect(snvs,sample):
         ref_reads, variant_reads = float(ad[0]), float(ad[1])
         total_reads = ref_reads + variant_reads
         if variant_reads!=0:
-            tmp = np.array((record.CHROM,record.POS,'',ref_reads,variant_reads),dtype=snv_dtype)
+            tmp = np.array((record.CHROM,record.POS, '',ref_reads,variant_reads),dtype=snv_dtype)
             snv_df = np.append(snv_df,tmp)
 
     return pd.DataFrame(snv_df)
 
 def load_snvs_sanger(snvs):
     vcf_reader = vcf.Reader(filename=snvs)
-    snv_dtype = [('chrom','S50'),('pos',int),('gtype','S50'),('ref',float),('var',float)]
+    snv_dtype = [('chrom', '<U50'), ('pos',int), ('gtype', '<U50'), ('ref',float), ('var',float)]
     snv_df = np.empty([0,5],dtype=snv_dtype)
 
     #code adapted from: https://github.com/morrislab/phylowgs/blob/master/parser/create_phylowgs_inputs.py
@@ -310,7 +311,7 @@ def load_snvs_sanger(snvs):
         total_reads = ref_reads + variant_reads
 
         if variant_reads!=0:
-            tmp = np.array((record.CHROM,record.POS,'',ref_reads,variant_reads),dtype=snv_dtype)
+            tmp = np.array((record.CHROM,record.POS, '', ref_reads,variant_reads),dtype=snv_dtype)
             snv_df = np.append(snv_df,tmp)
 
     #import matplotlib.pyplot as plt
@@ -329,7 +330,7 @@ def get_params_cluster_step(sample, cfg, out, pp_file, param_file, XX, XY):
     Load in paramaters used in cluster step from config file
     '''
 
-    Config = ConfigParser.ConfigParser()
+    Config = configparser.ConfigParser()
     cfg_file = Config.read(cfg)
 
     if len(cfg_file)==0:

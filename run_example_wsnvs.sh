@@ -19,7 +19,7 @@ python SVclone.py cluster -s $sample
 echo 'Post-assigning variants...'
 Rscript SVclone/post_assign.R ${sample}/ccube_out/${sample}_ccube_sv_results.RData ${sample}/ccube_out/snvs/${sample}_ccube_snv_results.RData ${sample}/ccube_out/post_assign $sample --joint
 
-if [[ -f ${sample}/ccube_out/post_assign/snvs/${sample}_ccube_postAssign_snv_results.RData ]]
+if [ -f ${sample}/ccube_out/post_assign/snvs/${sample}_ccube_postAssign_snv_results.RData ]
     then
         echo 'Successfully ran test sample to completion!'
 fi

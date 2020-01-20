@@ -8,10 +8,10 @@ import os
 import pandas as pd
 import numpy as np
 import random
-import ConfigParser
+import configparser
 
 from . import load_data
-from SVprocess import svp_load_data as svp_load
+from SVclone.SVprocess import svp_load_data as svp_load
 
 
 def simu_sv(sv):

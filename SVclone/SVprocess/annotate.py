@@ -1,6 +1,6 @@
 from __future__ import print_function
 import csv
-import ConfigParser
+import configparser
 import numpy as np
 import vcf
 import pysam
@@ -92,7 +92,7 @@ def get_bp_dir(sv, loc_reads, pos, sc_len, threshold, bp_num):
     return sv, ca_right, ca_left
 
 def retrieve_loc_reads(sv, bam, max_dep, threshold):
-    bp_dtype = [('chrom', 'S20'), ('start', int), ('end', int), ('dir', 'S1')]
+    bp_dtype = [('chrom', '<U20'), ('start', int), ('end', int), ('dir', '<U1')]
 
     sv_id, chr1, pos1, dir1, chr2, pos2, dir2, \
         sv_class, orig_id, orig_pos1, orig_pos2 = [h[0] for h in dtypes.sv_dtype]
@@ -434,13 +434,13 @@ def classify_svs(svs, threshold):
     svs = sort_breakend_order(svs)
 
     # classify inter-chromosomal translocations in chroms don't match
-    inter_svs = np.array(filter(lambda sv: sv['chr1'] != sv['chr2'], svs))
+    inter_svs = svs[ svs['chr1'] != svs['chr2'] ]
     if len(inter_svs) > 0:
         for sv in np.nditer(inter_svs, op_flags=['readwrite']):
             sv['classification'] = 'INTRX'
 
     # extract only rearrangements from same chromosomes for classifying
-    intra_svs = np.array(filter(lambda sv: sv['chr1'] == sv['chr2'], svs))
+    intra_svs = svs[ svs['chr1'] == svs['chr2'] ]
     if len(intra_svs) > 0:
         intra_svs = sort_svs(intra_svs)
 
@@ -503,7 +503,7 @@ def preproc_svs(args):
     blist_file   = args.blist
 
     cfg = args.cfg
-    Config = ConfigParser.ConfigParser()
+    Config = configparser.ConfigParser()
     cfg_file = Config.read(cfg)
 
     if len(cfg_file)==0:

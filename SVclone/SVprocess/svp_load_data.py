@@ -26,8 +26,8 @@ def load_input_vcf(svin,class_field,use_dir):
         sv_dict[sv.ID] = {'CHROM': sv.CHROM, 'POS': sv.POS, 'INFO': sv.INFO,
                           'REF': str(sv.REF[0]), 'ALT': str(sv.ALT[0])}
 
-    svs = np.empty(0,sv_dtype)
-    procd = np.empty(0,dtype='S50')
+    svs = np.empty(0, sv_dtype)
+    procd = np.empty(0, dtype='<U50')
 
     for sv_id in sv_dict:
         try:
@@ -80,7 +80,7 @@ def load_input_socrates(svin,use_dir,min_mapq,filt_repeats,Config):
     repeat1_field = Config.get('SocratesOpts', 'repeat1')
     repeat2_field = Config.get('SocratesOpts', 'repeat2')
 
-    soc_in = np.genfromtxt(svin,delimiter='\t',names=True,dtype=None,invalid_raise=False)
+    soc_in = np.genfromtxt(svin, delimiter='\t', names=True, dtype=None, invalid_raise=False, encoding='utf-8')
     svs = np.empty(0, dtype=sv_dtype)
     filtered_out = 0
 
@@ -120,7 +120,7 @@ def load_input_socrates(svin,use_dir,min_mapq,filt_repeats,Config):
 def load_input_simple(svin,use_dir,class_field):
     sv_dtype = dtypes.sv_dtype
 
-    sv_tmp = np.genfromtxt(svin,delimiter='\t',names=True,dtype=None,invalid_raise=False)
+    sv_tmp = np.genfromtxt(svin, delimiter='\t', names=True, dtype=None, invalid_raise=False, encoding='utf-8')
     svs = np.empty(0, dtype=sv_dtype)
     sv_id = 0
     for row in sv_tmp:
@@ -145,9 +145,9 @@ def load_input_simple(svin,use_dir,class_field):
     return remove_duplicates(svs)
 
 def load_blacklist(blist_file):
-    blist = np.genfromtxt(blist_file, delimiter='\t', names=None, dtype=None, invalid_raise=False)
+    blist = np.genfromtxt(blist_file, delimiter='\t', names=None, dtype=None, invalid_raise=False, encoding='utf-8')
     descr = blist.dtype.descr
-    descr[0] = (descr[0][0], '|S10')
+    descr[0] = (descr[0][0], '<U10')
     blist = blist.astype(descr)
     if not len(blist) > 0 or not isinstance(blist[0][1],int) or not isinstance(blist[0][2],int):
         print('Supplied blacklist is not a valid bed file of intervals')

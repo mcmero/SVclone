@@ -16,7 +16,6 @@ python SVclone.py filter -s $sample -i ${sample}/${sample}_svinfo.txt -p example
 echo 'Clustering...'
 python SVclone.py cluster -s $sample
 
-if [[ -f tumour_p80_DEL/ccube_out/tumour_p80_DEL_ccube_sv_results.RData ]]
-    then
-        echo 'Successfully ran test sample to completion!'
+if [ -f tumour_p80_DEL/ccube_out/tumour_p80_DEL_ccube_sv_results.RData ] ; then
+    echo 'Successfully ran test sample to completion!'
 fi
