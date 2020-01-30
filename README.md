@@ -1,4 +1,6 @@
-# README #
+<p align="left">
+<img src=https://github.com/mcmero/SVclone/blob/master/img/svclone_logo.png height=120/>
+</p>
 
 This package is used to cluster structural variants of similar cancer cell fraction (CCF). SVclone is divided into five components: annotate, count, filter, cluster and post-assign. The annotate step infers directionality of each breakpoint (if not supplied), recalibrates breakpoint position to the soft-clip boundary and subsequently classifies SVs using a rule-based approach. The count step counts the variant and non-variant reads from breakpoint locations. Both the annotate and count steps utilise BAM-level information. The filter step removes SVs based on a number of adjustable parameters and prepares the variants for clustering. SNVs can also be added at this step as well as CNV information, which is matched to SV and SNV loci. The post-assign step then allows SVs to be assigned to the derived model from SNV clustering. Optionally, SVs and SNVs can also be post-assigned to a joint SV + SNV model.
 
