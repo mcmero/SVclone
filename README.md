@@ -39,7 +39,9 @@ An indexed whole-genome sequencing BAM and a list of paired breakpoints from an 
 
     ./SVclone.py annotate -i <sv_input> -b <indexed_bamfile> -s <sample_name>
 
-Input is expected in VCF format (directionality inferred from the ALT field is also supported). Each defined SV must have a matching mate, given in the MATEID value in the INFO section. Input may also be entered in Socrates or simple format (must be specified with --sv_format simple or socrates). Simple format is as follows:
+Input is expected in VCF format (directionality inferred from the ALT field is also supported). Each defined SV must have a matching mate, given in the MATEID value in the INFO section. Please see the [VCF spec](https://samtools.github.io/hts-specs/VCFv4.2.pdf) (section 3) for representing SVs using the VCF format. SVclone does not support unpaired break-ends, which means that the INFO field PARID must be specified (please see Section 5.4.4 in the VCF spec for an example). 
+
+Input may also be entered in Socrates or simple format (must be specified with `--sv_format simple` or `--sv_format socrates`). Simple format is as follows:
 
 ```
 chr1	pos1	chr2	pos2
@@ -49,7 +51,10 @@ chr1	pos1	chr2	pos2
 22	21395573	22	21395746
 ```
 
-Optionally a classification field may be specified in the 'sv_class_field' parameter in the configuration file, additionally, to specify directionality set the parameter 'use_dir' to True. For example:
+We recommend that directions from the SV caller of choice be used (`use_dir` must be set to `True` in the configuration file in this case). Optionally, if you already know the SV classifications, the name of the classification field can be specified in the config file (e.g. `sv_class_field: classification`). 
+
+An example of the 'full' SV simple format is as follows:
+
 ```
 chr1	pos1	dir1	chr2	pos2	dir2	classification
 22	18240676		-	22	18232335	-	INV
@@ -58,9 +63,21 @@ chr1	pos1	dir1	chr2	pos2	dir2	classification
 22	21395573		+	22	21395746	+	INV
 ```
 
-Please see the [VCF spec](https://samtools.github.io/hts-specs/VCFv4.2.pdf) (section 3) for representing SVs using the VCF format. SVclone does not support unpaired break-ends, which means that the INFO field PARID must be specified (please see Section 5.4.4 in the VCF spec for an example). 
+Note that your classifications in your SV input will have to match those specified in the configuration file (these may be comma-separated):
 
-A blacklist can also be supplied at this step to not process areas to remove SVs where any of its breakpoints fall into one of these areas.
+```
+[SVclasses]
+# Naming conventions used to label SV types.
+inversion_class: INV
+deletion_class: DEL
+dna_gain_class: DUP,INTDUP
+dna_loss_class: DEL,INV,TRX
+itrx_class: INTRX
+```
+
+Note that `dna_gain_class` will include any SV classification involving DNA duplication and `dna_loss_class` is any intra-chromosomal rearrangement *not involving* a gain (including balanced rearrangements). `itrx_class` refers to all inter-chromosomal translocations. 
+
+A blacklist (bed file) can also be supplied at this step to not process areas to remove SVs where any of its breakpoints fall into one of these areas.
 
 #### Annotate Output ####
 
