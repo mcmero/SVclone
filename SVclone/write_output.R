@@ -1,7 +1,31 @@
 write_sv_output <- function(doubleBreakPtsRes, resultFolder, sample) {
-    res <- doubleBreakPtsRes$res
-    uniqLabels <- unique(res$label)
-    cc_input <- doubleBreakPtsRes$ssm
+    if(length(doubleBreakPtsRes$res) > 0) {
+        res <- doubleBreakPtsRes$res
+        uniqLabels <- unique(res$label)
+        cc_input <- doubleBreakPtsRes$ssm
+    } else if (nrow(doubleBreakPtsRes) == 1) {
+        # handle case if clustering has been run with a single SV
+        res <- NULL
+        res$labels <- 1
+        res$full.model$responsibility <- 1
+        uniqLabels <- 1
+        cc_input <- dplyr::mutate(dplyr::rowwise(doubleBreakPtsRes),
+                        ccube_ccf1 = MapVaf2CcfPyClone(vaf1,
+                                                       purity,
+                                                       normal_cn,
+                                                       total_cn1,
+                                                       total_cn1,
+                                                       1, constraint = F),
+                        ccube_ccf2 = MapVaf2CcfPyClone(vaf2,
+                                                       purity,
+                                                       normal_cn,
+                                                       total_cn2,
+                                                       total_cn2,
+                                                       1, constraint = F))
+        res$full.model$ccfMean <- mean(cc_input$ccube_ccf1, cc_input$ccube_ccf2)
+    } else {
+        stop("Invalid SV output.")
+    }
 
     svs <- do.call(rbind, strsplit(as.character(cc_input$mutation_id), "_", fixed = T))
     sv1 <- do.call(rbind, strsplit(as.character(svs[,1]), ":", fixed = T))

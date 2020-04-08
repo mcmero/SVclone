@@ -37,6 +37,9 @@ system(paste('mkdir -p', resultFolder))
 
 svdata <- doubleBreakPtsRes$ssm
 snvdata <- snvRes$ssm
+if(length(svdata) == 0) {
+    svdata <- doubleBreakPtsRes
+}
 if (joint_model) {
     print('Post-assigning using a joint SV + SNV model...')
     postAssignResSVs <- RunPostAssignPipeline(snvRes = snvRes$res,

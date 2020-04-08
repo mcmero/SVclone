@@ -89,8 +89,10 @@ if (is_sv_data) {
                                           ccubeResultRDataFile = paste(resultFolder, "ccube_sv_results.RData", sep="/"),
                                           multiCore = multiCore, basicFormats = F, allFormats = F)
     save(doubleBreakPtsRes, file=paste0(resultFolder, sample, "_ccube_sv_results.RData"))
-    MakeCcubeStdPlot_sv(res = doubleBreakPtsRes$res, ssm = doubleBreakPtsRes$ssm,
-                        printPlot = T, fn = paste0(resultFolder, sample, "_ccube_sv_results.pdf"))
+    if(length(doubleBreakPtsRes$res) > 0) {
+        MakeCcubeStdPlot_sv(res = doubleBreakPtsRes$res, ssm = doubleBreakPtsRes$ssm,
+                            printPlot = T, fn = paste0(resultFolder, sample, "_ccube_sv_results.pdf"))
+    }
 } else {
     resultFolder <- paste(resultFolder, "snvs/", sep="/")
     system(paste("mkdir -p", resultFolder))
