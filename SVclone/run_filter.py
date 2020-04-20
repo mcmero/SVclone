@@ -17,6 +17,12 @@ from . import load_data
 
 pd.options.mode.chained_assignment = None
 
+def natural_sort(l):
+    # source: https://blog.codinghorror.com/sorting-for-humans-natural-sort-order/
+    convert = lambda text: int(text) if text.isdigit() else text.lower()
+    alphanum_key = lambda key: [ convert(c) for c in re.split('([0-9]+)', key) ]
+    return sorted(l, key = alphanum_key)
+
 def get_outlier_ranges(vals):
     q1 = np.percentile(vals,25)
     q3 = np.percentile(vals,75)
@@ -282,7 +288,7 @@ def run_cnv_filter(df_flt, cnv, ploidy, neutral, filter_outliers, strict_cnv_fil
 
 def match_snv_copy_numbers(snv_df, cnv_df):
     bp_chroms = np.unique(snv_df['chrom'].values)
-    bp_chroms = sorted(bp_chroms, key=lambda item: (int(item) if item.isdigit() else str(item)))
+    bp_chroms = natural_sort(bp_chroms)
 
     for bchr in bp_chroms:
         gtypes = []
@@ -310,7 +316,6 @@ def match_snv_copy_numbers(snv_df, cnv_df):
     return snv_df
 
 def match_copy_numbers(var_df, cnv_df, strict_cnv_filt, sv_offset, bp_fields=['chr1','pos1','dir1','classification','pos2'], gtype_field='gtype1'):
-
     chrom_field, pos_field, dir_field, class_field, other_pos_field = bp_fields
 
     var_df[chrom_field]     = [str(x) for x in var_df[chrom_field].values]
@@ -320,8 +325,7 @@ def match_copy_numbers(var_df, cnv_df, strict_cnv_filt, sv_offset, bp_fields=['c
     var_df[other_pos_field] = [int(x) for x in var_df[other_pos_field].values]
 
     bp_chroms = np.unique(var_df[chrom_field].values)
-    bp_chroms = sorted(bp_chroms, key=lambda item: (int(item.partition(' ')[0]) \
-                        if item[0].isdigit() else float('inf'), item))
+    bp_chroms = natural_sort(bp_chroms)
 
     adj_cnv_field   = '%s_adjacent' % gtype_field
     cnv_dist_field  = '%s_cnv_boundary_dist' % gtype_field
