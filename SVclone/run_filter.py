@@ -134,13 +134,13 @@ def exceeds_cn_limit(gtype, max_cn):
 
 def remove_zero_copynumbers(gtype):
     '''
-    remove any clonal or subclonal copy-numbers
-    where the total copy-number is zero
+    return blank string if clonal with total
+    copy-number state and adds up to zero
     '''
     if gtype=='': return ''
     gtype_tmp = gtype.split('|')
     gtype_tmp = [x.split(',') for x in gtype_tmp]
-    if len(gtype)==1:
+    if len(gtype_tmp)==1:
         gt = [float(x) for x in gtype_tmp[0]]
         if (gt[0]==0 and gt[1]==0) or gt[0] < 0 or gt[1] < 0:
             gtype = ''
