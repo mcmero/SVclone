@@ -121,6 +121,7 @@ def load_input_simple(svin,use_dir,class_field):
     sv_dtype = dtypes.sv_dtype
 
     sv_tmp = np.genfromtxt(svin, delimiter='\t', names=True, dtype=None, invalid_raise=False, encoding='utf-8')
+    sv_tmp = np.atleast_1d(sv_tmp)
     svs = np.empty(0, dtype=sv_dtype)
     sv_id = 0
     for row in sv_tmp:
