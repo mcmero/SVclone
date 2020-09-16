@@ -39,7 +39,7 @@ An indexed whole-genome sequencing BAM and a list of paired breakpoints from an 
 
     ./SVclone.py annotate -i <sv_input> -b <indexed_bamfile> -s <sample_name>
 
-Input is expected in VCF format (directionality inferred from the ALT field is also supported). Each defined SV must have a matching mate, given in the MATEID value in the INFO section. Please see the [VCF spec](https://samtools.github.io/hts-specs/VCFv4.2.pdf) (section 3) for representing SVs using the VCF format. SVclone does not support unpaired break-ends, which means that the INFO field PARID must be specified (please see Section 5.4.4 in the VCF spec for an example). 
+Input is expected in VCF format (directionality inferred from the ALT field is also supported). Each defined SV must have a matching mate, given in the MATEID value in the INFO section. Please see the [VCF spec](https://samtools.github.io/hts-specs/VCFv4.2.pdf) (section 3) for representing SVs using the VCF format. SVclone does not support unpaired break-ends, which means that the INFO field PARID must be specified (please see Section 5.4.4 in the VCF spec for an example).
 
 Input may also be entered in Socrates or simple format (must be specified with `--sv_format simple` or `--sv_format socrates`). Simple format is as follows:
 
@@ -51,7 +51,7 @@ chr1	pos1	chr2	pos2
 22	21395573	22	21395746
 ```
 
-We recommend that directions from the SV caller of choice be used (`use_dir` must be set to `True` in the configuration file in this case). Optionally, if you already know the SV classifications, the name of the classification field can be specified in the config file (e.g. `sv_class_field: classification`). 
+We recommend that directions from the SV caller of choice be used (`use_dir` must be set to `True` in the configuration file in this case). Optionally, if you already know the SV classifications, the name of the classification field can be specified in the config file (e.g. `sv_class_field: classification`).
 
 An example of the 'full' SV simple format is as follows:
 
@@ -75,7 +75,7 @@ dna_loss_class: DEL,INV,TRX
 itrx_class: INTRX
 ```
 
-Note that `dna_gain_class` will include any SV classification involving DNA duplication and `dna_loss_class` is any intra-chromosomal rearrangement *not involving* a gain (including balanced rearrangements). `itrx_class` refers to all inter-chromosomal translocations. 
+Note that `dna_gain_class` will include any SV classification involving DNA duplication and `dna_loss_class` is any intra-chromosomal rearrangement *not involving* a gain (including balanced rearrangements). `itrx_class` refers to all inter-chromosomal translocations.
 
 A blacklist (bed file) can also be supplied at this step to not process areas to remove SVs where any of its breakpoints fall into one of these areas.
 
@@ -190,8 +190,18 @@ Where:
 * -p \<file\> or --purity_ploidy \<file\>: Tumour purity and ploidy in tab-separated text file. Purity must be between 0 and 1. Ploidy can be a floating point number. Column names must be labelled 'sample', 'purity' and 'ploidy' (without quotes). Row 2 must contain the sample name and purity and ploidy values respectively.
 * -g or --germline \<germline_svinfo.txt\> : Germline SVs; will filter out any tumour SVs which have >1 supporting read in the germline. Expects the same input format as the sv info file (you can run sv_process on the tumour SVs against the germline bam file to obtain this).
 * --snvs \<snv_file\> : SNVs in VCF format to (optionally) compare the clustering with SVs.
-* --snv_format \<sanger, mutect, mutect_callstats\> (default = sanger) : Specify VCF input format (only if clustering SNVs).
+* --snv_format \<sanger, mutect, mutect_callstats, consensus, multisnv\> (default = sanger) : Specify VCF input format (only if clustering SNVs).
 * --blacklist \<file.bed\> : Takes a list of intervals in BED format. Skip processing of any break-pairs where either SV break-end overlaps an interval specified in the supplied bed file. Using something like the [DAC blacklist](https://www.encodeproject.org/annotations/ENCSR636HFF/) is recommended.
+
+### SNV input formats ###
+
+SVclone supports a number of SNV input formats specified by the `--snv_format` flag:
+
+* sanger (default): VCF output from the [CaVEMan](http://cancerit.github.io/CaVEMan/) variant caller (allele depths contained in `FAZ:FCZ:FGZ:FTZ:RAZ:RCZ:RGZ:RTZ` fields).
+* mutect: VCF output from [MuTect](https://software.broadinstitute.org/cancer/cga/mutect) ([example](https://github.com/mcmero/SVclone/blob/master/example_data/tumour_p80_DEL_snvs.vcf)).
+* mutect_callstats: tab-delimited `call_stats.txt` output from MuTect.
+* consensus: VCF consensus call format from the [PCAWG project](https://dcc.icgc.org/releases/PCAWG/consensus_snv_indel).
+* multisnv: multi-sample VCF output format from [multiSNV](https://bitbucket.org/joseph07/multisnv/wiki/Home).
 
 ### Copy-number input formats ###
 
@@ -295,4 +305,3 @@ Ccube clustering code can be found under [https://github.com/keyuan/ccube](https
 The core computational pipelines used by the PCAWG Consortium for alignment, quality control and variant calling are available to the public at [https://dockstore.org/search?search=pcawg](https://dockstore.org/search?search=pcawg) under the GNU General Public License v3.0, which allows for reuse and distribution.
 
 #### NOTE: The master branch implements clustering using the [ccube](https://www.biorxiv.org/content/10.1101/484402v1.abstract) clustering model. If you would like to run the PyMC2 clustering model (described in the [biorXiv version](https://www.biorxiv.org/content/10.1101/172486v1.abstract)) please use the `pymc2` branch, although we highly recommend running the ccube version. ####
-
