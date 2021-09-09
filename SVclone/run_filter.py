@@ -90,6 +90,11 @@ def run_simple_snv_filter(snv_df, min_dep, blist, filter_chrs, valid_chrs):
     snv_df_flt = snv_df[dep>=min_dep]
     print('Filtered out %d SNVs based on minimum depth' % (len(snv_df) - len(snv_df_flt)))
 
+    mut_id = snv_df['chrom'] + '_' + snv_df['pos'].map(str)
+    dup_muts = mut_id[mut_id.duplicated().values]
+    snv_df_flt = snv_df[np.invert(mut_id.isin(dup_muts))]
+    print('Filtered out %d duplicated SNVs' % len(dup_muts))
+
     if filter_chrs:
         chr_flt = np.array([chrom in valid_chrs for chrom in snv_df_flt.chrom])
         snv_df_tmp = snv_df_flt[chr_flt]
