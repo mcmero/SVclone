@@ -133,6 +133,39 @@ def load_cnvs(cnv_file):
             select_cols = ['chr', 'startpos', 'endpos', 'gtype']
             return cnv_df[select_cols]
 
+        elif 'TITAN_call' in cnv_df.columns.values:
+            # TITAN copy-number calls
+            cnv_df.loc[:, 'Chromosome'] = cnv_df.Chromosome.map(str)
+            cnv_df.loc[np.isnan(cnv_df.Cellular_Prevalence), 'Cellular_Prevalence'] = 1
+
+            # TITAN doesn't use the Major/Minor CN fields where
+            # we only have a single chromosome (i.e. XY genotype)
+            # so we need to set these from the Copy_Number field
+            xy = np.isnan(cnv_df.Corrected_MajorCN)
+            cnv_df.loc[xy, 'Corrected_MajorCN'] = cnv_df.loc[xy, 'Corrected_Copy_Number'].values
+            cnv_df.loc[xy, 'Corrected_MinorCN'] = 0
+
+            gtypes = cnv_df.Corrected_MajorCN.map(str) + ',' + \
+                     cnv_df.Corrected_MinorCN.map(str) + ',' + \
+                     cnv_df.Cellular_Prevalence.map(str)
+
+            # join subclonal genotypes
+            subclonal = cnv_df.Cellular_Prevalence != 1
+            frac2 = 1 - cnv_df.Cellular_Prevalence
+
+            # assume neutral CN, or 1 copy on XY
+            xy_sc = np.logical_and(subclonal, xy)
+            assumed_gtype = '1.0,1.0,' + frac2.map(str)
+            assumed_gtype[xy_sc] = '1.0,0.0,' + frac2[xy_sc].map(str)
+
+            gtypes[subclonal] = gtypes[subclonal] + '|' + \
+                                assumed_gtype
+
+            cnv_df.loc[:, 'gtype'] = gtypes
+            cnv_df = cnv_df.rename(columns={'Chromosome': 'chr', 'Start': 'startpos', 'End': 'endpos'})
+            select_cols = ['chr', 'startpos', 'endpos', 'gtype']
+            return cnv_df[select_cols]
+
         else:
             # caveman input
             cnv_df = cnv_df[np.invert(np.isnan(cnv_df.tumour_total.values))]
