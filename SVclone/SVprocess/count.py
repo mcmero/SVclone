@@ -20,7 +20,7 @@ def read_to_array(x,bamf):
     chrom = bamf.getrname(x.reference_id)
     try:
         read = np.array((x.query_name,chrom,x.reference_start,x.reference_end,x.query_alignment_start,
-                         x.query_alignment_end,x.query_length,x.tlen,np.bool(x.is_reverse)),dtype=dtypes.read_dtype)
+                         x.query_alignment_end,x.query_length,x.tlen,bool(x.is_reverse)),dtype=dtypes.read_dtype)
         return read
     except TypeError:
         print('Warning: record %s contains invalid attributes, skipping' % x.query_name)

@@ -26,7 +26,7 @@ read_dtype = [('query_name', '<U150'),
             ('align_end', 'int64'),
             ('len', 'int64'),
             ('ins_len', 'int64'),
-            ('is_reverse', np.bool)]
+            ('is_reverse', bool)]
 
 ####################################################################
 # Output dtypes
