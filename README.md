@@ -14,6 +14,8 @@ Now run the following:
     cd SVclone
 
     Rscript install_R_requirements.R
+
+    pip install -r requirements.txt
     pip install .
 
 ### Example data ###
