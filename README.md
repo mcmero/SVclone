@@ -14,8 +14,7 @@ Now run the following:
     cd SVclone
 
     Rscript install_R_requirements.R
-    pip install -r requirements.txt
-    python setup.py install
+    pip install .
 
 ### Example data ###
 
@@ -37,7 +36,7 @@ The simulated data contains a 100% CCF clone and a 30% subclone.
 
 An indexed whole-genome sequencing BAM and a list of paired breakpoints from an SV caller of choice is required. This step is required for clustering of SVs, however, classifiation and directionality information from your choice of SV caller can be used rather than being inferred.
 
-    ./SVclone.py annotate -i <sv_input> -b <indexed_bamfile> -s <sample_name>
+    svclone annotate -i <sv_input> -b <indexed_bamfile> -s <sample_name>
 
 Input is expected in VCF format (directionality inferred from the ALT field is also supported). Each defined SV must have a matching mate, given in the MATEID value in the INFO section. Please see the [VCF spec](https://samtools.github.io/hts-specs/VCFv4.2.pdf) (section 3) for representing SVs using the VCF format. SVclone does not support unpaired break-ends, which means that the INFO field PARID must be specified (please see Section 5.4.4 in the VCF spec for an example).
 
@@ -100,7 +99,7 @@ The above input example also corresponds with the output of this step (output to
 
 Run SV processing submodule to obtain read counts around breakpoints on each sample BAM file like so:
 
-    ./SVclone.py count -i <svs> -b <indexed_bamfile> -s <sample_name>
+    svclone count -i <svs> -b <indexed_bamfile> -s <sample_name>
 
 The classification strings are not used by the program, except for DNA-gain events (such as duplications). The classification names for these types of SVs should be specified in the svclone_config.ini file (see configuration file section).
 
@@ -144,7 +143,7 @@ The output fields are briefly described:
 
 To filter the data obtained from the SV counting program and/or filter SNV data, can be done like so:
 
-    ./SVclone.py filter -i <sv_info.txt> -s <sample_name>
+    svclone filter -i <sv_info.txt> -s <sample_name>
 
 Note that read length and insert sizes used by the filter step are provided as outputs from the count step (\<out\>/read_params.txt), based on the first 50,000 sampled reads in the bam file.
 
@@ -240,7 +239,7 @@ sample	purity	ploidy
 
 Once we have the filtered SV and/or SNV counts, we can run the clustering:
 
-    ./SVclone.py cluster -s <sample_name>
+    svclone cluster -s <sample_name>
 
 NOTE: cluster step must be run from the SVclone base directory.
 
@@ -275,11 +274,9 @@ Ccube will create an RData file under \<ccube_out\>/\<sample\>_[sv/snv]_results.
 
 Post-assignment involves reassigning SV cluster memberships to either an SNV model, or to a joint SV + SNV model. If using the joint-model approach, SNVs may also be reassigned using the derived joint model. Run this step as follows:
 
-    Rscript SVclone/post_assign.R <sv_results.RData> <snv_results.RData> <output_dir> <sample> [--joint]
+    svclone postassign -s <sample> --svs <sv_results.RData> --snvs <snv_results.RData> --out <output_dir> [--joint]
 
 If the `--joint` argument is used, SVs and SNVs will be reassigned to a joint model. If this flag is omitted, SVs will be assigned to the SNV model (default behaviour).
-
-NOTE: post-assign step must be run from the SVclone base directory.
 
 #### Post-assign output ####
 
