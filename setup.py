@@ -9,7 +9,7 @@ setup(name='SVclone',
       license='BSD-3-Clause',
       packages=find_packages(),
       package_data={
-          'SVclone': ['cluster_with_ccube.R', 'write_output.R', 'post_assign.R'],
+          'SVclone': ['cluster_with_ccube.R', 'post_assign.R'],
       },
       entry_points={
           'console_scripts': [
