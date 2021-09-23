@@ -6,21 +6,23 @@ This package is used to cluster structural variants of similar cancer cell fract
 
 ### How do I get set up? ###
 
-Install [Anaconda3](https://www.continuum.io/downloads) (or [Python 3.\*](https://www.python.org/downloads/) with [Numpy](http://www.numpy.org/) and [Pandas](https://pandas.pydata.org/)). Install [R](https://www.r-project.org/).
+First install [conda](https://docs.conda.io/projects/conda/en/latest/user-guide/install/index.html#). SVclone can then be installed via:
 
-Now run the following:
+    conda install svclone -c bioconda -c conda-forge
+    svclone --help
 
-    git clone https://github.com/mcmero/SVclone.git
-    cd SVclone
+Alternatively, you may wish to install SVclone in its own conda virtual environment:
 
-    Rscript install_R_requirements.R
-
-    pip install -r requirements.txt
-    pip install .
+    conda create -n svclone -c bioconda -c conda-forge svclone
+    conda activate svclone
+    svclone --help
 
 ### Example data ###
 
-Example data is provided to test your SVclone installation (data contains simulated clonal deletions). Run as:
+Example data is provided to test your SVclone installation (data contains simulated clonal deletions). If you would like to run the tests, this can be done via:
+
+    git clone https://github.com/mcmero/SVclone.git
+    cd SVclone
 
     ./run_example.sh
 
