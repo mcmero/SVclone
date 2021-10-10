@@ -38,6 +38,14 @@ The simulated data contains a 100% CCF clone and a 30% subclone.
 
 ### Annotate step ###
 
+Before running SVclone on real data, first download the configuration file via:
+
+```
+wget https://raw.githubusercontent.com/mcmero/SVclone/master/svclone_config.ini
+```
+
+Check the settings carefully and make sure that the config is approproate for your data set. Make sure that this file is in the directory from which you're running SVclone, or that you've specified the location using `-cfg <config_file>`. 
+
 An indexed whole-genome sequencing BAM and a list of paired breakpoints from an SV caller of choice is required. This step is required for clustering of SVs, however, classifiation and directionality information from your choice of SV caller can be used rather than being inferred.
 
     svclone annotate -i <sv_input> -b <indexed_bamfile> -s <sample_name>
