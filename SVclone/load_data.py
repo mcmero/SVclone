@@ -172,6 +172,7 @@ def load_cnvs(cnv_file):
             major = cnv_df.tumour_total.map(int) - cnv_df.tumour_minor.map(int)
             gtypes = major.map(str) + ',' + cnv_df.tumour_minor.map(str) + ',1.0'
             cnv_df['gtype'] = gtypes
+            cnv_df['chr'] = cnv_df['chr'].map(str).values
             select_cols = ['chr', 'startpos', 'endpos', 'gtype']
             return cnv_df[select_cols]
 
