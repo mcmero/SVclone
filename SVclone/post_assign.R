@@ -169,10 +169,10 @@ if (joint_model) {
     postAssignResSVs <- RunPostAssignPipeline(snvRes = snvRes$res,
                                               svRes = doubleBreakPtsRes$res,
                                               mydata = svdata)
-    save(postAssignResSVs, file=paste0(resultFolder, sample, "_ccube_postAssign_sv_results.RData"))
+    save(postAssignResSVs, file=paste0(resultFolder, "/", sample, "_ccube_postAssign_sv_results.RData"))
     write_sv_output(postAssignResSVs, resultFolder, sample)
     MakeCcubeStdPlot_sv(res = postAssignResSVs$res, ssm = postAssignResSVs$ssm,
-                        printPlot = T, fn = paste0(resultFolder, sample, "_ccube_sv_postAssign_results.pdf"))
+                        printPlot = T, fn = paste0(resultFolder, "/", sample, "_ccube_sv_postAssign_results.pdf"))
 
     system(paste0('mkdir -p ', resultFolder, '/snvs'))
     postAssignResSNVs <- RunPostAssignPipeline(snvRes = snvRes$res,
@@ -186,8 +186,8 @@ if (joint_model) {
     print('Post-assigning SVs using SNV results...')
     postAssignRes <- RunPostAssignPipeline(svRes = snvRes$res,
                                            mydata = svdata)
-    save(postAssignRes, file=paste0(resultFolder, sample, "_ccube_sv_postAssign_results.RData"))
+    save(postAssignRes, file=paste0(resultFolder, "/", sample, "_ccube_sv_postAssign_results.RData"))
     write_sv_output(postAssignRes, resultFolder, sample)
     MakeCcubeStdPlot_sv(res = postAssignRes$res, ssm = postAssignRes$ssm,
-                        printPlot = T, fn = paste0(resultFolder, sample, "_ccube_sv_postAssign_results.pdf"))
+                        printPlot = T, fn = paste0(resultFolder, "/", sample, "_ccube_sv_postAssign_results.pdf"))
 }
