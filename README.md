@@ -17,6 +17,12 @@ Alternatively, you may wish to install SVclone in its own conda virtual environm
     conda activate svclone
     svclone --help
 
+If your site supports Modules and EasyBuild SVclone can be installed with:
+```
+eb SVclone-1.1.2-foss-2022b.eb
+module load SVclone
+```
+
 ### Example data ###
 
 Example data is provided to test your SVclone installation (data contains simulated clonal deletions). If you would like to run the tests, this can be done via:
