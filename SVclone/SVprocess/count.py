@@ -113,8 +113,12 @@ def get_bp_dist(read,bp_pos):
         return (bp_pos - read['ref_start'])
 
 def points_towards_break(read,pos,threshold):
-    scenario1 = read['is_reverse'] and read['ref_end'] > pos
-    scenario2 = not read['is_reverse'] and read['ref_start'] < pos
+    scenario1 = read['is_reverse'] and \
+                ((read['ref_end'] > (pos - threshold)) or \
+                 (read['ref_end'] > (pos + threshold)))
+    scenario2 = (not read['is_reverse']) and \
+                ((read['ref_start'] < (pos - threshold)) or \
+                 (read['ref_start'] < (pos + threshold)))
     return scenario1 or scenario2
 
 def is_supporting_spanning_pair(read,mate,bp1,bp2,inserts,max_ins,threshold):
@@ -293,14 +297,16 @@ def bp_dir_matches_read_orientation(bp,pos,read):
     elif bp['dir']=='-':
         return read['ref_end'] > pos and read['is_reverse']
 
-def validate_spanning_orientation(bp1,bp2,r1,r2):
+def validate_spanning_orientation(bp1,bp2,r1,r2,threshold):
     pos1 = (bp1['start'] + bp1['end']) / 2
     pos2 = (bp2['start'] + bp2['end']) / 2
 
-    r1_correct = bp_dir_matches_read_orientation(bp1,pos1,r1)
-    r2_correct = bp_dir_matches_read_orientation(bp2,pos2,r2)
+    r1_correct = bp_dir_matches_read_orientation(bp1,pos1-threshold,r1) or \
+                 bp_dir_matches_read_orientation(bp1,pos1+threshold,r1)
+    r2_correct = bp_dir_matches_read_orientation(bp2,pos2-threshold,r2) or \
+                 bp_dir_matches_read_orientation(bp2,pos2+threshold,r2)
 
-    return r1_correct and r2_correct
+    return bool(r1_correct) and bool(r2_correct)
 
 def get_spanning_counts(reproc,rc,bp1,bp2,inserts,min_ins,max_ins,threshold):
     pos1 = (bp1['start'] + bp1['end']) / 2
@@ -328,7 +334,7 @@ def get_spanning_counts(reproc,rc,bp1,bp2,inserts,min_ins,max_ins,threshold):
             r2 = np.array(x,copy=True)
         if is_supporting_spanning_pair(r1,r2,bp1,bp2,inserts,max_ins,threshold):
             if bp1['dir'] in ['+','-'] and bp2['dir'] in ['-','+']:
-                if validate_spanning_orientation(bp1,bp2,r1,r2):
+                if validate_spanning_orientation(bp1,bp2,r1,r2,threshold):
                     span_bp1 = np.append(span_bp1,r1)
                     span_bp2 = np.append(span_bp2,r2)
                     rc['spanning'] = rc['spanning']+1
@@ -442,7 +448,7 @@ def get_params(cfg,bam,sample,out):
     else:
         inserts[0] = inserts[0]
 
-    max_ins = inserts[0]+(3*inserts[1]) #max fragment size = mean fragment len + (fragment std * 3)
+    max_ins = inserts[0]+(3*inserts[1]) + threshold #max fragment size = mean fragment len + (fragment std * 3)
     min_ins = rlen*2
     max_dp = ((mean_cov*(max_ins*2))/rlen)*max_cn
 
