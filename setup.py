@@ -1,7 +1,7 @@
 from setuptools import setup, find_packages
 
 setup(name='SVclone',
-      version='v1.1.0',
+      version='v1.1.3',
       description='A computational method for inferring the cancer cell fraction of tumour structural variation from whole-genome sequencing data.',
       url='https://github.com/mcmero/SVclone',
       author='Marek Cmero',

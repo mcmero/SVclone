@@ -12,12 +12,13 @@ from SVclone.SVprocess import count
 
 import argparse
 import numpy as np
+import pkg_resources
 
 def main():
 
 	parser = argparse.ArgumentParser(prog='SVclone')
 
-	parser.add_argument('--version', action='version', version='SVclone-1.0.2')
+	parser.add_argument('--version', action='version', version=pkg_resources.get_distribution("SVclone").version)
 
 	subparsers = parser.add_subparsers()
 

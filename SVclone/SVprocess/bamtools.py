@@ -85,7 +85,7 @@ def estimateInsertSizeDistribution(bamfile,
 
 
 def estimateTagSize(bamfile,
-                    alignments=10,
+                    alignments=1000,
                     multiple="error"):
     '''estimate tag size from first alignments in file.'''
     samfile = pysam.AlignmentFile(bamfile)

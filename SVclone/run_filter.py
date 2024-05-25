@@ -332,6 +332,13 @@ def match_copy_numbers(var_df, cnv_df, strict_cnv_filt, sv_offset, bp_fields=['c
     bp_chroms = np.unique(var_df[chrom_field].values)
     bp_chroms = natural_sort(bp_chroms)
 
+    bp_chrom_overlap = [bchr in cnv_df['chr'].values for bchr in bp_chroms]
+    if not np.any(bp_chrom_overlap):
+        raise ValueError('''
+No SV chroms match the CNV input!
+Check that your chromosome names are compatible.
+              ''')
+
     adj_cnv_field   = '%s_adjacent' % gtype_field
     cnv_dist_field  = '%s_cnv_boundary_dist' % gtype_field
 
