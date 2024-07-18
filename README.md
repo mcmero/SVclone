@@ -269,7 +269,7 @@ SVclone creates output based on the PCAWG output specification. This includes (p
 * \<sample\>_multiplicity.txt: the total copy-number, the number of copies the variant occurs on, the different multiplicity options and the probability of each.
 * \<sample\>_assignment_probability_table.txt: probability of each variant's assignment to each cluster, based on number of times the proportion that a variant occurs in a particular cluster over all MCMC iterations.
 * \<sample\>_cluster_certainty.txt: each variant's most likely assignment to a particular cluster and corresponding average proportion (CCF x purity).
-* \<sample\>_subclonal_structure: clusters found, the number of variants per cluster, the proportion and CCF.
+* \<sample\>_subclonal_structure: clusters found, the number of variants per cluster and the proportion (CCF x purity).
 
 Ccube will create an RData file under \<ccube_out\>/\<sample\>_[sv/snv]_results.RData
 
