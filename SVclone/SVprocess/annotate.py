@@ -484,7 +484,7 @@ def classify_svs(svs, threshold):
 
 def write_svs(svs, outname):
     with open(outname, 'w') as outf:
-        writer = csv.writer(outf, delimiter='\t', quoting=csv.QUOTE_NONE, quotechar='')
+        writer = csv.writer(outf, delimiter='\t', quoting=csv.QUOTE_NONE)
         header = [field for field, dtype in dtypes.sv_dtype]
         writer.writerow(header)
         for sv_out in svs:
